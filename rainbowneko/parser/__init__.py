@@ -1,0 +1,1 @@
+from .cfg_net_parser import parse_plugin_cfg, parse_model_part_cfg
