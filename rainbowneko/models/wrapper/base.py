@@ -1,5 +1,5 @@
 from torch import nn
-from typing import Dict
+from typing import Dict, List
 
 class BaseWrapper(nn.Module):
 
@@ -8,8 +8,8 @@ class BaseWrapper(nn.Module):
         raise NotImplementedError
 
     @property
-    def trainable_named_parameters(self) -> Dict[str, nn.Parameter]:
-        return {k:v for k, v in self.named_parameters() if v.requires_grad}
+    def trainable_parameters(self) -> List[nn.Parameter]:
+        return [v for k, v in self.named_parameters() if v.requires_grad]
 
     def freeze_model(self):
         self.eval()
@@ -20,7 +20,7 @@ class BaseWrapper(nn.Module):
     def enable_xformers(self):
         pass
 
-class SingleWrapper(nn.Module):
+class SingleWrapper(BaseWrapper):
     def __init__(self, model):
         super().__init__()
         self.model = model
@@ -33,7 +33,7 @@ class SingleWrapper(nn.Module):
                 feeder(input_all)
 
         out = self.model(x, **kwargs)
-        return out
+        return {'pred': out}
 
     @property
     def trainable_models(self) -> Dict[str, nn.Module]:

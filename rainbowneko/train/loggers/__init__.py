@@ -1,6 +1,5 @@
 from .base_logger import BaseLogger, LoggerGroup
 from .cli_logger import CLILogger
-from .webui_logger import WebUILogger
 
 try:
     from .tensorboard_logger import TBLogger

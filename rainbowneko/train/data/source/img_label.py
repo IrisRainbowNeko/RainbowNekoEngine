@@ -3,11 +3,12 @@ from typing import Dict, List, Tuple
 from typing import Union, Any
 
 from PIL import Image
-from hcpdiff.utils.img_size_tool import types_support
-from hcpdiff.utils.utils import get_file_ext
 
 from rainbowneko.train.data.label_loader import BaseLabelLoader, auto_label_loader
+from rainbowneko.utils.img_size_tool import types_support
+from rainbowneko.utils.utils import get_file_ext
 from .base import DataSource
+
 
 class ImageLabelSource(DataSource):
     def __init__(self, img_root, label_file, image_transforms=None, bg_color=(255, 255, 255), repeat=1, **kwargs):
@@ -25,13 +26,10 @@ class ImageLabelSource(DataSource):
         else:
             return label_file.load()
 
-    def load_template(self, template_file):
-        with open(template_file, 'r', encoding='utf-8') as f:
-            return f.read().strip().split('\n')
-
     def get_image_list(self) -> List[Tuple[str, DataSource]]:
-        imgs = [(os.path.join(self.img_root, x), self) for x in os.listdir(self.img_root) if get_file_ext(x) in types_support]
-        return imgs*self.repeat
+        imgs = [(os.path.join(self.img_root, x), self) for x in os.listdir(self.img_root) if
+                get_file_ext(x) in types_support]
+        return imgs * self.repeat
 
     def procees_image(self, image):
         return self.image_transforms(image)
@@ -46,9 +44,9 @@ class ImageLabelSource(DataSource):
             canvas = Image.new('RGBA', image.size, self.bg_color)
             canvas.paste(image, (0, 0, x, y), image)
             image = canvas
-        return {'image':image.convert("RGB")}
+        return {'image': image.convert("RGB")}
 
     def load_label(self, img_name: str) -> str:
         label = self.label_dict.get(img_name, None)
-        label = self.process_label({'label':label})
+        label = self.process_label({'label': label})
         return label

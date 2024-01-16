@@ -1,5 +1,6 @@
 import os
 from typing import Dict, List, Tuple, Any
+from rainbowneko.utils.img_size_tool import get_image_size
 
 class DataSource:
     def __init__(self, img_root, repeat=1, **kwargs):
@@ -24,6 +25,9 @@ class DataSource:
     def get_image_name(self, path: str) -> str:
         img_root, img_name = os.path.split(path)
         return img_name.rsplit('.')[0]
+
+    def get_image_size(self, path: str) -> Tuple[int, int]:
+        return get_image_size(path)
 
 class ComposeDataSource(DataSource):
     def __init__(self, source_dict: Dict[str, DataSource]):

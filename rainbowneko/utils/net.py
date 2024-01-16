@@ -6,13 +6,13 @@ from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Op
 from torch import nn
 from torch.optim import lr_scheduler
 
-def get_scheduler(cfg, optimizer):
+def get_scheduler(cfg, optimizer, num_training_steps):
     if cfg is None:
         return None
     elif isinstance(cfg, partial):
         return cfg(optimizer=optimizer)
     else:
-        return get_scheduler_with_name(optimizer=optimizer, **cfg)
+        return get_scheduler_with_name(optimizer=optimizer, num_training_steps=num_training_steps, **cfg)
 
 def get_scheduler_with_name(
     name: Union[str, SchedulerType],
@@ -49,6 +49,9 @@ def get_scheduler_with_name(
     # All other schedulers require `num_warmup_steps`
     if num_warmup_steps is None:
         raise ValueError(f"{name} requires `num_warmup_steps`, please provide that argument.")
+
+    if isinstance(num_warmup_steps, float): # warmup ratio
+        num_warmup_steps = int(num_warmup_steps * num_training_steps)
 
     # One Cycle for super convergence
     if name == 'one_cycle':

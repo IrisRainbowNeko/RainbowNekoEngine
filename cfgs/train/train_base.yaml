@@ -1,0 +1,56 @@
+
+exp_dir: exps/${neko.time:}
+mixed_precision: null
+allow_tf32: False
+seed: 114514
+
+ckpt_manager:
+  _target_: rainbowneko.ckpt_manager.CkptManagerPKL
+  _partial_: true
+
+train:
+  train_steps: 1000
+  train_epochs: null # Choose one of [train_steps, train_epochs]
+  gradient_accumulation_steps: 1
+  workers: 4
+  max_grad_norm: 1.0
+  set_grads_to_none: False
+  save_step: 100
+
+  resume: null
+
+  loss:
+    _target_: torch.nn.MSELoss
+    _partial_: True
+
+  optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: True
+    weight_decay: 1e-3
+
+  scale_lr: True # auto scale lr with total batch size
+  scheduler:
+    name: 'one_cycle'
+    num_warmup_steps: 0.2
+    scheduler_kwargs: {} # args for scheduler
+
+  metric: null
+
+logger:
+  -
+    _target_: rainbowneko.train.loggers.CLILogger
+    _partial_: True
+    out_path: 'train.log'
+    log_step: 20
+
+model:
+  name: model
+
+  enable_xformers: True
+  gradient_checkpointing: True
+  force_cast_precision: False
+  ema: null
+
+  wrapper: null
+
+evaluator: null

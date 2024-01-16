@@ -75,7 +75,7 @@ class RatioBucket(BaseBucket):
         # fill buckets with images w,h
         self.idx_bucket_map = np.empty(len(self.file_names), dtype=int)
         for i, (file, source) in enumerate(self.file_names):
-            w, h = get_image_size(file)
+            w, h = source.get_image_size(file)
             bucket_id = np.abs(ratios_log-np.log2(w/h)).argmin()
             self.buckets[bucket_id].append(i)
             self.idx_bucket_map[i] = bucket_id
@@ -86,7 +86,7 @@ class RatioBucket(BaseBucket):
 
         def get_ratio(data):
             file, source = data
-            w, h = get_image_size(file)
+            w, h = source.get_image_size(file)
             ratio = np.log2(w/h)
             return ratio
 
@@ -193,7 +193,7 @@ class SizeBucket(RatioBucket):
         logger.info('build buckets from images size')
         size_list = []
         for i, (file, source) in enumerate(self.file_names):
-            w, h = get_image_size(file)
+            w, h = source.get_image_size(file)
             size_list.append([w, h])
         size_list = np.array(size_list)
 
@@ -234,7 +234,7 @@ class RatioSizeBucket(RatioBucket):
         logger.info('build buckets from images')
         ratio_list = []
         for i, (file, source) in enumerate(self.file_names):
-            w, h = get_image_size(file)
+            w, h = source.get_image_size(file)
             ratio = np.log2(w/h)
             log_area = np.log2(min(w*h, self.max_area))
             ratio_list.append([ratio, log_area])

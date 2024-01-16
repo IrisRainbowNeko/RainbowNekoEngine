@@ -8,24 +8,25 @@ ckpt_pkl.py
     :Licence:     MIT
 """
 
-from typing import Dict
 import os
+from typing import Dict, Union
 
 import torch
 from torch import nn
 
 from rainbowneko.models.plugin import PluginGroup, BasePluginBlock
+from rainbowneko.models.wrapper import BaseWrapper
 from .base import CkptManagerBase
 
 
 class CkptManagerPKL(CkptManagerBase):
-    def __init__(self, plugin_from_raw=False, **kwargs):
+    def __init__(self, plugin_from_raw=False, saved_model=({'model':'', 'trainable':True},), **kwargs):
         self.plugin_from_raw = plugin_from_raw
+        self.saved_model = saved_model
 
-    def set_save_dir(self, save_dir, emb_dir=None):
+    def set_save_dir(self, save_dir):
         os.makedirs(save_dir, exist_ok=True)
         self.save_dir = save_dir
-        self.emb_dir = emb_dir
 
     def exclude_state(self, state, key):
         if key is None:
@@ -34,11 +35,14 @@ class CkptManagerPKL(CkptManagerBase):
             return {k: v for k, v in state.items() if key not in k}
 
     def save_model(self, model: nn.Module, name, step, model_ema=None, exclude_key=None):
-        sd_model = {
-            "base": self.exclude_state(
-                BasePluginBlock.extract_state_without_plugin(model, trainable=True), exclude_key
-            ),
-        }
+        sd_base = {}
+        for item in self.saved_model:
+            block = model if item['model']=='' else eval(f"model.{item['model']}")
+            sd_base.update(self.exclude_state(
+                BasePluginBlock.extract_state_without_plugin(block, trainable=item['trainable']), exclude_key
+            ))
+
+        sd_model = {"base": sd_base}
         if model_ema is not None:
             sd_ema = model_ema.state_dict()
             sd_ema = {k: sd_ema[k] for k in sd_model["base"].keys()}
@@ -46,7 +50,7 @@ class CkptManagerPKL(CkptManagerBase):
         self._save_ckpt(sd_model, name, step)
 
     def save_plugins(
-        self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, step: int, model_ema=None
+            self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, step: int, model_ema=None
     ):
         if len(plugins) > 0:
             sd_plugin = {}
@@ -86,12 +90,38 @@ class CkptManagerPKL(CkptManagerBase):
         :param ema: model or plugins ema {'model':..., 'plugin':...}
         :return:
         """
-        print(f'Unused kwargs in save model: {", ".join(kwargs.keys())}')
+        if len(kwargs) > 0:
+            print(f'Unused kwargs in save model: {", ".join(kwargs.keys())}')
 
         self.save_model(model, model_ema=getattr(ema, "model", None), name=name, step=step)
         self.save_plugins(model, all_plugin, name=name, step=step, model_ema=getattr(self, "model", None))
 
     @classmethod
-    def load(cls, ckpt_path, **kwargs):
-        print(f'Unused kwargs in load model: {", ".join(kwargs.keys())}')
+    def load(cls, pretrained_model, **kwargs):
+        if len(kwargs) > 0:
+            print(f'Unused kwargs in load model: {", ".join(kwargs.keys())}')
+
         raise NotImplementedError(f"{cls} dose not support load()")
+
+    @classmethod
+    def load_to_model(cls, model: BaseWrapper, ckpt_path: Union[str, Dict[str, str]], **kwargs):
+        if len(kwargs) > 0:
+            print(f'Unused kwargs in load model: {", ".join(kwargs.keys())}')
+
+        manager = cls()
+
+        # rainbowneko format model ckpt is in 'base' key.
+        def load_ckpt(ckpt_path):
+            ckpt = manager.load_ckpt(ckpt_path)
+            if 'base' in ckpt:
+                return ckpt['base']
+            else:
+                return ckpt
+
+        if isinstance(ckpt_path, str):
+            model.load_state_dict(load_ckpt(ckpt_path))
+        else:
+            for k, v in ckpt_path.items():
+                eval(f'model.{k}').load_state_dict(load_ckpt(v))
+
+        return model

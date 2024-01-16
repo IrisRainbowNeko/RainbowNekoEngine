@@ -16,19 +16,20 @@ from functools import partial
 
 import hydra
 import torch
-
 # fix checkpoint bug for train part of model
 import torch.utils.checkpoint
 import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 from omegaconf import OmegaConf
+from tqdm import tqdm
 
+from rainbowneko.evaluate import EvaluatorGroup
+from rainbowneko.parser import load_config_with_cli
 from rainbowneko.parser import parse_plugin_cfg, parse_model_part_cfg
 from rainbowneko.train.data import RatioBucket, DataGroup, get_sampler
 from rainbowneko.train.loggers import LoggerGroup
-from rainbowneko.utils import get_scheduler, load_config_with_cli, mgcd, format_number, disable_hf_loggers
-from rainbowneko.utils.ema import ModelEMA
+from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, addto_dictlist
 
 try:
     import xformers
@@ -41,9 +42,10 @@ except:
 class Trainer:
     weight_dtype_map = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
 
-    def __init__(self, cfgs_raw):
+    def __init__(self, parser, cfgs_raw):
         cfgs = hydra.utils.instantiate(cfgs_raw)
         self.cfgs = cfgs
+        self.parser = parser
 
         self.init_context(cfgs_raw)
         self.build_loggers(cfgs_raw)
@@ -55,11 +57,22 @@ class Trainer:
 
         # build dataset
         self.batch_size_list = []
-        assert len(cfgs.data) > 0, "At least one dataset is need."
-        loss_weights = [dataset.keywords["loss_weight"] for name, dataset in cfgs.data.items()]
+        assert len(cfgs.data_train) > 0, "At least one dataset is need."
+        loss_weights = [dataset.keywords["loss_weight"] for name, dataset in cfgs.data_train.items()]
         self.train_loader_group = DataGroup(
-            [self.build_data(dataset) for name, dataset in cfgs.data.items()], loss_weights
+            [self.build_data(dataset, train=True) for name, dataset in cfgs.data_train.items()], loss_weights
         )
+        self.val_loader_group = DataGroup(
+            [self.build_data(dataset, train=False) for name, dataset in cfgs.data_eval.items()], loss_weights,
+            cycle=False
+        )
+
+        # calculate steps and epochs
+        self.steps_per_epoch = len(self.train_loader_group.loader_list[0])
+        if self.cfgs.train.train_epochs is not None:
+            self.cfgs.train.train_steps = self.cfgs.train.train_epochs * self.steps_per_epoch
+        else:
+            self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.train_steps / self.steps_per_epoch)
 
         self.build_optimizer_scheduler()
         self.build_loss()
@@ -71,18 +84,10 @@ class Trainer:
 
         torch.backends.cuda.matmul.allow_tf32 = cfgs.allow_tf32
 
-        # calculate steps and epochs
-        self.steps_per_epoch = len(self.train_loader_group.loader_list[0])
-        if self.cfgs.train.train_epochs is not None:
-            self.cfgs.train.train_steps = self.cfgs.train.train_epochs * self.steps_per_epoch
-        else:
-            self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.train_steps / self.steps_per_epoch)
-
-        if self.is_local_main_process and self.cfgs.evaluator is not None:
-            self.evaluator = self.cfgs.evaluator(
-                exp_dir=self.exp_dir,
-                model=self.model_wrapper,
-            )
+        self.evaluator_train, _ = self.build_evaluator(self.cfgs.train.metrics)
+        self.evaluator, self.eval_interval = self.build_evaluator(self.cfgs.evaluator)
+        self.evaluator_train.to(self.accelerator.device)
+        self.evaluator.to(self.accelerator.device)
 
         self.prepare()
 
@@ -110,8 +115,7 @@ class Trainer:
         if self.is_local_main_process:
             self.exp_dir = self.cfgs.exp_dir
             os.makedirs(os.path.join(self.exp_dir, "ckpts/"), exist_ok=True)
-            with open(os.path.join(self.exp_dir, "cfg.yaml"), "w", encoding="utf-8") as f:
-                f.write(OmegaConf.to_yaml(cfgs_raw))
+            self.parser.save_configs(cfgs_raw, self.exp_dir)
             self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=self.exp_dir) for builder in self.cfgs.logger])
         else:
             self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.logger])
@@ -156,6 +160,7 @@ class Trainer:
         for name, obj in zip(prepare_name_list, prepared_obj):
             setattr(self, name, obj)
 
+        self.model_wrapper = self.model_wrapper.to(self.device)
         if self.cfgs.model.force_cast_precision:
             self.model_wrapper.to(dtype=self.weight_dtype)
 
@@ -167,25 +172,35 @@ class Trainer:
                 param["lr"] *= scale_factor
 
     def build_model(self):
-        self.model_wrapper = self.cfgs.model.model_wrapper()
+        self.model_wrapper = self.cfgs.model.wrapper()
 
     def build_ema(self):
-        if self.cfgs.model.ema_decay > 0:
-            self.ema_model = ModelEMA(
-                self.model_wrapper.trainable_named_parameters(),
-                self.cfgs.model.ema_decay,
-            )
+        if self.cfgs.model.ema is not None:
+            self.ema_model = self.cfgs.model.ema(self.model_wrapper)
 
     def build_loss(self):
-        self.criterion = self.cfgs.train.loss.criterion()
+        self.criterion = self.cfgs.train.loss()
 
     def build_ckpt_manager(self):
-        self.ckpt_manager = self.cfgs.ckpt_manager
+        self.ckpt_manager = self.cfgs.ckpt_manager()
         if self.is_local_main_process:
             self.ckpt_manager.set_save_dir(
                 os.path.join(self.exp_dir, "ckpts"),
-                emb_dir=self.cfgs.tokenizer_pt.emb_dir,
             )
+
+    def build_evaluator(self, cfgs_eval):
+        if self.is_local_main_process and cfgs_eval is not None:
+            eval_interval = cfgs_eval.keywords.pop('interval', None)
+            try:
+                evaluator = cfgs_eval(
+                    exp_dir=self.exp_dir,
+                    model=self.model_wrapper,
+                )
+            except:  # maybe not in RainbowNeko format
+                evaluator = cfgs_eval()
+            return evaluator, eval_interval
+        else:
+            return None, None
 
     @property
     def model_raw(self):
@@ -226,28 +241,28 @@ class Trainer:
             file_names=train_dataset.source.get_image_list(),
         )
         arb = isinstance(train_dataset.bucket, RatioBucket)
-        self.loggers.info(f"len(train_dataset): {len(train_dataset)}")
+        self.loggers.info(f"len(dataset): {len(train_dataset)}")
 
         return train_dataset, batch_size, arb
 
-    def build_data(self, data_builder: partial) -> torch.utils.data.DataLoader:
-        train_dataset, batch_size, arb = self.build_dataset(data_builder)
+    def build_data(self, data_builder: partial, train=True) -> torch.utils.data.DataLoader:
+        dataset, batch_size, arb = self.build_dataset(data_builder)
 
         # Pytorch Data loader
-        train_sampler = get_sampler()(
-            train_dataset,
+        sampler = get_sampler(train)(
+            dataset,
             num_replicas=self.world_size,
             rank=self.local_rank,
-            shuffle=not arb,
+            shuffle=train and (not arb),
         )
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset,
+        loader = torch.utils.data.DataLoader(
+            dataset,
             batch_size=batch_size,
             num_workers=self.cfgs.train.workers,
-            sampler=train_sampler,
-            collate_fn=train_dataset.collate_fn,
+            sampler=sampler,
+            collate_fn=dataset.collate_fn,
         )
-        return train_loader
+        return loader
 
     def get_param_group_train(self):
         # make model part and plugin
@@ -271,7 +286,7 @@ class Trainer:
                 self.scale_lr(parameters)
             assert isinstance(cfg_opt, partial), f"optimizer config should be partial."
             self.optimizer = cfg_opt(params=parameters)
-            self.lr_scheduler = get_scheduler(self.cfgs.train.scheduler, self.optimizer)
+            self.lr_scheduler = get_scheduler(self.cfgs.train.scheduler, self.optimizer, self.cfgs.train.train_steps)
 
     def train(self, loss_ema=0.93):
         total_batch_size = sum(self.batch_size_list) * self.world_size * self.cfgs.train.gradient_accumulation_steps
@@ -290,7 +305,7 @@ class Trainer:
 
         loss_sum = None
         for data_list in self.train_loader_group:
-            loss = self.train_one_step(data_list)
+            loss, pred_list, target_list = self.train_one_step(data_list)
             loss_sum = loss if loss_sum is None else (loss_ema * loss_sum + (1 - loss_ema) * loss)
 
             self.global_step += 1
@@ -300,26 +315,35 @@ class Trainer:
                 if self.global_step % self.min_log_step == 0:
                     # get learning rate from optimizer
                     lr_model = self.optimizer.param_groups[0]["lr"] if hasattr(self, "optimizer") else 0.0
-                    self.loggers.log(
-                        datas={
-                            "Step": {
-                                "format": "[{}/{}]",
-                                "data": [self.global_step, self.cfgs.train.train_steps],
-                            },
-                            "Epoch": {
-                                "format": "[{}/{}]<{}/{}>",
-                                "data": [
-                                    self.global_step // self.steps_per_epoch,
-                                    self.cfgs.train.train_epochs,
-                                    self.global_step % self.steps_per_epoch,
-                                    self.steps_per_epoch,
-                                ],
-                            },
-                            "LR_model": {"format": "{:.2e}", "data": [lr_model]},
-                            "Loss": {"format": "{:.5f}", "data": [loss_sum]},
+                    log_data = {
+                        "Step": {
+                            "format": "[{}/{}]",
+                            "data": [self.global_step, self.cfgs.train.train_steps],
                         },
+                        "Epoch": {
+                            "format": "[{}/{}]<{}/{}>",
+                            "data": [
+                                self.global_step // self.steps_per_epoch,
+                                self.cfgs.train.train_epochs,
+                                self.global_step % self.steps_per_epoch,
+                                self.steps_per_epoch,
+                            ],
+                        },
+                        "LR_model": {"format": "{:.2e}", "data": [lr_model]},
+                        "Loss": {"format": "{:.5f}", "data": [loss_sum]},
+                    }
+                    pred_list_cat = {k: torch.cat(v) for k, v in pred_list.items()}
+                    target_list_cat = {k: torch.cat(v) for k, v in target_list.items()}
+                    metrics_dict = self.evaluator_train(pred_list_cat, target_list_cat)
+                    log_data.update(EvaluatorGroup.format(metrics_dict))
+                    self.loggers.log(
+                        datas=log_data,
                         step=self.global_step,
                     )
+
+            if self.global_step % self.eval_interval == 0:
+                self.evaluate()
+                self.model_wrapper.train()
 
             if self.global_step >= self.cfgs.train.train_steps:
                 break
@@ -332,14 +356,12 @@ class Trainer:
         model_pred = self.model_wrapper(image, **kwargs)
         return model_pred
 
-    def get_input(self, image, dataset):
-        return image
-
     def train_one_step(self, data_list):
+        pred_list, target_list = {}, {}
         with self.accelerator.accumulate(self.model_wrapper):
             for idx, data in enumerate(data_list):
                 image = data.pop("img").to(self.device, dtype=self.weight_dtype)
-                target = data.pop("label").to(self.device)
+                target = {k: v.to(self.device) for k, v in data.pop("label").items()}
                 other_datas = {
                     k: v.to(self.device, dtype=self.weight_dtype) for k, v in data.items() if k != "plugin_input"
                 }
@@ -348,17 +370,18 @@ class Trainer:
                         k: v.to(self.device, dtype=self.weight_dtype) for k, v in data["plugin_input"].items()
                     }
 
-                latents = self.get_input(image, self.train_loader_group.get_dataset(idx))
-                model_pred = self.forward(latents, **other_datas)
+                model_pred = self.forward(image, **other_datas)
+                pred_list = addto_dictlist(pred_list, model_pred, v_proc=lambda v: v.detach())
+                target_list = addto_dictlist(target_list, target, v_proc=lambda v: v.detach())
                 loss = self.get_loss(model_pred, target) * self.train_loader_group.get_loss_weights(idx)
                 self.accelerator.backward(loss)
 
             if hasattr(self, "optimizer"):
-                if self.accelerator.sync_gradients:  # fine-tuning
+                if self.cfgs.train.max_grad_norm and self.accelerator.sync_gradients:  # fine-tuning
                     if hasattr(self.model_wrapper, "trainable_parameters"):
-                        clip_param = self.model_wrapper.trainable_parameters()
+                        clip_param = self.model_wrapper.trainable_parameters
                     else:
-                        clip_param = self.model_wrapper.module.trainable_parameters()
+                        clip_param = self.model_wrapper.module.trainable_parameters
                     self.accelerator.clip_grad_norm_(clip_param, self.cfgs.train.max_grad_norm)
                 self.optimizer.step()
                 if self.lr_scheduler:
@@ -366,10 +389,10 @@ class Trainer:
                 self.optimizer.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
 
             self.update_ema()
-        return loss.item()
+        return loss.item(), pred_list, target_list
 
     def get_loss(self, model_pred, target):
-        loss = self.criterion(model_pred.float(), target.float()).mean()
+        loss = self.criterion(model_pred, target).mean()
         return loss
 
     def update_ema(self):
@@ -378,7 +401,7 @@ class Trainer:
 
     def save_model(self, from_raw=False):
         self.ckpt_manager.save(
-            name=self.cfgs.model_name,
+            name=self.cfgs.model.name,
             step=self.global_step,
             model=self.model_raw,
             all_plugin=self.all_plugin,
@@ -390,12 +413,96 @@ class Trainer:
     def wait_for_everyone(self):
         self.accelerator.wait_for_everyone()
 
+    @torch.inference_mode()
+    def evaluate(self, gather_interval=10):
+        self.model_wrapper.eval()
+        pred_list = {}
+        target_list = {}
+        partial_metrics = {}
+
+        for idx, data_list in enumerate(tqdm(self.val_loader_group, disable=not self.is_local_main_process)):
+            pred, target = self.eval_one_step(data_list)
+            pred_list = addto_dictlist(pred_list, pred)
+            target_list = addto_dictlist(target_list, target)
+
+            # 定期汇总和计算指标
+            if (idx + 1) % gather_interval == 0:
+                # 在每个GPU上收集预测和目标
+                gathered_predictions_cat = self.accelerator.gather(pred_list)
+                gathered_targets_cat = self.accelerator.gather(target_list)
+
+                # gathered_predictions_cat = gathered_predictions[0]
+                # for item in gathered_predictions[1:]:
+                #     addto_dictlist(gathered_predictions_cat, item)
+                # gathered_targets_cat = gathered_targets[0]
+                # for item in gathered_targets[1:]:
+                #     addto_dictlist(gathered_targets_cat, item)
+
+                gathered_predictions = {k: torch.cat(v) for k, v in gathered_predictions_cat.items()}
+                gathered_targets = {k: torch.cat(v) for k, v in gathered_targets_cat.items()}
+
+                if self.is_local_main_process:
+                    # 主进程处理gathered数据，并计算部分指标
+                    partial_metric = self.evaluator(gathered_predictions, gathered_targets)
+                    if isinstance(partial_metric, dict):
+                        for k, v in partial_metric.items():
+                            if k not in partial_metrics:
+                                partial_metrics[k] = []
+                            partial_metrics[k].append(v)
+                    else:
+                        k = 'metric'
+                        if k not in partial_metrics:
+                            partial_metrics[k] = []
+                        partial_metrics[k].append(partial_metric)
+
+                pred_list.clear()
+                target_list.clear()
+
+        metric = {}
+        for k, v in partial_metrics.items():
+            try:
+                metric[k] = torch.cat(v).mean()
+            except:
+                metric[k] = torch.tensor(v).mean()
+        log_data = {
+            "Evaluate": {
+                "format": "step {}",
+                "data": [self.global_step],
+            }
+        }
+        log_data.update(EvaluatorGroup.format(metric))
+        self.loggers.log(log_data, self.global_step)
+
+    def eval_one_step(self, data_list):
+        pred_list = {}
+        target_list = {}
+
+        for idx, data in enumerate(data_list):
+            image = data.pop("img").to(self.device, dtype=self.weight_dtype)
+            target = {k: v.to(self.device) for k, v in data.pop("label").items()}
+            other_datas = {
+                k: v.to(self.device, dtype=self.weight_dtype) for k, v in data.items() if k != "plugin_input"
+            }
+            if "plugin_input" in data:
+                other_datas["plugin_input"] = {
+                    k: v.to(self.device, dtype=self.weight_dtype) for k, v in data["plugin_input"].items()
+                }
+
+            model_pred = self.forward(image, **other_datas)
+
+            pred_list = addto_dictlist(pred_list, model_pred)
+            target_list = addto_dictlist(target_list, target)
+
+        pred_list_cat = {k: torch.cat(v) for k, v in pred_list.items()}
+        target_list_cat = {k: torch.cat(v) for k, v in target_list.items()}
+        return pred_list_cat, target_list_cat
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Stable Diffusion Training")
     parser.add_argument("--cfg", type=str, default=None, required=True)
     args, cfg_args = parser.parse_known_args()
 
-    conf = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
-    trainer = Trainer(conf)
+    parser, conf = load_config_with_cli(args.cfg, args_list=cfg_args)  # skip --cfg
+    trainer = Trainer(parser, conf)
     trainer.train()

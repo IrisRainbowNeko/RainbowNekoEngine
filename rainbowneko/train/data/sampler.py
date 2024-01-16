@@ -46,9 +46,9 @@ class DistributedCycleSampler(DistributedSampler):
     def __len__(self) -> int:
         return self.num_samples #*self._cycle
 
-def get_sampler():
+def get_sampler(train=True):
     # Fix DataLoader frequently reload bugs in windows
-    if platform.system().lower() == 'windows':
+    if train and platform.system().lower() == 'windows':
         return DistributedCycleSampler
     else:
         return DistributedSampler

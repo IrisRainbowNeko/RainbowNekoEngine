@@ -15,7 +15,7 @@ from typing import Tuple, List, Dict, Any, Iterable
 import torch
 from torch import nn
 
-from hcpdiff.utils.net_utils import split_module_name
+from rainbowneko.utils import split_module_name
 
 class BasePluginBlock(nn.Module):
     def __init__(self, name: str):

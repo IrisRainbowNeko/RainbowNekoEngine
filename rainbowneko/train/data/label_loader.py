@@ -4,7 +4,7 @@ import os
 from typing import Dict
 
 import yaml
-from hcpdiff.utils.img_size_tool import types_support
+from rainbowneko.utils.img_size_tool import types_support
 from loguru import logger
 
 class BaseLabelLoader:
