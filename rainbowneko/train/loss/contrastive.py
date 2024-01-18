@@ -11,12 +11,11 @@ class MLCEImageLoss(LossContainer):
         self.ce_loss = nn.CrossEntropyLoss()
 
     def forward(self, pred, target):
-
         input_tensor = pred['pred']
         target_tensor = target['label']
 
         if 'label_weight' in target:
-            input_tensor = input_tensor*target['label_weight'] # softmax(w*x)
+            input_tensor = input_tensor * target['label_weight']  # softmax(w*x)
 
         log_prob_raw = F.softmax(input_tensor, dim=1)
 

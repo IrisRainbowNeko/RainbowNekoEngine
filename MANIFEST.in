@@ -1,0 +1,1 @@
+recursive-include rainbowneko/cfgs *.yaml *.py

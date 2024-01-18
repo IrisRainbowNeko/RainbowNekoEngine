@@ -35,8 +35,8 @@ class ImageLabelDataset(Dataset):
         image = data_source.procees_image(data['img'])  # resize to bucket size
         return {'img': image}
 
-    def load_label(self, img_name: str, data_source: DataSource):
-        label = data_source.load_label(img_name)
+    def load_label(self, img_path: str, data_source: DataSource):
+        label = data_source.load_label(img_path)
         return {'label': label}
 
     def __len__(self):
@@ -44,10 +44,9 @@ class ImageLabelDataset(Dataset):
 
     def __getitem__(self, index):
         (path, data_source), size = self.bucket[index]
-        img_name = data_source.get_image_name(path)
 
         data = self.load_image(path, data_source, size)
-        label = self.load_label(img_name, data_source)
+        label = self.load_label(path, data_source)
         data.update(label)
 
         return data

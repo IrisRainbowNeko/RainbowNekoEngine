@@ -8,7 +8,7 @@ from .base import DataSource
 
 class IndexSource(DataSource):
     def __init__(self, data, image_transforms=None, bg_color=(255, 255, 255), repeat=1, **kwargs):
-        super(IndexSource, self).__init__(None, repeat=repeat)
+        super(IndexSource, self).__init__(repeat=repeat)
         self.data = data
 
         self.label_dict = {}

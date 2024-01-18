@@ -22,6 +22,10 @@ class TrainerSingleCard(Trainer):
     def model_raw(self):
         return self.model_wrapper
 
+def neko_train():
+    import subprocess
+    import sys
+    subprocess.run(["accelerate", "launch", "-m", "rainbowneko.train.trainer.trainer_ac_single"] + sys.argv[1:])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RainbowNeko Trainer for one GPU')

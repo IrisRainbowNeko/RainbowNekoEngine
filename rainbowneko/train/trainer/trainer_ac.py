@@ -21,7 +21,6 @@ import torch.utils.checkpoint
 import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from rainbowneko.evaluate import EvaluatorGroup
@@ -239,7 +238,7 @@ class Trainer:
         dataset.bucket.build(
             bs=batch_size,
             world_size=self.world_size,
-            file_names=dataset.source.get_image_list(),
+            source=dataset.source,
         )
         arb = isinstance(dataset.bucket, RatioBucket)
         self.loggers.info(f"len(dataset): {len(dataset)}")
@@ -497,6 +496,12 @@ class Trainer:
         pred_list_cat = {k: torch.cat(v) for k, v in pred_list.items()}
         target_list_cat = {k: torch.cat(v) for k, v in target_list.items()}
         return pred_list_cat, target_list_cat
+
+
+def neko_train():
+    import subprocess
+    import sys
+    subprocess.run(["accelerate", "launch", "-m", "rainbowneko.train.trainer.trainer_ac"] + sys.argv[1:])
 
 
 if __name__ == "__main__":
