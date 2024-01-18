@@ -1,7 +1,11 @@
+from typing import Tuple, Any
+
 import cv2
-from typing import List, Tuple, Any
+
 
 class BaseBucket:
+    can_shuffle = True
+
     def __getitem__(self, idx):
         '''
         :return: (file name of image), (target image size)
@@ -11,7 +15,7 @@ class BaseBucket:
     def __len__(self):
         raise NotImplementedError()
 
-    def build(self, bs: int, img_root_list: List[str]):
+    def build(self, bs: int, world_size: int, source: 'DataSource'):
         raise NotImplementedError()
 
     def rest(self, epoch):

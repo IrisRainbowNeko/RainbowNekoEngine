@@ -15,6 +15,8 @@ from ..utils import resize_crop_fix, pad_crop_fix
 from .base import BaseBucket
 
 class RatioBucket(BaseBucket):
+    can_shuffle = False
+
     def __init__(self, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
         self.target_area = target_area
         self.step_size = step_size
@@ -73,8 +75,8 @@ class RatioBucket(BaseBucket):
         self.size_buckets = np.array(self.size_buckets)
 
         # fill buckets with images w,h
-        self.idx_bucket_map = np.empty(len(self.file_names), dtype=int)
-        for i, (file, source) in enumerate(self.file_names):
+        self.idx_bucket_map = np.empty(len(self.source), dtype=int)
+        for i, (file, source) in enumerate(self.source):
             w, h = source.get_image_size(file)
             bucket_id = np.abs(ratios_log-np.log2(w/h)).argmin()
             self.buckets[bucket_id].append(i)
@@ -92,7 +94,7 @@ class RatioBucket(BaseBucket):
 
         ratio_list = []
         with ThreadPoolExecutor() as executor:
-            for ratio in tqdm(executor.map(get_ratio, self.file_names), desc='get image info', total=len(self.file_names)):
+            for ratio in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
                 ratio_list.append(ratio)
         ratio_list = np.array(ratio_list)
 
@@ -111,20 +113,20 @@ class RatioBucket(BaseBucket):
         self.size_buckets = np.array(self.size_buckets)
 
         self.buckets = []  # [bucket_id:[file_idx,...]]
-        self.idx_bucket_map = np.empty(len(self.file_names), dtype=int)
+        self.idx_bucket_map = np.empty(len(self.source), dtype=int)
         for bidx in range(self.num_bucket):
             bnow = labels == bidx
             self.buckets.append(np.where(bnow)[0].tolist())
             self.idx_bucket_map[bnow] = bidx
         logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
-    def build(self, bs: int, file_names: List[Tuple[str, 'DataSource']]):
+    def build(self, bs: int, world_size: int, source: 'DataSource'):
         '''
         :param bs: batch_size * n_gpus * accumulation_step
         :param img_root_list:
         '''
-        self.file_names = file_names
-        self.bs = bs
+        self.source = source
+        self.bs = bs*world_size
         if self.pre_build_bucket and os.path.exists(self.pre_build_bucket):
             self.load_bucket(self.pre_build_bucket)
             return
@@ -163,7 +165,7 @@ class RatioBucket(BaseBucket):
     def __getitem__(self, idx):
         file_idx = self.idx_bucket[idx]
         bucket_idx = self.idx_bucket_map[file_idx]
-        return self.file_names[file_idx], self.size_buckets[bucket_idx]
+        return self.source[file_idx], self.size_buckets[bucket_idx]
 
     def __len__(self):
         return self.data_len
@@ -191,10 +193,16 @@ class SizeBucket(RatioBucket):
         根据图像尺寸聚类，不会resize图像，只有剪裁和填充操作。
         '''
         logger.info('build buckets from images size')
-        size_list = []
-        for i, (file, source) in enumerate(self.file_names):
+
+        def get_size(data):
+            file, source = data
             w, h = source.get_image_size(file)
-            size_list.append([w, h])
+            return w, h
+
+        size_list = []
+        with ThreadPoolExecutor() as executor:
+            for w, h in tqdm(executor.map(get_size, self.source), desc='get image info', total=len(self.source)):
+                size_list.append([w, h])
         size_list = np.array(size_list)
 
         # 聚类，选出指定个数的bucket
@@ -206,7 +214,7 @@ class SizeBucket(RatioBucket):
         self.size_buckets = (np.round(size_buckets/self.step_size)*self.step_size).astype(int)
 
         self.buckets = []  # [bucket_id:[file_idx,...]]
-        self.idx_bucket_map = np.empty(len(self.file_names), dtype=int)
+        self.idx_bucket_map = np.empty(len(self.source), dtype=int)
         for bidx in range(self.num_bucket):
             bnow = labels == bidx
             self.buckets.append(np.where(bnow)[0].tolist())
@@ -232,12 +240,18 @@ class RatioSizeBucket(RatioBucket):
         根据图像尺寸聚类，不会resize图像，只有剪裁和填充操作。
         '''
         logger.info('build buckets from images')
-        ratio_list = []
-        for i, (file, source) in enumerate(self.file_names):
+
+        def get_ratio(data):
+            file, source = data
             w, h = source.get_image_size(file)
             ratio = np.log2(w/h)
-            log_area = np.log2(min(w*h, self.max_area))
-            ratio_list.append([ratio, log_area])
+            log_area = np.log2(min(w * h, self.max_area))
+            return ratio, log_area
+
+        ratio_list = []
+        with ThreadPoolExecutor() as executor:
+            for ratio, log_area in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
+                ratio_list.append([ratio, log_area])
         ratio_list = np.array(ratio_list)
 
         # 聚类，选出指定个数的bucket
@@ -256,7 +270,7 @@ class RatioSizeBucket(RatioBucket):
         self.size_buckets = np.array(self.size_buckets)
 
         self.buckets = []  # [bucket_id:[file_idx,...]]
-        self.idx_bucket_map = np.empty(len(self.file_names), dtype=int)
+        self.idx_bucket_map = np.empty(len(self.source), dtype=int)
         for bidx in range(self.num_bucket):
             bnow = labels == bidx
             self.buckets.append(np.where(bnow)[0].tolist())

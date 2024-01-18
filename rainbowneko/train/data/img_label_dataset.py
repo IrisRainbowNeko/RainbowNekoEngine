@@ -25,7 +25,7 @@ class ImageLabelDataset(Dataset):
 
     def __init__(self, bucket: BaseBucket = None, source: Dict[str, DataSource] = None, **kwargs):
         self.bucket: BaseBucket = bucket
-        self.source = ComposeDataSource(source)
+        self.source = ComposeDataSource(list(source.values()))
 
     def load_image(self, path: str, data_source: DataSource, size: Tuple[int]):
         image_dict = data_source.load_image(path)

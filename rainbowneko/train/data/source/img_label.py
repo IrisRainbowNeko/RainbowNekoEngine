@@ -1,24 +1,25 @@
 import os
-from typing import Dict, List, Tuple
-from typing import Union, Any
-
-from PIL import Image
+from typing import Union
 
 from rainbowneko.train.data.label_loader import BaseLabelLoader, auto_label_loader
 from rainbowneko.utils.img_size_tool import types_support
 from rainbowneko.utils.utils import get_file_ext
-from .base import DataSource
+from .base import VisionDataSource
 
 
-class ImageLabelSource(DataSource):
+class ImageLabelSource(VisionDataSource):
     def __init__(self, img_root, label_file, image_transforms=None, bg_color=(255, 255, 255), repeat=1, **kwargs):
-        super(ImageLabelSource, self).__init__(img_root, repeat=repeat)
+        super(ImageLabelSource, self).__init__(img_root, image_transforms=image_transforms, bg_color=bg_color,
+                                               repeat=repeat)
 
-        self.label_dict = self.load_label_data(label_file)
-        self.image_transforms = image_transforms
-        self.bg_color = tuple(bg_color)
+        self.img_paths = self._load_img_paths(img_root)
+        self.label_dict = self._load_label_data(label_file)
 
-    def load_label_data(self, label_file: Union[str, BaseLabelLoader]):
+    def _load_img_paths(self, img_root):
+        return [os.path.join(img_root, x) for x in os.listdir(img_root) if
+                get_file_ext(x) in types_support] * self.repeat
+
+    def _load_label_data(self, label_file: Union[str, BaseLabelLoader]):
         if label_file is None:
             return {}
         elif isinstance(label_file, str):
@@ -26,27 +27,14 @@ class ImageLabelSource(DataSource):
         else:
             return label_file.load()
 
-    def get_image_list(self) -> List[Tuple[str, DataSource]]:
-        imgs = [(os.path.join(self.img_root, x), self) for x in os.listdir(self.img_root) if
-                get_file_ext(x) in types_support]
-        return imgs * self.repeat
+    def get_path(self, index: int) -> str:
+        return self.img_paths[index]
 
-    def procees_image(self, image):
-        return self.image_transforms(image)
+    def __len__(self):
+        return len(self.img_paths)
 
-    def process_label(self, label_dict):
-        return label_dict
-
-    def load_image(self, path) -> Dict[str, Any]:
-        image = Image.open(path)
-        if image.mode == 'RGBA':
-            x, y = image.size
-            canvas = Image.new('RGBA', image.size, self.bg_color)
-            canvas.paste(image, (0, 0, x, y), image)
-            image = canvas
-        return {'image': image.convert("RGB")}
-
-    def load_label(self, img_name: str) -> str:
+    def load_label(self, path: str) -> str:
+        img_name = os.path.basename(path)
         label = self.label_dict.get(img_name, None)
         label = self.process_label({'label': label})
         return label

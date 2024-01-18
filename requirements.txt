@@ -17,4 +17,4 @@ scikit_learn
 tqdm
 transformers>=4.25.1
 xformers
-easydict
+addict

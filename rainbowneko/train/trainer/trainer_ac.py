@@ -235,15 +235,16 @@ class Trainer:
         batch_size = data_builder.keywords.pop("batch_size")
         self.batch_size_list.append(batch_size)
 
-        train_dataset = data_builder()
-        train_dataset.bucket.build(
-            batch_size * self.world_size,
-            file_names=train_dataset.source.get_image_list(),
+        dataset = data_builder()
+        dataset.bucket.build(
+            bs=batch_size,
+            world_size=self.world_size,
+            file_names=dataset.source.get_image_list(),
         )
-        arb = isinstance(train_dataset.bucket, RatioBucket)
-        self.loggers.info(f"len(dataset): {len(train_dataset)}")
+        arb = isinstance(dataset.bucket, RatioBucket)
+        self.loggers.info(f"len(dataset): {len(dataset)}")
 
-        return train_dataset, batch_size, arb
+        return dataset, batch_size, arb
 
     def build_data(self, data_builder: partial, train=True) -> torch.utils.data.DataLoader:
         dataset, batch_size, arb = self.build_dataset(data_builder)
@@ -253,7 +254,7 @@ class Trainer:
             dataset,
             num_replicas=self.world_size,
             rank=self.local_rank,
-            shuffle=train and (not arb),
+            shuffle=train and dataset.bucket.can_shuffle,
         )
         loader = torch.utils.data.DataLoader(
             dataset,

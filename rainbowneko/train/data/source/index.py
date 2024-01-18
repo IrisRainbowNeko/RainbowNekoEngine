@@ -1,5 +1,5 @@
 from typing import Any
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 from PIL import Image
 
@@ -15,9 +15,11 @@ class IndexSource(DataSource):
         self.image_transforms = image_transforms
         self.bg_color = tuple(bg_color)
 
-    def get_image_list(self) -> List[Tuple[str, DataSource]]:
-        imgs = [(i, self) for i in range(len(self.data))]
-        return imgs * self.repeat
+    def get_path(self, index: int) -> str:
+        return index
+
+    def __len__(self):
+        return len(self.data)
 
     def procees_image(self, image):
         return self.image_transforms(image)
@@ -46,9 +48,6 @@ class IndexSource(DataSource):
 
         label = self.process_label({'label': label})
         return label
-
-    def get_image_name(self, idx: int) -> int:
-        return idx
 
     def get_image_size(self, idx: int) -> Tuple[int, int]:
         image, label = self.data[idx]
