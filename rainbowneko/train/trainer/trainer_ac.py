@@ -21,14 +21,13 @@ import torch.utils.checkpoint
 import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from tqdm import tqdm
-
 from rainbowneko.evaluate import EvaluatorGroup
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.parser import parse_plugin_cfg, parse_model_part_cfg
 from rainbowneko.train.data import RatioBucket, DataGroup, get_sampler
 from rainbowneko.train.loggers import LoggerGroup
 from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, addto_dictlist
+from tqdm import tqdm
 
 try:
     import xformers
@@ -64,7 +63,7 @@ class Trainer:
         self.val_loader_group = DataGroup(
             [self.build_data(dataset, train=False) for name, dataset in cfgs.data_eval.items()], loss_weights,
             cycle=False
-        )
+        ) if cfgs.data_eval is not None else None
 
         # calculate steps and epochs
         self.steps_per_epoch = len(self.train_loader_group.loader_list[0])
@@ -83,10 +82,17 @@ class Trainer:
 
         torch.backends.cuda.matmul.allow_tf32 = cfgs.allow_tf32
 
-        self.evaluator_train, _ = self.build_evaluator(self.cfgs.train.metrics)
-        self.evaluator, self.eval_interval = self.build_evaluator(self.cfgs.evaluator)
-        self.evaluator_train.to(self.accelerator.device)
-        self.evaluator.to(self.accelerator.device)
+        if self.cfgs.train.metrics is not None:
+            self.evaluator_train, _ = self.build_evaluator(self.cfgs.train.metrics)
+            self.evaluator_train.to(self.accelerator.device)
+        else:
+            self.evaluator_train = None
+
+        if self.cfgs.evaluator is not None:
+            self.evaluator, self.eval_interval = self.build_evaluator(self.cfgs.evaluator)
+            self.evaluator.to(self.accelerator.device)
+        else:
+            self.evaluator = None
 
         self.prepare()
 
@@ -341,7 +347,7 @@ class Trainer:
                         step=self.global_step,
                     )
 
-            if self.global_step % self.eval_interval == 0:
+            if self.global_step % self.eval_interval == 0 and self.evaluator is not None and self.val_loader_group is not None:
                 self.evaluate()
                 self.model_wrapper.train()
 

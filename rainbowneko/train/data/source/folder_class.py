@@ -36,9 +36,9 @@ class ImageFolderClassSource(VisionDataSource):
                     if self.use_cls_index:
                         if class_name not in cls_id_dict:
                             cls_id_dict[class_name] = len(cls_id_dict)
-                        label_dict[class_name][get_file_name(x)] = cls_id_dict[class_name]
+                        label_dict[class_name][x] = cls_id_dict[class_name]
                     else:
-                        label_dict[class_name][get_file_name(x)] = class_name
+                        label_dict[class_name][x] = class_name
             if isinstance(self.repeat, int):
                 class_imgs.extend(imgs * self.repeat)
             else:

@@ -35,8 +35,8 @@ class PosNegBucket(BaseBucket):
         self.img_idxs = img_idxs
 
     def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
-        # return resize_crop_fix(image, size, mask_interp=mask_interp)
-        return image
+        w, h = image['img'].size
+        return image, [h,w,0,0,h,w]
 
     def __getitem__(self, idx) -> Tuple[Tuple[str, 'DataSource'], Tuple[int, int]]:
 
