@@ -338,16 +338,17 @@ class Trainer:
                         "LR_model": {"format": "{:.2e}", "data": [lr_model]},
                         "Loss": {"format": "{:.5f}", "data": [loss_sum]},
                     }
-                    pred_list_cat = {k: torch.cat(v) for k, v in pred_list.items()}
-                    target_list_cat = {k: torch.cat(v) for k, v in target_list.items()}
-                    metrics_dict = self.evaluator_train(pred_list_cat, target_list_cat)
-                    log_data.update(EvaluatorGroup.format(metrics_dict))
+                    if self.evaluator_train is not None:
+                        pred_list_cat = {k: torch.cat(v) for k, v in pred_list.items()}
+                        target_list_cat = {k: torch.cat(v) for k, v in target_list.items()}
+                        metrics_dict = self.evaluator_train(pred_list_cat, target_list_cat)
+                        log_data.update(EvaluatorGroup.format(metrics_dict))
                     self.loggers.log(
                         datas=log_data,
                         step=self.global_step,
                     )
 
-            if self.global_step % self.eval_interval == 0 and self.evaluator is not None and self.val_loader_group is not None:
+            if self.evaluator is not None and self.val_loader_group is not None and self.global_step % self.eval_interval == 0:
                 self.evaluate()
                 self.model_wrapper.train()
 

@@ -18,8 +18,8 @@ class ContrastBatchMetrics(nn.Module):
         # cosine similarity as logits
         logit_scale = self.logit_scale.exp()
         logits_per_image = logit_scale * torch.mm(image_features, image_features.transpose(0, 1))
-        if self.training:
-            logits_per_image = logits_per_image - torch.diag_embed(torch.diag(logits_per_image))
+        #if self.training:
+        logits_per_image = logits_per_image - torch.diag_embed(torch.diag(logits_per_image))
 
         return logits_per_image
 
@@ -40,7 +40,6 @@ class MLCEImageLoss(LossContainer):
         if 'label_weight' in target:
             input_tensor = input_tensor / target['label_weight']  # softmax(w*x)
 
-        print(input_tensor, target_tensor)
         log_prob_raw = F.softmax(input_tensor, dim=1)
 
         same_mask = (target_tensor.unsqueeze(0) == target_tensor.unsqueeze(1)).long()  # [B,B]
@@ -48,9 +47,8 @@ class MLCEImageLoss(LossContainer):
 
         log_prob_x = log_prob_raw.clone()
         log_prob_x[same_mask_diag0.bool()] = self.eps
-        log_prob_x.diagonal().copy_((log_prob_raw * same_mask_diag0).sum(dim=1))
+        log_prob_x.diagonal().copy_((log_prob_raw * same_mask_diag0.detach()).sum(dim=1))
         log_prob_x = log_prob_x + torch.diag_embed(torch.ones(len(target_tensor)) * self.eps).to(input_tensor.device)
         y = torch.arange(0, len(target_tensor)).to(input_tensor.device)
-        print(log_prob_x, y)
 
         return F.nll_loss(log_prob_x.log(), y, reduction=self.reduction) * self.alpha
