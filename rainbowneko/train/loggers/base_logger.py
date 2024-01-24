@@ -2,6 +2,7 @@ from typing import Dict, Any, List
 
 from PIL import Image
 
+
 class BaseLogger:
     def __init__(self, exp_dir, out_path, log_step=10):
         self.exp_dir = exp_dir
@@ -25,7 +26,7 @@ class BaseLogger:
             self._info(info)
 
     def _info(self, info):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def log(self, datas: Dict[str, Any], step: int = 0):
         text_dict = {}
@@ -37,16 +38,17 @@ class BaseLogger:
                 text_dict[k] = v
 
         if self.enable_log:
-            if len(text_dict)>0 and step%self.log_step == 0:
+            if len(text_dict) > 0 and step % self.log_step == 0:
                 self.log_text(text_dict, step)
-            if len(img_dict)>0:
+            if len(img_dict) > 0:
                 self.log_image(img_dict, step)
 
     def log_text(self, datas: Dict[str, Any], step: int = 0):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
-        raise NotImplementedError()
+        raise NotImplementedError
+
 
 class LoggerGroup:
     def __init__(self, logger_list: List[BaseLogger]):
