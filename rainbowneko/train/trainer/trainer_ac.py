@@ -21,13 +21,14 @@ import torch.utils.checkpoint
 import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
+from tqdm import tqdm
+
 from rainbowneko.evaluate import EvaluatorGroup
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.parser import parse_plugin_cfg, parse_model_part_cfg
 from rainbowneko.train.data import RatioBucket, DataGroup, get_sampler
 from rainbowneko.train.loggers import LoggerGroup
 from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, addto_dictlist
-from tqdm import tqdm
 
 try:
     import xformers
