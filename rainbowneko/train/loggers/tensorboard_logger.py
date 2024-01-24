@@ -20,11 +20,11 @@ class TBLogger(BaseLogger):
     def _info(self, info):
         pass
 
-    def _log(self, datas: Dict[str, Any], step: int = 0):
+    def log_text(self, datas: Dict[str, Any], step: int = 0):
         for k, v in datas.items():
             if len(v['data']) == 1:
                 self.writer.add_scalar(k, v['data'][0], global_step=step)
 
-    def _log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
+    def log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
         for name, img in imgs.items():
             self.writer.add_image(f'img/{name}', np.array(img), dataformats='HWC', global_step=step)
