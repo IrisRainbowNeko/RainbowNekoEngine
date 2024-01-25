@@ -19,7 +19,7 @@ def get_scheduler_with_name(
     optimizer: Optimizer,
     num_warmup_steps: Optional[int] = None,
     num_training_steps: Optional[int] = None,
-    scheduler_kwargs={},
+    **kwargs
 ):
     """
     Unified API to get any scheduler from its name.
@@ -57,28 +57,28 @@ def get_scheduler_with_name(
     if name == 'one_cycle':
         scheduler = lr_scheduler.OneCycleLR(optimizer, max_lr=[x['lr'] for x in optimizer.state_dict()['param_groups']],
                                             steps_per_epoch=num_training_steps, epochs=1,
-                                            pct_start=num_warmup_steps/num_training_steps, **scheduler_kwargs)
+                                            pct_start=num_warmup_steps/num_training_steps, **kwargs)
         return scheduler
 
     name = SchedulerType(name)
     schedule_func = TYPE_TO_SCHEDULER_FUNCTION[name]
     if name == SchedulerType.CONSTANT:
-        return schedule_func(optimizer, **scheduler_kwargs)
+        return schedule_func(optimizer, **kwargs)
 
     if name == SchedulerType.CONSTANT_WITH_WARMUP:
-        return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, **scheduler_kwargs)
+        return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, **kwargs)
 
     if name == SchedulerType.COSINE_WITH_RESTARTS:
         return schedule_func(
-            optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **scheduler_kwargs
+            optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **kwargs
         )
 
     if name == SchedulerType.POLYNOMIAL:
         return schedule_func(
-            optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **scheduler_kwargs
+            optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **kwargs
         )
 
-    return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **scheduler_kwargs)
+    return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **kwargs)
 
 def remove_all_hooks(model: nn.Module) -> None:
     for name, child in model.named_modules():
