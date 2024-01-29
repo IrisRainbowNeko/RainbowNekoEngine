@@ -82,13 +82,13 @@ class Trainer:
 
         torch.backends.cuda.matmul.allow_tf32 = cfgs.allow_tf32
 
-        if self.cfgs.train.metrics is not None:
+        if self.is_local_main_process and self.cfgs.train.metrics is not None:
             self.evaluator_train, _ = self.build_evaluator(self.cfgs.train.metrics)
             self.evaluator_train.to(self.accelerator.device)
         else:
             self.evaluator_train = None
 
-        if self.cfgs.evaluator is not None:
+        if self.is_local_main_process and self.cfgs.evaluator is not None:
             self.evaluator, self.eval_interval = self.build_evaluator(self.cfgs.evaluator)
             self.evaluator.to(self.accelerator.device)
         else:
