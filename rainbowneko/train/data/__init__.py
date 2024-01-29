@@ -15,7 +15,10 @@ class DataGroup:
         if self.cycle:
             self.data_iter_list = [iter(CycleData(loader)) for loader in self.loader_list]
         else:
-            self.data_iter_list = [iter(loader) for loader in self.loader_list]
+            self.data_iter_list = []
+            for loader in self.loader_list:
+                loader.dataset.bucket.rest(0) # rest bucket
+                self.data_iter_list.append(iter(loader))
         return self
 
     def __next__(self):
