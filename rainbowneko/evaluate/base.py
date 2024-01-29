@@ -1,5 +1,8 @@
-from typing import Dict
 from functools import partial
+from typing import Dict
+
+import torch
+
 
 class BaseEvaluator:
     def __init__(self):
@@ -17,17 +20,28 @@ class BaseEvaluator:
     def to(self, device):
         pass
 
+
 class EvaluatorContainer(BaseEvaluator):
     def __init__(self, evaluator):
         super().__init__()
         self.evaluator = evaluator
 
+    def reset(self):
+        self.metric_list = []
+
+    def evaluate(self):
+        try:
+            return torch.cat(self.metric_list).mean()
+        except:
+            return torch.tensor(self.metric_list).mean()
+
     def to(self, device):
         self.evaluator.to(device)
 
+
 class EvaluatorGroup:
     def __init__(self, evaluator_dict: Dict[str, BaseEvaluator]):
-        self.evaluator_dict = {k:(v() if isinstance(v, partial) else v) for k,v in evaluator_dict.items()}
+        self.evaluator_dict = {k: (v() if isinstance(v, partial) else v) for k, v in evaluator_dict.items()}
 
     def reset(self):
         for name, evaluator in self.evaluator_dict.items():

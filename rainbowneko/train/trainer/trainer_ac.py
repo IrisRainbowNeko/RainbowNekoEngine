@@ -425,8 +425,8 @@ class Trainer:
         self.model_wrapper.eval()
         pred_list = {}
         target_list = {}
-        partial_metrics = {}
 
+        self.evaluator.reset()
         for idx, data_list in enumerate(tqdm(self.val_loader_group, disable=not self.is_local_main_process)):
             pred, target = self.eval_one_step(data_list)
             pred_list = addto_dictlist(pred_list, pred)
@@ -438,39 +438,20 @@ class Trainer:
                 gathered_predictions_cat = self.accelerator.gather(pred_list)
                 gathered_targets_cat = self.accelerator.gather(target_list)
 
-                # gathered_predictions_cat = gathered_predictions[0]
-                # for item in gathered_predictions[1:]:
-                #     addto_dictlist(gathered_predictions_cat, item)
-                # gathered_targets_cat = gathered_targets[0]
-                # for item in gathered_targets[1:]:
-                #     addto_dictlist(gathered_targets_cat, item)
-
                 gathered_predictions = {k: torch.cat(v) for k, v in gathered_predictions_cat.items()}
                 gathered_targets = {k: torch.cat(v) for k, v in gathered_targets_cat.items()}
 
                 if self.is_local_main_process:
                     # 主进程处理gathered数据，并计算部分指标
-                    partial_metric = self.evaluator(gathered_predictions, gathered_targets)
-                    if isinstance(partial_metric, dict):
-                        for k, v in partial_metric.items():
-                            if k not in partial_metrics:
-                                partial_metrics[k] = []
-                            partial_metrics[k].append(v)
-                    else:
-                        k = 'metric'
-                        if k not in partial_metrics:
-                            partial_metrics[k] = []
-                        partial_metrics[k].append(partial_metric)
+                    self.evaluator.update(gathered_predictions, gathered_targets)
 
                 pred_list.clear()
                 target_list.clear()
 
-        metric = {}
-        for k, v in partial_metrics.items():
-            try:
-                metric[k] = torch.cat(v).mean()
-            except:
-                metric[k] = torch.tensor(v).mean()
+        metric = self.evaluator.evaluate()
+        if not isinstance(metric, dict):
+            metric = {'metric': metric}
+
         log_data = {
             "Evaluate": {
                 "format": "step {}",
