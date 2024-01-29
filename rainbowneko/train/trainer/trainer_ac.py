@@ -426,6 +426,21 @@ class Trainer:
         pred_list = {}
         target_list = {}
 
+        def update(pred_list, target_list):
+            # 在每个GPU上收集预测和目标
+            gathered_predictions_cat = self.accelerator.gather(pred_list)
+            gathered_targets_cat = self.accelerator.gather(target_list)
+
+            gathered_predictions = {k: torch.cat(v) for k, v in gathered_predictions_cat.items()}
+            gathered_targets = {k: torch.cat(v) for k, v in gathered_targets_cat.items()}
+
+            if self.is_local_main_process:
+                # 主进程处理gathered数据，并计算部分指标
+                self.evaluator.update(gathered_predictions, gathered_targets)
+
+            pred_list.clear()
+            target_list.clear()
+
         self.evaluator.reset()
         for idx, data_list in enumerate(tqdm(self.val_loader_group, disable=not self.is_local_main_process)):
             pred, target = self.eval_one_step(data_list)
@@ -434,19 +449,8 @@ class Trainer:
 
             # 定期汇总和计算指标
             if (idx + 1) % gather_interval == 0:
-                # 在每个GPU上收集预测和目标
-                gathered_predictions_cat = self.accelerator.gather(pred_list)
-                gathered_targets_cat = self.accelerator.gather(target_list)
-
-                gathered_predictions = {k: torch.cat(v) for k, v in gathered_predictions_cat.items()}
-                gathered_targets = {k: torch.cat(v) for k, v in gathered_targets_cat.items()}
-
-                if self.is_local_main_process:
-                    # 主进程处理gathered数据，并计算部分指标
-                    self.evaluator.update(gathered_predictions, gathered_targets)
-
-                pred_list.clear()
-                target_list.clear()
+                update(pred_list, target_list)
+        update(pred_list, target_list)
 
         metric = self.evaluator.evaluate()
         if not isinstance(metric, dict):
