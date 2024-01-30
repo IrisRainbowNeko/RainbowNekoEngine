@@ -37,7 +37,7 @@ class BaseLogger:
                 text_dict[k] = v
 
         if self.enable_log:
-            if len(text_dict)>0 and step%self.log_step == 0:
+            if len(text_dict)>0:
                 self.log_text(text_dict, step)
             if len(img_dict)>0:
                 self.log_image(img_dict, step)
