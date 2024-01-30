@@ -431,8 +431,12 @@ class Trainer:
             gathered_predictions_cat = self.accelerator.gather(pred_list)
             gathered_targets_cat = self.accelerator.gather(target_list)
 
-            gathered_predictions = {k: torch.cat(v) for k, v in gathered_predictions_cat.items()}
-            gathered_targets = {k: torch.cat(v) for k, v in gathered_targets_cat.items()}
+            try:
+                gathered_predictions = {k: torch.cat(v) for k, v in gathered_predictions_cat.items()}
+                gathered_targets = {k: torch.cat(v) for k, v in gathered_targets_cat.items()}
+            except:
+                gathered_predictions = gathered_predictions_cat
+                gathered_targets = gathered_targets_cat
 
             if self.is_local_main_process:
                 # 主进程处理gathered数据，并计算部分指标
