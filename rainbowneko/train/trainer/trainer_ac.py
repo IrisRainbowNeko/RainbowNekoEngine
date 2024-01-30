@@ -430,6 +430,7 @@ class Trainer:
             # 在每个GPU上收集预测和目标
             #gathered_predictions_cat = self.accelerator.gather(pred_list)
             #gathered_targets_cat = self.accelerator.gather(target_list)
+            # one gpu eval
             gathered_predictions_cat = pred_list
             gathered_targets_cat = target_list
 
