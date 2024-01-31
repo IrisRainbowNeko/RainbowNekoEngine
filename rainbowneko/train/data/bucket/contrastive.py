@@ -42,7 +42,7 @@ class PosNegBucket(BaseBucket):
 
         # div world_size for DistributedSampler
         idx_bs = (idx//self.world_size) % self.bs
-        idx_0 = (idx//self.world_size) // self.bs + idx%self.world_size
+        idx_0 = ((idx//self.world_size) // self.bs)*(self.world_size*self.bs) + idx%self.world_size
 
         if idx_bs == 0:
             return self.source[idx], self.target_size
