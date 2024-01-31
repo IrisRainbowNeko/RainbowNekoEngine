@@ -85,7 +85,7 @@ class InfoNCELoss(LossContainer):
         input_tensor = pred['feat']  # [B,C]
         target_tensor = target['label']
 
-        if 'label_neg' in target_tensor: # 显式给出pos和neg
+        if 'label_neg' in target: # 显式给出pos和neg
             query = input_tensor[target_tensor==0, :]
             positive_key = input_tensor[target_tensor==1, :]
             negative_keys = input_tensor[target_tensor==2, :]
