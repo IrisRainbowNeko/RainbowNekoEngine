@@ -5,7 +5,6 @@ import numpy as np
 
 from .base import BaseBucket
 
-
 class PosNegBucket(BaseBucket):
     can_shuffle = False
 
@@ -15,6 +14,7 @@ class PosNegBucket(BaseBucket):
 
     def build(self, bs: int, world_size: int, source: 'DataSource'):
         self.bs = bs  # bs per device
+        self.world_size = world_size
         self.source = source
 
         self.cls_group = {}  # {cls: idx}
@@ -40,8 +40,9 @@ class PosNegBucket(BaseBucket):
 
     def __getitem__(self, idx) -> Tuple[Tuple[str, 'DataSource'], Tuple[int, int]]:
 
-        idx_bs = idx % self.bs
-        idx_0 = idx // self.bs
+        # div world_size for DistributedSampler
+        idx_bs = (idx//self.world_size) % self.bs
+        idx_0 = (idx//self.world_size) // self.bs
 
         if idx_bs == 0:
             return self.source[idx], self.target_size
