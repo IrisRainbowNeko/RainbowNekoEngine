@@ -5,6 +5,7 @@ import numpy as np
 
 from .base import BaseBucket
 
+
 class PosNegBucket(BaseBucket):
     can_shuffle = False
 
@@ -36,13 +37,14 @@ class PosNegBucket(BaseBucket):
 
     def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
         w, h = image['img'].size
-        return image, [h,w,0,0,h,w]
+        return image, [h, w, 0, 0, h, w]
 
     def __getitem__(self, idx) -> Tuple[Tuple[str, 'DataSource'], Tuple[int, int]]:
 
-        # div world_size for DistributedSampler
-        idx_bs = (idx//self.world_size) % self.bs
-        idx_0 = ((idx//self.world_size) // self.bs)*(self.world_size*self.bs) + idx%self.world_size
+        # world_size for DistributedSampler
+        ws_bs = self.world_size * self.bs
+        idx_bs = (idx // self.world_size) % self.bs
+        idx_0 = idx // ws_bs * ws_bs + idx % self.world_size
 
         if idx_bs == 0:
             return self.source[idx], self.target_size
