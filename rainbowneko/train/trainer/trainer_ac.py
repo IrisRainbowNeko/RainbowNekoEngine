@@ -378,8 +378,8 @@ class Trainer:
                     }
 
                 model_pred = self.forward(image, **other_datas)
-                pred_list = addto_dictlist(pred_list, model_pred, v_proc=lambda v: v.detach())
-                target_list = addto_dictlist(target_list, target, v_proc=lambda v: v.detach())
+                pred_list = addto_dictlist(pred_list, model_pred, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
+                target_list = addto_dictlist(target_list, target, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
                 loss = self.get_loss(model_pred, target) * self.train_loader_group.get_loss_weights(idx)
                 self.accelerator.backward(loss)
 
