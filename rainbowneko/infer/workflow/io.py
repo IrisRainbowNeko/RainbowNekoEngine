@@ -26,13 +26,14 @@ class LoadImageAction(BasicAction):
         return {'input':input}
 
 class LoadModelAction(BasicAction, MemoryMixin):
-    def __init__(self, part_paths: Union[str, List[str]]):
+    def __init__(self, part_paths: Union[str, Dict[str, str]]):
         super().__init__()
-        if isinstance(part_paths, str):
-            part_paths = [part_paths]
         self.part_paths=part_paths
 
     @feedback_input
     def forward(self, memory, **states):
-        for path in self.part_paths:
-            sd = auto_manager(path).load_to_model(memory.model, path)
+        if isinstance(self.part_paths, str):
+            manager = auto_manager(self.part_paths)
+        else:
+            manager = auto_manager(next(iter(self.part_paths.values())))
+        manager.load_to_model(memory.model, self.part_paths)
