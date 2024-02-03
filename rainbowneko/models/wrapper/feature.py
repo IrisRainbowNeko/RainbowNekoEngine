@@ -11,4 +11,6 @@ class FeatWrapper(SingleWrapper):
                 feeder(input_all)
 
         out, feat = self.model(x, **kwargs)
+        if not isinstance(feat, list):
+            feat = [feat]
         return {'pred': out, 'feat': feat}

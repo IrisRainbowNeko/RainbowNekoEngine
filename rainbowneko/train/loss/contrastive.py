@@ -82,7 +82,7 @@ class InfoNCELoss(LossContainer):
         self.negative_mode = negative_mode
 
     def forward(self, pred, target):
-        input_tensor = pred['feat']  # [B,C]
+        input_tensor = pred['feat'][0]  # [B,C]
         target_tensor = target['label']
 
         if 'label_neg' in target: # 显式给出pos和neg
