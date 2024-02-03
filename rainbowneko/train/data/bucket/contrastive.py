@@ -63,3 +63,29 @@ class PosNegBucket(BaseBucket):
 
     def __len__(self):
         return len(self.source)
+
+
+class TripletBucket(PosNegBucket):
+    def __getitem__(self, idx) -> Tuple[Tuple[str, 'DataSource'], Tuple[int, int]]:
+        assert self.bs % 3 == 0, 'batch size of TripletBucket must be a multiple of 3.'
+        bs_1 = self.bs // 3
+
+        # world_size for DistributedSampler
+        ws_bs = self.world_size * self.bs
+        idx_bs = (idx // self.world_size) % self.bs
+        idx_0 = idx // ws_bs * ws_bs + idx % self.world_size + (idx_bs % bs_1) * self.world_size
+
+        if idx_bs < bs_1:
+            return self.source[idx], self.target_size
+        elif idx_bs < bs_1 * 2:  # pos
+            path, source = self.source[idx_0]
+            idx_c = self.rs.choice(self.cls_group[source.get_class_name(path)])
+            return self.source[idx_c], self.target_size
+        else:  # neg
+            path, source = self.source[idx_0]
+            cls_name = source.get_class_name(path)
+            cls_name_c = self.rs.choice(self.cls_names)
+            while cls_name == cls_name_c:
+                cls_name_c = self.rs.choice(self.cls_names)
+            idx_c = self.rs.choice(self.cls_group[cls_name_c])
+            return self.source[idx_c], self.target_size
