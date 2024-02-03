@@ -28,7 +28,7 @@ def get_data_files(data_dir, prefix=''):
 setuptools.setup(
     name="rainbowneko",
     py_modules=["rainbowneko"],
-    version="0.0.1",
+    version="0.0.2",
     author="Ziyi Dong",
     author_email="dzy7eu7d7@gmail.com",
     description="Neural network training and inference framework",

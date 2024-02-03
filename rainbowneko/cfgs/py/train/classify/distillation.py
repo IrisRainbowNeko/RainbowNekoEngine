@@ -31,7 +31,7 @@ config = dict(
         )
     ],
 
-    ckpt_manager=partial(CkptManagerPKL, saved_model=(
+    ckpt_manager=partial(CkptManagerPKL, _partial_=True, saved_model=(
         {'model': 'model_student', 'trainable': False},
     )),
 
