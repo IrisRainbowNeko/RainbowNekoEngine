@@ -35,5 +35,4 @@ class LoadModelAction(BasicAction, MemoryMixin):
     @feedback_input
     def forward(self, memory, **states):
         for path in self.part_paths:
-            sd = auto_manager(path).load(path)
-            memory.model.load_state_dict(sd['base'])
+            sd = auto_manager(path).load_to_model(memory.model, path)

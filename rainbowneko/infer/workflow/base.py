@@ -2,8 +2,8 @@ from typing import List, Dict
 from tqdm.auto import tqdm
 
 def feedback_input(fun):
-    def f(**states):
-        output = fun(**states)
+    def f(*args, **states):
+        output = fun(*args, **states)
         if 'memory' in states:
             del states['memory']
         if output is not None:
