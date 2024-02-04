@@ -47,6 +47,7 @@ class ImageLabelDataset(Dataset):
 
         data = self.load_image(path, data_source, size)
         label = self.load_label(path, data_source)
+        label = self.bucket.process_label(index, label)
         data.update(label)
 
         return data

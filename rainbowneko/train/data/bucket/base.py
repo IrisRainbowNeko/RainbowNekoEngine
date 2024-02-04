@@ -23,3 +23,6 @@ class BaseBucket:
 
     def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC) -> Tuple[Any, Tuple]:
         return image, (*size, 0, 0, *size)
+
+    def process_label(self, idx:int, label):
+        return label

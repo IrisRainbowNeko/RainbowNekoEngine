@@ -89,3 +89,19 @@ class TripletBucket(PosNegBucket):
                 cls_name_c = self.rs.choice(self.cls_names)
             idx_c = self.rs.choice(self.cls_group[cls_name_c])
             return self.source[idx_c], self.target_size
+
+    def process_label(self, idx:int, label):
+        bs_1 = self.bs // 3
+        ws_bs = self.world_size * self.bs
+        idx_bs = (idx // self.world_size) % self.bs
+        idx_0 = idx // ws_bs * ws_bs + idx % self.world_size + (idx_bs % bs_1) * self.world_size
+
+        if idx_bs < bs_1:
+            label['label']['label'] = 0
+            return label
+        elif idx_bs < bs_1 * 2:  # pos
+            label['label']['label'] = 1
+            return label
+        else:  # neg
+            label['label']['label'] = 2
+            return label
