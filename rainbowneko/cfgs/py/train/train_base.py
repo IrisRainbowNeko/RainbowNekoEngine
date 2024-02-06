@@ -24,6 +24,7 @@ config = dict(
         workers=4,
         max_grad_norm=1.0,
         set_grads_to_none=False,
+        retain_graph=False,
         save_step=100,
 
         resume=None,

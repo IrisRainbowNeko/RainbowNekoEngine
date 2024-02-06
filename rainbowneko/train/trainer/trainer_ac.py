@@ -381,7 +381,7 @@ class Trainer:
                 pred_list = addto_dictlist(pred_list, model_pred, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
                 target_list = addto_dictlist(target_list, target, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
                 loss = self.get_loss(model_pred, target) * self.train_loader_group.get_loss_weights(idx)
-                self.accelerator.backward(loss)
+                self.accelerator.backward(loss, retain_graph=self.cfgs.train.retain_graph)
 
             if hasattr(self, "optimizer"):
                 if self.cfgs.train.max_grad_norm and self.accelerator.sync_gradients:  # fine-tuning
