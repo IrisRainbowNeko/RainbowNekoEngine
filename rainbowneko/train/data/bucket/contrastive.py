@@ -98,10 +98,9 @@ class TripletBucket(PosNegBucket):
 
         if idx_bs < bs_1:
             label['label']['label'] = 0
-            return label
         elif idx_bs < bs_1 * 2:  # pos
             label['label']['label'] = 1
-            return label
         else:  # neg
             label['label']['label'] = 2
-            return label
+            
+        return label
