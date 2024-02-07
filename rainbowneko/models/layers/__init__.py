@@ -1,1 +1,1 @@
-from .sim import BatchCosineSimilarity
+from .sim import BatchCosineSimilarity, StyleSimilarity

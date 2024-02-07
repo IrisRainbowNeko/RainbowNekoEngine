@@ -494,8 +494,8 @@ class Trainer:
             pred_list = addto_dictlist(pred_list, model_pred)
             target_list = addto_dictlist(target_list, target)
 
-        pred_list_cat = {k: torch.cat(v) for k, v in pred_list.items()}
-        target_list_cat = {k: torch.cat(v) for k, v in target_list.items()}
+        pred_list_cat = {k: (torch.cat(v) if isinstance(v, torch.Tensor) else v) for k, v in pred_list.items()}
+        target_list_cat = {k: (torch.cat(v) if isinstance(v, torch.Tensor) else v) for k, v in target_list.items()}
         return pred_list_cat, target_list_cat
 
 
