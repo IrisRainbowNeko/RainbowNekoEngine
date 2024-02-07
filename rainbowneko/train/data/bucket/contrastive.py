@@ -47,13 +47,13 @@ class PosNegBucket(BaseBucket):
         idx_0 = idx // ws_bs * ws_bs + idx % self.world_size
 
         if idx_bs == 0:
-            return self.source[idx], self.target_size
+            return self.source[self.img_idxs[idx]], self.target_size
         elif idx_bs < int(self.bs * self.pos_rate):  # pos
-            path, source = self.source[idx_0]
+            path, source = self.source[self.img_idxs[idx_0]]
             idx_c = self.rs.choice(self.cls_group[source.get_class_name(path)])
             return self.source[idx_c], self.target_size
         else:  # neg
-            path, source = self.source[idx_0]
+            path, source = self.source[self.img_idxs[idx_0]]
             cls_name = source.get_class_name(path)
             cls_name_c = self.rs.choice(self.cls_names)
             while cls_name == cls_name_c:
@@ -74,15 +74,15 @@ class TripletBucket(PosNegBucket):
         ws_bs = self.world_size * self.bs
         idx_bs = (idx // self.world_size) % self.bs
         idx_0 = idx // ws_bs * ws_bs + idx % self.world_size + (idx_bs % bs_1) * self.world_size
-
+        
         if idx_bs < bs_1:
-            return self.source[idx], self.target_size
+            return self.source[self.img_idxs[idx]], self.target_size
         elif idx_bs < bs_1 * 2:  # pos
-            path, source = self.source[idx_0]
+            path, source = self.source[self.img_idxs[idx_0]]
             idx_c = self.rs.choice(self.cls_group[source.get_class_name(path)])
             return self.source[idx_c], self.target_size
         else:  # neg
-            path, source = self.source[idx_0]
+            path, source = self.source[self.img_idxs[idx_0]]
             cls_name = source.get_class_name(path)
             cls_name_c = self.rs.choice(self.cls_names)
             while cls_name == cls_name_c:
@@ -95,7 +95,7 @@ class TripletBucket(PosNegBucket):
         ws_bs = self.world_size * self.bs
         idx_bs = (idx // self.world_size) % self.bs
         idx_0 = idx // ws_bs * ws_bs + idx % self.world_size + (idx_bs % bs_1) * self.world_size
-
+        
         if idx_bs < bs_1:
             label['label']['label'] = 0
         elif idx_bs < bs_1 * 2:  # pos
