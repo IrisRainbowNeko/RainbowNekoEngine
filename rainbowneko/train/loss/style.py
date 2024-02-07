@@ -3,6 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .base import LossContainer
+from torch.utils.checkpoint import checkpoint
 
 
 class StyleLoss(LossContainer):

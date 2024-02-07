@@ -252,6 +252,7 @@ class Trainer:
         return dataset, batch_size, arb
 
     def build_data(self, data_builder: partial, train=True) -> torch.utils.data.DataLoader:
+        drop_last = data_builder.keywords.pop("drop_last", True)
         dataset, batch_size, arb = self.build_dataset(data_builder)
 
         # Pytorch Data loader
@@ -267,6 +268,7 @@ class Trainer:
             num_workers=self.cfgs.train.workers,
             sampler=sampler,
             collate_fn=dataset.collate_fn,
+            drop_last=drop_last,
         )
         return loader
 
