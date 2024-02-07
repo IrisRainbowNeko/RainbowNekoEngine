@@ -459,7 +459,8 @@ class Trainer:
             # 定期汇总和计算指标
             if (idx + 1) % gather_interval == 0:
                 update(pred_list, target_list)
-        update(pred_list, target_list)
+        if len(pred_list)>0:
+            update(pred_list, target_list)
 
         metric = self.evaluator.evaluate()
         if not isinstance(metric, dict):
