@@ -32,9 +32,12 @@ class StyleSimilarity(nn.Module):
     def forward(self, feat1, feat2):  # feat1: [B,C,H,W]
         if self.batch_mean:
             sim = F.mse_loss(self.gram_matrix(feat1), self.gram_matrix(feat2), reduction='none')
+            sim = torch.sigmoid(sim - 10.)
             return sim.mean(dim=(1, 2))
         else:
-            return F.mse_loss(self.gram_matrix(feat1), self.gram_matrix(feat2))
+            sim = F.mse_loss(self.gram_matrix(feat1), self.gram_matrix(feat2))
+            sim = torch.sigmoid(sim - 10.)
+            return sim
 
     @staticmethod
     def gram_matrix(x, should_normalize=True):
