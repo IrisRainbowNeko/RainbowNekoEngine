@@ -343,7 +343,9 @@ class Trainer:
                     if self.evaluator_train is not None:
                         pred_list_cat = {k: torch.cat(v) for k, v in pred_list.items()}
                         target_list_cat = {k: torch.cat(v) for k, v in target_list.items()}
-                        metrics_dict = self.evaluator_train(pred_list_cat, target_list_cat)
+                        self.evaluator_train.reset()
+                        self.evaluator_train.update(pred_list_cat, target_list_cat)
+                        metrics_dict = self.evaluator_train.evaluate()
                         log_data.update(EvaluatorGroup.format(metrics_dict))
                     self.loggers.log(
                         datas=log_data,
