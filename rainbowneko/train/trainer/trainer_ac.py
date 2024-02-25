@@ -311,6 +311,7 @@ class Trainer:
         if self.cfgs.train.resume is not None:
             self.global_step = self.cfgs.train.resume.start_step
 
+        self.model_wrapper.train()
         loss_sum = None
         for data_list in self.train_loader_group:
             loss, pred_list, target_list = self.train_one_step(data_list)
