@@ -31,7 +31,6 @@ class StyleSimilarity(nn.Module):
 
     def forward(self, feat1, feat2):  # feat1: [B,C,H,W]
         sim = F.mse_loss(self.gram_matrix(feat1), self.gram_matrix(feat2), reduction='none')
-        sim = torch.sigmoid(sim - 10.)
         if self.batch_mean:
             return sim.mean(dim=(1, 2))
         else:
