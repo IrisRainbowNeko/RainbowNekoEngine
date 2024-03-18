@@ -32,9 +32,9 @@ class StyleSimilarity(nn.Module):
     def forward(self, feat1, feat2):  # feat1: [B,C,H,W]
         sim = F.mse_loss(self.gram_matrix(feat1), self.gram_matrix(feat2), reduction='none')
         if self.batch_mean:
-            return sim.mean(dim=(1, 2))
+            return sim.mean(dim=(1, 2))*1000
         else:
-            return sim.mean()
+            return sim.mean()*1000
 
     @staticmethod
     def gram_matrix(x, should_normalize=True):
