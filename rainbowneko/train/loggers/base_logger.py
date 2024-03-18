@@ -70,7 +70,8 @@ class LoggerGroup:
 
     def log(self, datas: Dict[str, Any], step: int = 0):
         for logger in self.logger_list:
-            logger.log(datas, step)
+            if step % logger.log_step == 0:
+                logger.log(datas, step)
 
     def __len__(self):
         return len(self.logger_list)
