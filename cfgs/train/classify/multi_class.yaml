@@ -1,0 +1,143 @@
+_base_:
+  #- cfgs/train/dataset/base_dataset.yaml
+  - cfgs/train/train_base.yaml
+  - cfgs/train/tuning_base.yaml
+
+model_part:
+  - lr: 1e-2
+    layers:
+      - '' # train all layers
+
+ckpt_manager:
+  saved_model:
+    - model: 'model'
+      trainable: False
+
+num_classes: 10
+
+train:
+  train_epochs: 100
+  workers: 2
+  max_grad_norm: null
+  save_step: 2000
+
+  loss:
+    _target_: rainbowneko.train.loss.LossContainer
+    _partial_: True
+    loss:
+      _target_: torch.nn.CrossEntropyLoss
+
+  optimizer:
+    _target_: torch.optim.SGD
+    _partial_: True
+    momentum: 0.9
+    weight_decay: 5e-4
+
+  scale_lr: false
+  scheduler:
+    name: 'cosine'
+    num_warmup_steps: 10
+    scheduler_kwargs: { } # args for scheduler
+
+  metrics:
+    _target_: rainbowneko.evaluate.EvaluatorGroup
+    _partial_: True
+    evaluator_dict:
+      acc:
+        _target_: rainbowneko.evaluate.ClsEvaluatorContainer
+        evaluator:
+          _target_: torchmetrics.classification.MulticlassAccuracy
+          num_classes: ${num_classes}
+      f1:
+        _target_: rainbowneko.evaluate.ClsEvaluatorContainer
+        evaluator:
+          _target_: torchmetrics.classification.MulticlassF1Score
+          num_classes: ${num_classes}
+
+
+model:
+  name: cifar-resnet18
+
+  wrapper:
+    _target_: rainbowneko.models.wrapper.SingleWrapper
+    _partial_: True
+    model:
+      _target_: rainbowneko.utils.change_num_classes
+      num_classes: ${num_classes}
+      model:
+        _target_: torchvision.models.resnet18
+        weights: ${neko.get:torchvision.models.ResNet18_Weights.DEFAULT}
+
+evaluator:
+  interval: 500
+  _target_: rainbowneko.evaluate.EvaluatorGroup
+  _partial_: True
+  evaluator_dict:
+    acc:
+      _target_: rainbowneko.evaluate.ClsEvaluatorContainer
+      evaluator:
+        _target_: torchmetrics.classification.MulticlassAccuracy
+        num_classes: ${num_classes}
+    f1:
+      _target_: rainbowneko.evaluate.ClsEvaluatorContainer
+      evaluator:
+        _target_: torchmetrics.classification.MulticlassF1Score
+        num_classes: ${num_classes}
+
+data_train:
+  dataset1:
+    _target_: rainbowneko.train.data.ImageLabelDataset
+    _partial_: True # Not directly instantiate the object here. There are other parameters to be added in the runtime.
+    batch_size: 128
+    loss_weight: 1.0
+
+    source:
+      data_source1:
+        _target_: rainbowneko.train.data.source.IndexSource
+        data:
+          _target_: torchvision.datasets.cifar.CIFAR10
+          root: E:\dataset\cifar
+          train: true
+          download: true
+
+        image_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: torchvision.transforms.RandomCrop
+              size: 32
+              padding: 4
+            - _target_: torchvision.transforms.RandomHorizontalFlip
+            - _target_: torchvision.transforms.ToTensor
+            - _target_: torchvision.transforms.Normalize
+              mean: [ 0.4914, 0.4822, 0.4465 ]
+              std: [ 0.2023, 0.1994, 0.2010 ]
+    bucket:
+      _target_: rainbowneko.train.data.FixedBucket
+      target_size: 32
+
+data_eval:
+  dataset1:
+    _target_: rainbowneko.train.data.ImageLabelDataset
+    _partial_: True # Not directly instantiate the object here. There are other parameters to be added in the runtime.
+    batch_size: 128
+    loss_weight: 1.0
+
+    source:
+      data_source1:
+        _target_: rainbowneko.train.data.source.IndexSource
+        data:
+          _target_: torchvision.datasets.cifar.CIFAR10
+          root: E:\dataset\cifar
+          train: false
+          download: true
+
+        image_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: torchvision.transforms.ToTensor
+            - _target_: torchvision.transforms.Normalize
+              mean: [ 0.4914, 0.4822, 0.4465 ]
+              std: [ 0.2023, 0.1994, 0.2010 ]
+    bucket:
+      _target_: rainbowneko.train.data.FixedBucket
+      target_size: 32

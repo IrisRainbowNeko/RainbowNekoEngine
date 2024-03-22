@@ -1,0 +1,17 @@
+_base_:
+  - cfgs/train/classify/multi_class.yaml
+
+exp_dir: exps/resnet50-${neko.time:}
+
+model:
+  name: cifar-resnet50
+
+  wrapper:
+    _target_: rainbowneko.models.wrapper.SingleWrapper
+    _partial_: True
+    model:
+      _target_: rainbowneko.utils.change_num_classes
+      num_classes: ${num_classes}
+      model:
+        _target_: torchvision.models.resnet50
+        weights: ${neko.get:torchvision.models.ResNet50_Weights.DEFAULT}

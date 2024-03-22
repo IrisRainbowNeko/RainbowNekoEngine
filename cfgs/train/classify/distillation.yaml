@@ -1,0 +1,45 @@
+_base_:
+  - cfgs/train/classify/multi_class.yaml
+
+model_part:
+  - lr: 1e-2
+    layers:
+      - 'model_student'
+
+num_classes: 10
+
+train:
+  train_epochs: 100
+  save_step: 2000
+
+  loss:
+    _target_: rainbowneko.train.loss.LossGroup
+    _partial_: True
+    loss_list:
+      - _target_: rainbowneko.train.loss.LossContainer
+        weight: 0.05
+        loss:
+          _target_: torch.nn.CrossEntropyLoss
+      - _target_: rainbowneko.train.loss.DistillationLoss
+        weight: 0.95
+        T: 5.0
+
+
+model:
+  name: cifar-resnet_50-18
+
+  wrapper:
+    _target_: rainbowneko.models.wrapper.DistillationWrapper
+    _partial_: True
+    model_teacher:
+      _target_: rainbowneko.ckpt_manager.CkptManagerPKL.load_to_model
+      model:
+        _target_: torchvision.models.resnet50
+        num_classes: ${num_classes}
+      ckpt_path: ckpts/cifar-resnet50.pth
+    model_student:
+      _target_: torchvision.models.resnet18
+      num_classes: ${num_classes}
+
+evaluator:
+  interval: 500
