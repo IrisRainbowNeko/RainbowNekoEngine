@@ -93,15 +93,18 @@ class ImageLabelDataset(Dataset):
             if isinstance(v[0], torch.Tensor):
                 datas[k] = torch.stack(v)
             else:
-                try:
-                    v = np.array(v)
-                except:
-                    pass
-                datas[k] = torch.tensor(v)
+                datas[k] = ImageLabelDataset.create_tensor(v)
 
         if has_plugin_input:
             datas['plugin_input'] = {k: torch.stack(v) for k, v in plugin_input.items()}
-        datas['label'] = {k: (torch.stack(v) if isinstance(v[0], torch.Tensor) else torch.tensor(v))
+        datas['label'] = {k: (torch.stack(v) if isinstance(v[0], torch.Tensor) else ImageLabelDataset.create_tensor(v))
                           for k, v in label.items()}
 
         return datas
+
+    @staticmethod
+    def create_tensor(data):
+        if isinstance(data, list) and isinstance(data[0], np.ndarray):
+            return torch.tensor(np.array(data))
+        else:
+            return torch.tensor(data)
