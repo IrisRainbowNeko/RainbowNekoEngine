@@ -11,6 +11,7 @@ pair_dataset.py
 from typing import Dict, Tuple
 
 import torch
+import numpy as np
 from torch.utils.data import Dataset
 
 from .bucket import BaseBucket
@@ -92,7 +93,10 @@ class ImageLabelDataset(Dataset):
             if isinstance(v[0], torch.Tensor):
                 datas[k] = torch.stack(v)
             else:
-                datas[k] = torch.tensor(v)
+                if isinstance(v, list) and isinstance(v[0], np.ndarray):
+                    datas[k] = torch.tensor(np.array(v))
+                else:
+                    datas[k] = torch.tensor(v)
 
         if has_plugin_input:
             datas['plugin_input'] = {k: torch.stack(v) for k, v in plugin_input.items()}
