@@ -24,9 +24,11 @@ class StyleLoss(LossContainer):
             positive_key = [item[target_tensor == 1, ...] for item in input_tensor]
             negative_keys = [item[target_tensor == 2, ...] for item in input_tensor]
 
-            loss_pos = sum(self.style_sim(q, pos) for q, pos in zip(query, positive_key))/len(query)
-            loss_neg = sum(self.style_sim(q, neg) for q, neg in zip(query, negative_keys))/len(query)
-            return loss_pos - loss_neg
+            return sum(self.style_sim(q, pos) + F.relu(-self.style_sim(q, neg)+5) for q, pos, neg in zip(query, positive_key, negative_keys))/len(query)
+            
+            #loss_pos = sum(self.style_sim(q, pos) for q, pos in zip(query, positive_key))/len(query)
+            #loss_neg = sum(self.style_sim(q, neg) for q, neg in zip(query, negative_keys))/len(query)
+            #return loss_pos + F.relu(-loss_neg+5)
         else:
             query = [item[target_tensor == 0, ...] for item in input_tensor]
             positive_key = [item[target_tensor == 1, ...] for item in input_tensor]
