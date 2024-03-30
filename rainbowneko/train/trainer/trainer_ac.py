@@ -41,6 +41,8 @@ class Trainer:
     weight_dtype_map = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
 
     def __init__(self, parser, cfgs_raw):
+        torch.backends.cudnn.benchmark = True
+
         cfgs = hydra.utils.instantiate(cfgs_raw)
         self.cfgs = cfgs
         self.parser = parser
