@@ -13,6 +13,9 @@ from rainbowneko.train.data.source import IndexSource
 from rainbowneko.train.loss import LossContainer
 from rainbowneko.train.data import ImageLabelDataset
 from rainbowneko.ckpt_manager import CkptManagerPKL
+from rainbowneko.parser import make_base
+
+from cfgs.py.train import train_base, tuning_base
 
 num_classes = 10
 
@@ -23,10 +26,7 @@ def load_resnet():
 
 def make_cfg():
     dict(
-        _base_=[
-            'cfgs/py/train/train_base.py',
-            'cfgs/py/train/tuning_base.py',
-        ],
+        _base_=make_base(train_base, tuning_base)+[],
 
         model_part=[
             dict(
@@ -35,7 +35,8 @@ def make_cfg():
             )
         ],
 
-        ckpt_manager=partial(CkptManagerPKL, saved_model=(
+        # func(_partial_=True, ...) same as partial(func, ...)
+        ckpt_manager=CkptManagerPKL(_partial_=True, saved_model=(
             {'model':'model', 'trainable':False},
         )),
 
