@@ -1,6 +1,6 @@
 from typing import Iterable, Any, Dict
 
-from omegaconf import OmegaConf, ListConfig
+from omegaconf import OmegaConf, ListConfig, DictConfig
 import os
 
 
@@ -10,6 +10,7 @@ class YamlCfgParser:
         return OmegaConf.load(path)
 
     def merge_configs(self, source: Dict, overrides: Dict):
+        self.remove_replace(source, overrides)
         return OmegaConf.merge(source, overrides)
 
     def remove_config_undefined(self, cfg):
@@ -24,6 +25,28 @@ class YamlCfgParser:
         for key in undefined_keys:
             del cfg[key]
         return cfg
+
+    def remove_replace(self, base_cfg, cfg):
+        if isinstance(cfg, ListConfig) or base_cfg is None:
+            return base_cfg
+
+        replace_keys = []
+        for key in cfg:
+            child = cfg._get_child(key)
+            if isinstance(child, DictConfig):
+                if child._get_child('_replace_'):
+                    if key in base_cfg:
+                        replace_keys.append(key)
+                    break
+                else:
+                    if key in base_cfg:
+                        self.remove_replace(base_cfg[key], child)
+                    else:
+                        break
+        for key in replace_keys:
+            del base_cfg[key]
+            del cfg[key]['_replace_']
+        return base_cfg
 
     def load_config(self, path, remove_undefined=True):
         cfg = self.load_cfg(path)
