@@ -8,7 +8,7 @@ pair_dataset.py
     :Licence:     Apache-2.0
 """
 
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union, List, Callable
 
 import torch
 import numpy as np
@@ -24,9 +24,10 @@ class ImageLabelDataset(Dataset):
     It pre-processes the images and the tokenizes prompts.
     """
 
-    def __init__(self, bucket: BaseBucket = None, source: Dict[str, DataSource] = None, **kwargs):
+    def __init__(self, bucket: BaseBucket = None, source: Dict[str, DataSource] = None, batch_transform: Callable=None, **kwargs):
         self.bucket: BaseBucket = bucket
         self.source = ComposeDataSource(list(source.values()))
+        self.batch_transform = batch_transform
 
     def load_image(self, path: str, data_source: DataSource, size: Tuple[int]):
         image_dict = data_source.load_image(path)
@@ -39,6 +40,11 @@ class ImageLabelDataset(Dataset):
     def load_label(self, img_path: str, data_source: DataSource):
         label = data_source.load_label(img_path)
         return {'label': label}
+
+    def batch_process(self, batch: Dict[str, Union[List, torch.Tensor]]):
+        if self.batch_transform is not None:
+            batch = self.batch_transform(batch)
+        return batch
 
     def __len__(self):
         return len(self.bucket)
@@ -53,8 +59,7 @@ class ImageLabelDataset(Dataset):
 
         return data
 
-    @staticmethod
-    def collate_fn(batch):
+    def collate_fn(self, batch):
         '''
         batch: [{
             img:tensor,
@@ -93,12 +98,14 @@ class ImageLabelDataset(Dataset):
             if isinstance(v[0], torch.Tensor):
                 datas[k] = torch.stack(v)
             else:
-                datas[k] = ImageLabelDataset.create_tensor(v)
+                datas[k] = self.create_tensor(v)
 
         if has_plugin_input:
             datas['plugin_input'] = {k: torch.stack(v) for k, v in plugin_input.items()}
         datas['label'] = {k: (torch.stack(v) if isinstance(v[0], torch.Tensor) else ImageLabelDataset.create_tensor(v))
                           for k, v in label.items()}
+
+        datas = self.batch_process(datas)
 
         return datas
 
