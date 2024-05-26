@@ -31,6 +31,8 @@ class CallTransformer(ast.NodeTransformer):
             keywords=[]
         )
 
+        partial_flag = False
+
         # skip node that cannot transform
         parent_node = self.parent_stack[-2] if len(self.parent_stack) > 1 else None
         if not isinstance(parent_node, self.transform_parent):
@@ -40,15 +42,26 @@ class CallTransformer(ast.NodeTransformer):
             call_node.keywords.append(
                 ast.keyword(arg='_target_', value=ast.Attribute(attr=node.func.attr, value=node.func.value)))
         else:
-            if not node.func.id == 'dict':
+            if node.func.id == 'partial':
+                partial_flag = True
+            elif not node.func.id == 'dict':
                 call_node.keywords.append(ast.keyword(arg='_target_', value=ast.Name(id=node.func.id)))
+
 
         # 处理位置参数
         if node.args:
-            # 创建一个列表节点，包含所有的位置参数
-            args_list = ast.List(elts=[self.visit(arg) for arg in node.args], ctx=ast.Load())
-            # 将列表节点作为字典的值
-            call_node.keywords.append(ast.keyword(arg='_args_', value=args_list))
+            args_list = [self.visit(arg) for arg in node.args]
+            if partial_flag:
+                call_node.keywords.append(ast.keyword(arg='_target_', value=args_list[0]))
+                call_node.keywords.append(ast.keyword(arg='_partial_', value=ast.NameConstant(value=True)))
+                if len(args_list) > 1:
+                    args_list = ast.List(elts=args_list[1:], ctx=ast.Load())
+                    call_node.keywords.append(ast.keyword(arg='_args_', value=args_list))
+            else:
+                # 创建一个列表节点，包含所有的位置参数
+                args_list = ast.List(elts=args_list, ctx=ast.Load())
+                # 将列表节点作为字典的值
+                call_node.keywords.append(ast.keyword(arg='_args_', value=args_list))
 
         # 处理关键字参数
         if node.keywords:

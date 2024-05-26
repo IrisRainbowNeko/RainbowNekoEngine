@@ -1,6 +1,8 @@
 from typing import Any
 from typing import Dict, Tuple
 
+import albumentations as A
+import numpy as np
 from PIL import Image
 
 from .base import DataSource
@@ -22,7 +24,11 @@ class IndexSource(DataSource):
         return len(self.data)
 
     def procees_image(self, image):
-        return self.image_transforms(image)
+        if isinstance(self.image_transforms, (A.BaseCompose, A.BasicTransform)):
+            image_A = self.image_transforms(image=np.array(image))
+            return image_A['image']
+        else:
+            return self.image_transforms(image)
 
     def process_label(self, label_dict):
         return label_dict

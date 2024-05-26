@@ -1,8 +1,9 @@
 import bisect
 from typing import Dict, List, Tuple, Any
 
+import albumentations as A
+import numpy as np
 from PIL import Image
-
 from rainbowneko.utils.img_size_tool import get_image_size
 
 
@@ -66,7 +67,11 @@ class VisionDataSource(DataSource):
         self.bg_color = tuple(bg_color)
 
     def procees_image(self, image):
-        return self.image_transforms(image)
+        if isinstance(self.image_transforms, (A.BaseCompose, A.BasicTransform)):
+            image_A = self.image_transforms(image=np.array(image))
+            return image_A['image']
+        else:
+            return self.image_transforms(image)
 
     def process_label(self, label_dict):
         return label_dict

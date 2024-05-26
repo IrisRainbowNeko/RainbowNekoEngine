@@ -1,15 +1,30 @@
 from torch import nn
 
 class LossContainer(nn.Module):
-    def __init__(self, loss, weight=1.0, pred_key='pred', target_key='label'):
+    def __init__(self, loss, weight=1.0, key_map=None):
         super().__init__()
         self.loss = loss
         self.alpha = weight
-        self.pred_key = pred_key
-        self.target_key = target_key
+        if key_map is None and loss is not None:
+            if hasattr(loss, '_key_map'):
+                self.key_map = loss._key_map
+            else:
+                self.key_map = {0: 'pred.pred', 1: 'target.label'}
 
     def forward(self, pred, target):
-        return self.loss(pred[self.pred_key], target[self.target_key]) * self.alpha
+        args = []
+        kwargs = {}
+        for k_dst, k_src in self.key_map.items():
+            keys = k_src.split('.')
+            v = locals()[keys[0]]
+            for k in keys[1:]:
+                v = v[k]
+            if isinstance(k_dst, int):
+                args.append(v)
+            else:
+                kwargs[k_dst] = v
+
+        return self.loss(*args, **kwargs) * self.alpha
 
 class LossGroup(nn.Module):
     def __init__(self, loss_list):

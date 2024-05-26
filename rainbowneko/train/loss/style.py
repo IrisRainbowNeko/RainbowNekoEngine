@@ -7,17 +7,17 @@ from rainbowneko.models.layers import StyleSimilarity
 import math
 
 
-class StyleLoss(LossContainer):
-    def __init__(self, weight=1.0, eps=1e-4, reduction='mean'):
-        super().__init__(None, weight=weight)
+class StyleLoss(nn.Module):
+    def __init__(self, eps=1e-4, reduction='mean'):
+        super().__init__()
         self.ce_loss = nn.CrossEntropyLoss()
         self.eps = eps
         self.reduction = reduction
         self.style_sim = StyleSimilarity()
 
-    def forward(self, pred, target):
-        input_tensor = pred['feat']  # list([B,C,H,W])
-        target_tensor = target['label']
+    _key_map = {'input_tensor': 'pred.feat', 'target_tensor': 'pred.label'}
+    def forward(self, input_tensor, target_tensor):
+        # input_tensor: list([B,C,H,W])
 
         if 2 in target_tensor:  # triplet style loss
             query = [item[target_tensor == 0, ...] for item in input_tensor]
