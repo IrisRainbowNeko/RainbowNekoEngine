@@ -17,7 +17,7 @@ class IndexSource(DataSource):
         self.image_transforms = image_transforms
         self.bg_color = tuple(bg_color)
 
-    def get_path(self, index: int) -> str:
+    def get_data_id(self, index: int) -> str:
         return index
 
     def __len__(self):

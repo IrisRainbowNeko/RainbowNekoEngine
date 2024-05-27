@@ -16,7 +16,7 @@ class ImageFolderClassSource(VisionDataSource):
         self.use_cls_index = use_cls_index
         self.img_paths, self.label_dict = self._load_img_label(img_root)
 
-    def get_path(self, index: int) -> str:
+    def get_data_id(self, index: int) -> str:
         return self.img_paths[index]
 
     def __len__(self):

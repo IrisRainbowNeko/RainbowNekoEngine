@@ -1,4 +1,5 @@
 import bisect
+import os
 from typing import Dict, List, Tuple, Any
 
 import albumentations as A
@@ -11,11 +12,11 @@ class DataSource:
     def __init__(self, repeat=1, **kwargs):
         self.repeat = repeat
 
-    def get_path(self, index: int) -> str:
+    def get_data_id(self, index: int) -> str:
         raise NotImplementedError()
 
     def __getitem__(self, index) -> Tuple[str, "DataSource"]:
-        return self.get_path(index), self
+        return self.get_data_id(index), self
 
     def __len__(self):
         raise NotImplementedError()
@@ -76,7 +77,8 @@ class VisionDataSource(DataSource):
     def process_label(self, label_dict):
         return label_dict
 
-    def load_image(self, path) -> Dict[str, Any]:
+    def load_image(self, rel_path) -> Dict[str, Any]:
+        path = os.path.join(self.img_root, rel_path)
         image = Image.open(path)
         if image.mode == 'RGBA':
             x, y = image.size

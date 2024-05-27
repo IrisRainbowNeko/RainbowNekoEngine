@@ -12,12 +12,11 @@ class ImageLabelSource(VisionDataSource):
         super(ImageLabelSource, self).__init__(img_root, image_transforms=image_transforms, bg_color=bg_color,
                                                repeat=repeat)
 
-        self.img_paths = self._load_img_paths(img_root)
         self.label_dict = self._load_label_data(label_file)
+        self.img_ids = self._load_img_ids(self.label_dict)
 
-    def _load_img_paths(self, img_root):
-        return [os.path.join(img_root, x) for x in os.listdir(img_root) if
-                get_file_ext(x) in types_support] * self.repeat
+    def _load_img_ids(self, label_dict):
+        return [x for x in label_dict.keys() if get_file_ext(x) in types_support] * self.repeat
 
     def _load_label_data(self, label_file: Union[str, BaseLabelLoader]):
         if label_file is None:
@@ -27,14 +26,13 @@ class ImageLabelSource(VisionDataSource):
         else:
             return label_file.load()
 
-    def get_path(self, index: int) -> str:
-        return self.img_paths[index]
+    def get_data_id(self, index: int) -> str:
+        return self.img_ids[index]
 
     def __len__(self):
-        return len(self.img_paths)
+        return len(self.img_ids)
 
-    def load_label(self, path: str) -> str:
-        img_name = os.path.basename(path)
-        label = self.label_dict.get(img_name, None)
+    def load_label(self, img_id: str) -> str:
+        label = self.label_dict.get(img_id, None)
         label = self.process_label({'label': label})
         return label

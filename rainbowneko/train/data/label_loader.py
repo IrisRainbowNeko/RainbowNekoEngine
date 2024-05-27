@@ -34,12 +34,12 @@ class BaseLabelLoader:
 class JsonLabelLoader(BaseLabelLoader):
     def _load(self):
         with open(self.path, 'r', encoding='utf-8') as f:
-            return self.clean_ext(json.loads(f.read()))
+            return json.loads(f.read())
 
 class YamlLabelLoader(BaseLabelLoader):
     def _load(self):
         with open(self.path, 'r', encoding='utf-8') as f:
-            return self.clean_ext(yaml.load(f.read(), Loader=yaml.FullLoader))
+            return yaml.load(f.read(), Loader=yaml.FullLoader)
 
 class TXTLabelLoader(BaseLabelLoader):
     def _load(self):
@@ -47,7 +47,7 @@ class TXTLabelLoader(BaseLabelLoader):
         captions = {}
         for file in txt_files:
             with open(file, 'r', encoding='utf-8') as f:
-                captions[os.path.basename(file).split('.')[0]] = f.read().strip()
+                captions[os.path.basename(file)] = f.read().strip()
         return captions
 
 def auto_label_loader(path):
