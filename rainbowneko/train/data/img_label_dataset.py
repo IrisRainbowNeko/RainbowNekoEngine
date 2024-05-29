@@ -29,7 +29,7 @@ class ImageLabelDataset(Dataset):
         self.source = ComposeDataSource(list(source.values()))
         self.batch_transform = batch_transform
 
-        self.random_context = RandomContext()
+        self.random_context = None
 
     def load_image(self, data_id: str, data_source: DataSource, size: Tuple[int]):
         image_dict = data_source.load_image(data_id)
