@@ -1,10 +1,10 @@
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Any, Dict
 
 from rainbowneko.utils.img_size_tool import types_support
 from rainbowneko.utils.utils import get_file_name, get_file_ext
 from .base import VisionDataSource
-from addict import Dict
+from addict import Dict as ADict
 
 
 class ImageFolderClassSource(VisionDataSource):
@@ -25,7 +25,7 @@ class ImageFolderClassSource(VisionDataSource):
     def _load_img_label(self, img_root):
         sub_folders = [os.path.join(img_root, x) for x in os.listdir(img_root)]
         class_imgs = []
-        label_dict = Dict()
+        label_dict = ADict()
         cls_id_dict = {}
         for class_folder in sub_folders:
             class_name = os.path.basename(class_folder)
@@ -62,10 +62,9 @@ class ImageFolderClassSource(VisionDataSource):
         img_root, class_name = os.path.split(img_root)
         return class_name
 
-    def load_label(self, path: str) -> str:
+    def load_label(self, path: str) -> Dict[str, Any]:
         img_root, img_name = os.path.split(path)
         img_root, class_name = os.path.split(img_root)
 
         label = self.label_dict[class_name].get(img_name, None)
-        label = self.process_label({'label': label})
-        return label
+        return {'label': label}

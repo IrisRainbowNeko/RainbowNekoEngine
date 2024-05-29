@@ -366,15 +366,15 @@ class Trainer:
         if self.is_local_main_process:
             self.save_model()
 
-    def forward(self, image, **kwargs):
-        model_pred = self.model_wrapper(image, **kwargs)
+    def forward(self, input_data, **kwargs):
+        model_pred = self.model_wrapper(input_data, **kwargs)
         return model_pred
 
     def train_one_step(self, data_list):
         pred_list, target_list = {}, {}
         with self.accelerator.accumulate(self.model_wrapper):
             for idx, data in enumerate(data_list):
-                image = data.pop("img").to(self.device, dtype=self.weight_dtype)
+                input_data = data.pop("img").to(self.device, dtype=self.weight_dtype)
                 target = {k: v.to(self.device) for k, v in data.pop("label").items()}
                 other_datas = {
                     k: v.to(self.device, dtype=self.weight_dtype) for k, v in data.items() if k != "plugin_input"
@@ -384,7 +384,7 @@ class Trainer:
                         k: v.to(self.device, dtype=self.weight_dtype) for k, v in data["plugin_input"].items()
                     }
 
-                model_pred = self.forward(image, **other_datas)
+                model_pred = self.forward(input_data, **other_datas)
                 pred_list = addto_dictlist(pred_list, model_pred, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
                 target_list = addto_dictlist(target_list, target, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
                 loss = self.get_loss(model_pred, target) * self.train_loader_group.get_loss_weights(idx)

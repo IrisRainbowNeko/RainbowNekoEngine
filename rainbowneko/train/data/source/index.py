@@ -1,5 +1,4 @@
-from typing import Any
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 import albumentations as A
 import numpy as np
@@ -46,14 +45,13 @@ class IndexSource(DataSource):
             self.label_dict[idx] = label
         return {'image': image}
 
-    def load_label(self, idx: int) -> str:
+    def load_label(self, idx: int) -> Dict[str, Any]:
         if idx in self.label_dict:
             label = self.label_dict[idx]
         else:
             label = self.data[idx][1]
 
-        label = self.process_label({'label': label})
-        return label
+        return {'label': label}
 
     def get_image_size(self, idx: int) -> Tuple[int, int]:
         image, label = self.data[idx]

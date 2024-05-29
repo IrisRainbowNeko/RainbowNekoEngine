@@ -30,7 +30,7 @@ class DataSource:
     def load_image(self, path) -> Dict[str, Any]:
         raise NotImplementedError()
 
-    def load_label(self, img_name: str):
+    def load_label(self, img_name: str) -> Dict[str, Any]:
         raise NotImplementedError()
 
     def get_image_size(self, path: str) -> Tuple[int, int]:

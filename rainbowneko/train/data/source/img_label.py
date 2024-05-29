@@ -1,5 +1,5 @@
 import os
-from typing import Union
+from typing import Union, Dict, Any
 
 from rainbowneko.train.data.label_loader import BaseLabelLoader, auto_label_loader
 from rainbowneko.utils.img_size_tool import types_support
@@ -32,7 +32,6 @@ class ImageLabelSource(VisionDataSource):
     def __len__(self):
         return len(self.img_ids)
 
-    def load_label(self, img_id: str) -> str:
+    def load_label(self, img_id: str) -> Dict[str, Any]:
         label = self.label_dict.get(img_id, None)
-        label = self.process_label({'label': label})
-        return label
+        return {'label': label}

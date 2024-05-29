@@ -6,6 +6,57 @@ from .lr_scheduler import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 from torch import nn
 from torch.optim import lr_scheduler
 
+import random
+import numpy as np
+import torch
+
+class RandomContext:
+    def __init__(self):
+        self.py_state = random.getstate()
+        self.np_state = np.random.get_state()
+        self.torch_state = torch.get_rng_state()
+        self.cuda_state = torch.cuda.get_rng_state()
+
+        self.py_state_save = None
+        self.np_state_save = None
+        self.torch_state_save = None
+        self.cuda_state_save = None
+
+    def __enter__(self):
+        # Save Python random state
+        self.py_state_save = random.getstate()
+        random.setstate(self.py_state)
+
+        # Save NumPy random state
+        self.np_state_save = np.random.get_state()
+        np.random.set_state(self.np_state)
+
+        # Save PyTorch random state
+        self.torch_state_save = torch.get_rng_state()
+        torch.set_rng_state(self.torch_state)
+
+        # Save CUDA random state if available
+        if torch.cuda.is_available():
+            self.cuda_state_save = torch.cuda.get_rng_state()
+            torch.cuda.set_rng_state(self.cuda_state)
+
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Restore Python random state
+        random.setstate(self.py_state_save)
+
+        # Restore NumPy random state
+        np.random.set_state(self.np_state_save)
+
+        # Restore PyTorch random state
+        torch.set_rng_state(self.torch_state_save)
+
+        # Restore CUDA random state if available
+        if torch.cuda.is_available() and self.cuda_state is not None:
+            torch.cuda.set_rng_state(self.cuda_state_save)
+
+
 def get_scheduler(cfg, optimizer, num_training_steps):
     if cfg is None:
         return None

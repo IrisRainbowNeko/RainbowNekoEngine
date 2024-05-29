@@ -25,14 +25,14 @@ class SingleWrapper(BaseWrapper):
         super().__init__()
         self.model = model
 
-    def forward(self, x, plugin_input={}, **kwargs):
-        input_all = dict(x=x, **plugin_input)
+    def forward(self, input_data, plugin_input={}, **kwargs):
+        input_all = dict(input_data=input_data, **plugin_input)
 
         if hasattr(self.model, 'input_feeder'):
             for feeder in self.model.input_feeder:
                 feeder(input_all)
 
-        out = self.model(x, **kwargs)
+        out = self.model(input_data, **kwargs)
         return {'pred': out}
 
     @property

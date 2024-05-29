@@ -16,7 +16,7 @@ from torch.utils.data import Dataset
 
 from .bucket import BaseBucket
 from .source import DataSource, ComposeDataSource
-
+from rainbowneko.utils import RandomContext
 
 class ImageLabelDataset(Dataset):
     """
@@ -29,16 +29,20 @@ class ImageLabelDataset(Dataset):
         self.source = ComposeDataSource(list(source.values()))
         self.batch_transform = batch_transform
 
-    def load_image(self, path: str, data_source: DataSource, size: Tuple[int]):
-        image_dict = data_source.load_image(path)
+        self.random_context = RandomContext()
+
+    def load_image(self, data_id: str, data_source: DataSource, size: Tuple[int]):
+        image_dict = data_source.load_image(data_id)
         image = image_dict['image']
 
-        data, crop_coord = self.bucket.crop_resize({"img": image}, size)
-        image = data_source.procees_image(data['img'])  # resize to bucket size
+        with RandomContext() as self.random_context:
+            data, crop_coord = self.bucket.crop_resize({"img": image}, size)
+            image = data_source.procees_image(data['img'])  # resize to bucket size
         return {'img': image}
 
-    def load_label(self, img_path: str, data_source: DataSource):
-        label = data_source.load_label(img_path)
+    def load_label(self, data_id: str, data_source: DataSource):
+        label = data_source.load_label(data_id)
+        label = data_source.process_label(label)
         return {'label': label}
 
     def batch_process(self, batch: Dict[str, Union[List, torch.Tensor]]):
@@ -50,10 +54,10 @@ class ImageLabelDataset(Dataset):
         return len(self.bucket)
 
     def __getitem__(self, index):
-        (path, data_source), size = self.bucket[index]
+        (data_id, data_source), size = self.bucket[index]
 
-        data = self.load_image(path, data_source, size)
-        label = self.load_label(path, data_source)
+        data = self.load_image(data_id, data_source, size)
+        label = self.load_label(data_id, data_source)
         label = self.bucket.process_label(index, label)
         data.update(label)
 
