@@ -1,4 +1,5 @@
 from .img_label_dataset import ImageLabelDataset
+from .img_pair_dataset import ImagePairDataset
 from .bucket import BaseBucket, FixedBucket, RatioBucket, SizeBucket, RatioSizeBucket, LongEdgeBucket
 from .utils import CycleData
 from .label_loader import JsonLabelLoader, YamlLabelLoader, TXTLabelLoader, auto_label_loader
