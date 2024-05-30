@@ -13,7 +13,7 @@ class ImagePairSource(ImageLabelSource):
 
     def load_label(self, img_id: str) -> Dict[str, Any]:
         target_img_path = self.label_dict.get(img_id, None)
-        target_img = self.load_image(target_img_path)
+        target_img = self.load_image(target_img_path)['image']
         return {'target_image': target_img}
 
     def process_label(self, label_dict):
