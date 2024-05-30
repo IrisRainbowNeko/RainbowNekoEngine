@@ -11,16 +11,20 @@ import numpy as np
 import torch
 
 class RandomContext:
-    def __init__(self):
+    def __init__(self, cuda=False):
         self.py_state = random.getstate()
         self.np_state = np.random.get_state()
         self.torch_state = torch.get_rng_state()
-        self.cuda_state = torch.cuda.get_rng_state()
+        if cuda:
+            self.cuda_state = torch.cuda.get_rng_state()
 
         self.py_state_save = None
         self.np_state_save = None
         self.torch_state_save = None
-        self.cuda_state_save = None
+        if cuda:
+            self.cuda_state_save = None
+
+        self.cuda = cuda
 
     def __enter__(self):
         # Save Python random state
@@ -36,7 +40,7 @@ class RandomContext:
         torch.set_rng_state(self.torch_state)
 
         # Save CUDA random state if available
-        if torch.cuda.is_available():
+        if self.cuda and torch.cuda.is_available():
             self.cuda_state_save = torch.cuda.get_rng_state()
             torch.cuda.set_rng_state(self.cuda_state)
 
@@ -53,7 +57,7 @@ class RandomContext:
         torch.set_rng_state(self.torch_state_save)
 
         # Restore CUDA random state if available
-        if torch.cuda.is_available() and self.cuda_state is not None:
+        if self.cuda and torch.cuda.is_available() and self.cuda_state is not None:
             torch.cuda.set_rng_state(self.cuda_state_save)
 
 
