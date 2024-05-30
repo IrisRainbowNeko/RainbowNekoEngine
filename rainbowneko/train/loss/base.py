@@ -10,6 +10,8 @@ class LossContainer(nn.Module):
                 self.key_map = loss._key_map
             else:
                 self.key_map = {0: 'pred.pred', 1: 'target.label'}
+        else:
+            self.key_map = key_map
 
     def forward(self, pred, target):
         args = []
