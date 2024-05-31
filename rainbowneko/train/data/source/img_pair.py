@@ -16,11 +16,10 @@ class ImagePairSource(ImageLabelSource):
         target_img = self.load_image(target_img_path)['image']
         return {'target_image': target_img}
 
-    def process_label(self, label_dict):
-        image = label_dict['target_image']
-        if isinstance(self.image_transforms, (A.BaseCompose, A.BasicTransform)):
-            image_A = self.image_transforms(image=np.array(image))
+    def process_label(self, image):
+        if isinstance(self.target_transforms, (A.BaseCompose, A.BasicTransform)):
+            image_A = self.target_transforms(image=np.array(image))
             image = image_A['image']
         else:
-            image = self.image_transforms(image)
-        return {**label_dict, 'target_image': image}
+            image = self.target_transforms(image)
+        return image
