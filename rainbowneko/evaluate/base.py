@@ -62,8 +62,8 @@ class EvaluatorGroup:
             evaluator.to(device)
 
     @staticmethod
-    def format(metrics_dict, format="{:.2e}"):
+    def format(metrics_dict, format="{:.2e}", prefix=''):
         if not isinstance(metrics_dict, dict):
             metrics_dict = {"metrics": metrics_dict}
-        metrics_dict = {k: {"format": format, "data": [v]} for k, v in metrics_dict.items()}
+        metrics_dict = {prefix+k: {"format": format, "data": [v]} for k, v in metrics_dict.items()}
         return metrics_dict

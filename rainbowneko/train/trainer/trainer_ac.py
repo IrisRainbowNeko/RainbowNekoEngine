@@ -327,11 +327,11 @@ class Trainer:
                     # get learning rate from optimizer
                     lr_model = self.optimizer.param_groups[0]["lr"] if hasattr(self, "optimizer") else 0.0
                     log_data = {
-                        "Step": {
+                        "train/Step": {
                             "format": "[{}/{}]",
                             "data": [self.global_step, self.cfgs.train.train_steps],
                         },
-                        "Epoch": {
+                        "train/Epoch": {
                             "format": "[{}/{}]<{}/{}>",
                             "data": [
                                 self.global_step // self.steps_per_epoch,
@@ -340,8 +340,8 @@ class Trainer:
                                 self.steps_per_epoch,
                             ],
                         },
-                        "LR_model": {"format": "{:.2e}", "data": [lr_model]},
-                        "Loss": {"format": "{:.5f}", "data": [loss_sum]},
+                        "train/LR_model": {"format": "{:.2e}", "data": [lr_model]},
+                        "train/Loss": {"format": "{:.5f}", "data": [loss_sum]},
                     }
                     if self.evaluator_train is not None:
                         pred_list_cat = {k: torch.cat(v) for k, v in pred_list.items()}
@@ -471,13 +471,14 @@ class Trainer:
         if not isinstance(metric, dict):
             metric = {'metric': metric}
 
+        self.loggers.info('Evaluate')
         log_data = {
-            "Evaluate": {
-                "format": "step {}",
+            "eval/Step": {
+                "format": "{}",
                 "data": [self.global_step],
             }
         }
-        log_data.update(EvaluatorGroup.format(metric))
+        log_data.update(EvaluatorGroup.format(metric, prefix='eval/'))
         self.loggers.log(log_data, self.global_step)
 
     def eval_one_step(self, data_list):

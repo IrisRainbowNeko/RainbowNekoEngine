@@ -32,7 +32,7 @@ class CLILogger(BaseLogger):
         logger.info(info)
 
     def log_text(self, datas: Dict[str, Any], step: int = 0):
-        logger.info(', '.join([f"{k} = {v['format'].format(*v['data'])}" for k, v in datas.items()]))
+        logger.info(', '.join([f"{os.path.basename(k)} = {v['format'].format(*v['data'])}" for k, v in datas.items()]))
 
     def log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
         logger.info(f'log {len(imgs)} images')
