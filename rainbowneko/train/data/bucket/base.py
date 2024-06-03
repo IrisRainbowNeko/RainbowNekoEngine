@@ -6,17 +6,17 @@ import cv2
 class BaseBucket:
     can_shuffle = True
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> Tuple[Tuple[str, 'DataSource'], Tuple[int, int]]:
         '''
         :return: (file name of image), (target image size)
         '''
-        raise NotImplementedError()
+        return self.source[idx], (0,0)
 
     def __len__(self):
-        raise NotImplementedError()
+        return len(self.source)
 
     def build(self, bs: int, world_size: int, source: 'DataSource'):
-        raise NotImplementedError()
+        self.source = source
 
     def rest(self, epoch):
         pass
