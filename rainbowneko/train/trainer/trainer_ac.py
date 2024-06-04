@@ -23,7 +23,7 @@ from accelerate import Accelerator
 from accelerate.utils import set_seed
 from rainbowneko.evaluate import EvaluatorGroup
 from rainbowneko.parser import load_config_with_cli
-from rainbowneko.parser import parse_plugin_cfg, parse_model_part_cfg
+from rainbowneko.parser import parse_plugin_cfg
 from rainbowneko.train.data import RatioBucket, DataGroup, get_sampler
 from rainbowneko.train.loggers import LoggerGroup
 from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, addto_dictlist
@@ -276,7 +276,7 @@ class Trainer:
 
     def get_param_group_train(self):
         # make model part and plugin
-        train_params = parse_model_part_cfg(self.model_wrapper, self.cfgs.model_part)
+        train_params = self.cfgs.model_part.get_params_group(self.model_wrapper)
 
         train_params_plugin, self.all_plugin = parse_plugin_cfg(self.model_wrapper, self.cfgs.model_plugin)
         train_params += train_params_plugin

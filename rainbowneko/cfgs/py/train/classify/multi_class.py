@@ -13,7 +13,7 @@ from rainbowneko.train.data.source import IndexSource
 from rainbowneko.train.loss import LossContainer
 from rainbowneko.train.data import ImageLabelDataset
 from rainbowneko.ckpt_manager import CkptManagerPKL
-from rainbowneko.parser import make_base
+from rainbowneko.parser import make_base, CfgModelParser
 
 from cfgs.py.train import train_base, tuning_base
 
@@ -28,12 +28,12 @@ def make_cfg():
     dict(
         _base_=make_base(train_base, tuning_base)+[],
 
-        model_part=[
+        model_part=CfgModelParser([
             dict(
                 lr=1e-2,
                 layers=[''],  # train all layers
             )
-        ],
+        ]),
 
         # func(_partial_=True, ...) same as partial(func, ...)
         ckpt_manager=CkptManagerPKL(_partial_=True, saved_model=(

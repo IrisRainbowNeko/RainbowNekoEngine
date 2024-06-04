@@ -76,23 +76,38 @@ def get_match_layers(layers, all_layers, return_metas=False) -> Union[List[str],
         return sorted(set(res), key=res.index)
 
 
-def parse_model_part_cfg(model, cfg_model, default_lr=1e-5) -> List[Dict]:
-    named_modules = {k: v for k, v in model.named_modules()}
+class CfgModelParser:
+    def __init__(self, cfg_model, lr=1e-5, weight_decay=0):
+        self.cfg_model = cfg_model
+        self.lr = lr
+        self.weight_decay = weight_decay
 
-    train_params = []
+    def get_params_group(self, model):
+        named_modules = {k: v for k, v in model.named_modules()}
 
-    if cfg_model is not None:
-        for item in cfg_model:
-            params_group = []
-            for layer_name in get_match_layers(item.layers, named_modules):
-                layer = named_modules[layer_name]
-                layer.requires_grad_(True)
-                layer.train()
-                params_group.extend(layer.parameters())
-            train_params.append({"params": list(set(params_group)), "lr": getattr(item, "lr", default_lr)})
+        train_params = []
 
-    return train_params
+        if self.cfg_model is not None:
+            for item in self.cfg_model:
+                params_group = []
+                for layer_name in get_match_layers(item.layers, named_modules):
+                    layer = named_modules[layer_name]
+                    layer.requires_grad_(True)
+                    layer.train()
+                    params_group.extend(layer.parameters())
+                train_params.append({"params": list(set(params_group)), "lr": getattr(item, "lr", self.lr),
+                                    "weight_decay": getattr(item, "weight_decay", self.weight_decay)})
 
+        return train_params
+
+class CustomModelParser:
+    def __init__(self, params_loader, **kwargs):
+        self.params_loader = params_loader
+        self.kwargs = kwargs
+
+    def get_params_group(self, model):
+        train_params = self.params_loader(model, **self.kwargs)
+        return train_params
 
 def parse_plugin_cfg(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, PluginGroup]]:
     train_params = []

@@ -1,5 +1,5 @@
 import os
-from .cfg_net_parser import parse_plugin_cfg, parse_model_part_cfg
+from .cfg_net_parser import parse_plugin_cfg, CfgModelParser, CustomModelParser
 from .yaml_cfg import YamlCfgParser
 from .python_cfg import PythonCfgParser
 
