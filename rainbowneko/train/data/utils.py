@@ -9,8 +9,8 @@ class DualRandomCrop:
         self.size = size
 
     def __call__(self, img):
-        crop_params = T.RandomCrop.get_params(img['img'], self.size)
-        img['img'] = F.crop(img['img'], *crop_params)
+        crop_params = T.RandomCrop.get_params(img['image'], self.size)
+        img['image'] = F.crop(img['image'], *crop_params)
         if "mask" in img:
             img['mask'] = self.crop(img['mask'], *crop_params)
         if "cond" in img:
@@ -24,7 +24,7 @@ class DualRandomCrop:
         return img[top:bottom, left:right, ...]
 
 def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
-    w, h = img['img'].size
+    w, h = img['image'].size
     if w == target_size[0] and h == target_size[1]:
         return img, [h,w,0,0,h,w]
 
@@ -35,7 +35,7 @@ def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
     else:
         new_size = (target_size[0], round(target_size[0]/ratio_img))
         interp_type = Image.LANCZOS if w>target_size[0] else Image.BICUBIC
-    img['img'] = img['img'].resize(new_size, interp_type)
+    img['image'] = img['image'].resize(new_size, interp_type)
     if "mask" in img:
         img['mask'] = cv2.resize(img['mask'], new_size, interpolation=mask_interp)
     if "cond" in img:
@@ -45,13 +45,13 @@ def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
     return img, [*new_size, *crop_coord[::-1], *target_size]
 
 def pad_crop_fix(img, target_size):
-    w, h = img['img'].size
+    w, h = img['image'].size
     if w == target_size[0] and h == target_size[1]:
         return img, (h,w,0,0,h,w)
 
     pad_size = [0, 0, max(target_size[0]-w, 0), max(target_size[1]-h, 0)]
     if pad_size[2]>0 or pad_size[3]>0:
-        img['img'] = F.pad(img['img'], pad_size)
+        img['image'] = F.pad(img['image'], pad_size)
         if "mask" in img:
             img['mask'] = np.pad(img['mask'], ((0, pad_size[3]), (0, pad_size[2])), 'constant', constant_values=(0, 0))
         if "cond" in img:

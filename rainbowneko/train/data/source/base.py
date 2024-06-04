@@ -67,12 +67,21 @@ class VisionDataSource(DataSource):
         self.image_transforms = image_transforms
         self.bg_color = tuple(bg_color)
 
+    def check_image(self, image):
+        image = dict(**image)
+        image.pop('image')
+        if len(image) > 0:
+            keys = ', '.join(image.keys())
+            print(f'images of {keys} image cannot proceesed by {self.__class__.__name__}')
+
     def procees_image(self, image):
+        self.check_image(image)
         if isinstance(self.image_transforms, (A.BaseCompose, A.BasicTransform)):
-            image_A = self.image_transforms(image=np.array(image))
-            return image_A['image']
+            image_A = self.image_transforms(image=np.array(image['image']))
+            image.update(image_A)
         else:
-            return self.image_transforms(image)
+            image['image'] = self.image_transforms(image['image'])
+        return image
 
     def process_label(self, label_dict):
         return label_dict

@@ -32,13 +32,12 @@ class ImageLabelDataset(Dataset):
         self.random_context = None
 
     def load_image(self, data_id: str, data_source: DataSource, size: Tuple[int]):
-        image_dict = data_source.load_image(data_id)
-        image = image_dict['image']
+        image = data_source.load_image(data_id)
 
         with RandomContext() as self.random_context:
-            data, crop_coord = self.bucket.crop_resize({"img": image}, size)
-            image = data_source.procees_image(data['img'])  # resize to bucket size
-        return {'img': image}
+            data, crop_coord = self.bucket.crop_resize(image, size)
+            image = data_source.procees_image(data)  # resize to bucket size
+        return image
 
     def load_label(self, data_id: str, data_source: DataSource):
         label = data_source.load_label(data_id)

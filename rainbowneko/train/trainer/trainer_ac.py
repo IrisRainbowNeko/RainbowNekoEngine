@@ -375,7 +375,7 @@ class Trainer:
         pred_list, target_list = {}, {}
         with self.accelerator.accumulate(self.model_wrapper):
             for idx, data in enumerate(data_list):
-                input_data = data.pop("img").to(self.device, dtype=self.weight_dtype)
+                input_data = data.pop("image").to(self.device, dtype=self.weight_dtype)
                 target = {k: v.to(self.device) for k, v in data.pop("label").items()}
                 other_datas = {
                     k: v.to(self.device, dtype=self.weight_dtype) for k, v in data.items() if k != "plugin_input"
@@ -488,7 +488,7 @@ class Trainer:
         target_list = {}
 
         for idx, data in enumerate(data_list):
-            image = data.pop("img").to(self.device, dtype=self.weight_dtype)
+            image = data.pop("image").to(self.device, dtype=self.weight_dtype)
             target = {k: v.to(self.device) for k, v in data.pop("label").items()}
             other_datas = {
                 k: v.to(self.device, dtype=self.weight_dtype) for k, v in data.items() if k != "plugin_input"
