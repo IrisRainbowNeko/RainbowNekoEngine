@@ -7,10 +7,13 @@ from .base import BaseWrapper
 
 
 class DistillationWrapper(BaseWrapper):
-    def __init__(self, model_teacher, model_student):
+    def __init__(self, model_teacher, model_student, ema=None):
         super().__init__()
         self.model_teacher = model_teacher
         self.model_student = model_student
+
+        if ema is not None:
+            self.ema_teacher = ema(self.model_teacher.named_parameters())
 
     def forward(self, img, img_teacher=None, plugin_input={}, **kwargs):
         input_all = dict(**plugin_input)
@@ -30,6 +33,9 @@ class DistillationWrapper(BaseWrapper):
             out_teacher = self.model_teacher(img_teacher, **kwargs)
         out_student = self.model_student(img, **kwargs)
         return {'pred': out_student, 'pred_teacher': out_teacher}
+
+    def update_model(self, step:int):
+        self.ema_teacher.step(self.model_student.named_parameters())
 
     @property
     def trainable_models(self) -> Dict[str, nn.Module]:

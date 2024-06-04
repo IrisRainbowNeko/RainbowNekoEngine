@@ -22,6 +22,7 @@ import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 from rainbowneko.evaluate import EvaluatorGroup
+from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.parser import parse_plugin_cfg
 from rainbowneko.train.data import RatioBucket, DataGroup, get_sampler
@@ -167,7 +168,7 @@ class Trainer:
         for name, obj in zip(prepare_name_list, prepared_obj):
             setattr(self, name, obj)
 
-        self.model_wrapper = self.model_wrapper.to(self.device)
+        self.model_wrapper: BaseWrapper = self.model_wrapper.to(self.device)
         if self.cfgs.model.force_cast_precision:
             self.model_wrapper.to(dtype=self.weight_dtype)
 
@@ -183,7 +184,7 @@ class Trainer:
 
     def build_ema(self):
         if self.cfgs.model.ema is not None:
-            self.ema_model = self.cfgs.model.ema(self.model_wrapper)
+            self.ema_model = self.cfgs.model.ema(self.model_wrapper.named_parameters())
 
     def build_loss(self):
         self.criterion = self.cfgs.train.loss()
@@ -402,6 +403,7 @@ class Trainer:
                     self.lr_scheduler.step()
                 self.optimizer.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
 
+            self.model_wrapper.update_model(self.global_step)  # Some model may update by step
             self.update_ema()
         return loss.item(), pred_list, target_list
 
@@ -411,7 +413,7 @@ class Trainer:
 
     def update_ema(self):
         if hasattr(self, "ema_model"):
-            self.ema_model.step(self.model_wrapper.named_parameters())
+            self.ema_model.step(self.model_raw.named_parameters())
 
     def save_model(self, from_raw=False):
         self.ckpt_manager.save(
@@ -435,8 +437,8 @@ class Trainer:
 
         def update(pred_list, target_list):
             # 在每个GPU上收集预测和目标
-            #gathered_predictions_cat = self.accelerator.gather(pred_list)
-            #gathered_targets_cat = self.accelerator.gather(target_list)
+            # gathered_predictions_cat = self.accelerator.gather(pred_list)
+            # gathered_targets_cat = self.accelerator.gather(target_list)
             # one gpu eval
             gathered_predictions_cat = pred_list
             gathered_targets_cat = target_list
@@ -464,7 +466,7 @@ class Trainer:
             # 定期汇总和计算指标
             if (idx + 1) % gather_interval == 0:
                 update(pred_list, target_list)
-        if len(pred_list)>0:
+        if len(pred_list) > 0:
             update(pred_list, target_list)
 
         metric = self.evaluator.evaluate()

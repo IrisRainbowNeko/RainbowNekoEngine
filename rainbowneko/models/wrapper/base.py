@@ -11,6 +11,9 @@ class BaseWrapper(nn.Module):
     def trainable_parameters(self) -> List[nn.Parameter]:
         return [v for k, v in self.named_parameters() if v.requires_grad]
 
+    def update_model(self, step:int):
+        pass
+
     def freeze_model(self):
         self.eval()
 
