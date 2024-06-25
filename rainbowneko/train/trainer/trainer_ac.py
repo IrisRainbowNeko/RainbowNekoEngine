@@ -249,14 +249,13 @@ class Trainer:
             world_size=self.world_size,
             source=dataset.source,
         )
-        arb = isinstance(dataset.bucket, RatioBucket)
         self.loggers.info(f"len(dataset): {len(dataset)}")
 
-        return dataset, batch_size, arb
+        return dataset, batch_size
 
     def build_data(self, data_builder: partial, train=True) -> torch.utils.data.DataLoader:
         drop_last = data_builder.keywords.pop("drop_last", True)
-        dataset, batch_size, arb = self.build_dataset(data_builder)
+        dataset, batch_size = self.build_dataset(data_builder)
 
         # Pytorch Data loader
         sampler = get_sampler(train)(
