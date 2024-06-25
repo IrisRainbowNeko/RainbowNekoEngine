@@ -402,7 +402,7 @@ class Trainer:
                     self.lr_scheduler.step()
                 self.optimizer.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
 
-            self.model_wrapper.update_model(self.global_step)  # Some model may update by step
+            self.model_raw.update_model(self.global_step)  # Some model may update by step
             self.update_ema()
         return loss.item(), pred_list, target_list
 
