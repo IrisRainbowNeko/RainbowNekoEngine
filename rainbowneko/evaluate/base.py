@@ -2,9 +2,9 @@ from functools import partial
 from typing import Dict
 
 import torch
+from rainbowneko.utils import addto_dictlist, KeyMapper
 
-
-class BaseEvaluator:
+class BaseMetric:
     def __init__(self):
         pass
 
@@ -14,52 +14,95 @@ class BaseEvaluator:
     def update(self, pred, target):
         raise NotImplementedError
 
-    def evaluate(self):
+    def finish(self, gather, is_local_main_process):
         raise NotImplementedError
 
     def to(self, device):
         pass
 
 
-class EvaluatorContainer(BaseEvaluator):
-    def __init__(self, evaluator):
+class MetricContainer(BaseMetric):
+    def __init__(self, metric, key_map=None):
         super().__init__()
-        self.evaluator = evaluator
+        self.key_mapper = KeyMapper(metric, key_map)
+        self.metric = metric
 
     def reset(self):
         self.metric_list = []
 
-    def evaluate(self):
+    def update(self, pred, target):
+        args, kwargs = self.key_mapper(pred=pred, target=target)
+        v_metric = self.metric(*args, **kwargs)
+        self.metric_list.append(v_metric)
+
+    def finish(self, gather, is_local_main_process):
+        total = torch.tensor([len(self.metric_list)]).float()
         try:
-            return torch.cat(self.metric_list).mean()
+            metric_all = torch.cat(self.metric_list).mean()
         except:
-            return torch.tensor(self.metric_list).mean()
+            metric_all = torch.tensor(self.metric_list).mean()
+
+        metric_all = gather(metric_all)
+        total = gather(total)
+        return metric_all*total/total.sum()
 
     def to(self, device):
-        self.evaluator.to(device)
+        self.metric.to(device)
 
-
-class EvaluatorGroup:
-    def __init__(self, evaluator_dict: Dict[str, BaseEvaluator]):
-        self.evaluator_dict = {k: (v() if isinstance(v, partial) else v) for k, v in evaluator_dict.items()}
+class FullMetricContainer(MetricContainer):
 
     def reset(self):
-        for name, evaluator in self.evaluator_dict.items():
-            evaluator.reset()
+        self.args_list = []
+        self.kwargs_list = {}
+
+    def update(self, pred, target):
+        args, kwargs = self.key_mapper(pred=pred, target=target)
+
+        if len(self.args_list) == 0:
+            for v in args:
+                self.args_list.append([v])
+        else:
+            for i,v in enumerate(args):
+                self.args_list[i].append(v)
+
+        addto_dictlist(self.kwargs_list, kwargs)
+
+    def finish(self, gather, is_local_main_process):
+        for i, v in enumerate(self.args_list):
+            self.args_list[i] = torch.cat(v)
+
+        for k, v in self.kwargs_list.items():
+            self.kwargs_list[k] = torch.cat(v)
+
+        self.args_list = gather(self.args_list)
+        self.kwargs_list = gather(self.kwargs_list)
+
+        v_metric = self.metric(*self.args_list, **self.kwargs_list)
+
+        return v_metric
+
+
+class MetricGroup(BaseMetric):
+    def __init__(self, metric_dict: Dict[str, BaseMetric]):
+        self.metric_dict = {k: (v() if isinstance(v, partial) else v) for k, v in metric_dict.items()}
+
+    def reset(self):
+        for name, metric in self.metric_dict.items():
+            metric.reset()
 
     def update(self, *args, **kwargs):
-        for name, evaluator in self.evaluator_dict.items():
-            evaluator.update(*args, **kwargs)
+        for name, metric in self.metric_dict.items():
+            metric.update(*args, **kwargs)
 
-    def evaluate(self):
+    def finish(self, gather, is_local_main_process):
         metric_dict = {}
-        for name, evaluator in self.evaluator_dict.items():
-            metric_dict[name] = evaluator.evaluate()
+        for name, metric in self.metric_dict.items():
+            metric_dict[name] = metric.finish(gather, is_local_main_process)
         return metric_dict
 
     def to(self, device):
-        for evaluator in self.evaluator_dict.values():
-            evaluator.to(device)
+        for metric in self.metric_dict.values():
+            metric.to(device)
 
     @staticmethod
     def format(metrics_dict, format="{:.2e}", prefix=''):

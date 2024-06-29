@@ -1,19 +1,15 @@
 from torch import nn
+from rainbowneko.utils import KeyMapper
 
 class LossContainer(nn.Module):
     def __init__(self, loss, weight=1.0, key_map=None):
         super().__init__()
+        self.key_mapper = KeyMapper(loss, key_map)
         self.loss = loss
         self.alpha = weight
-        if key_map is None and loss is not None:
-            if hasattr(loss, '_key_map'):
-                self.key_map = loss._key_map
-            else:
-                self.key_map = {0: 'pred.pred', 1: 'target.label'}
-        else:
-            self.key_map = key_map
 
     def forward(self, pred, target):
+        args, kwargs = self.key_mapper(pred=pred, target=target)
         args = []
         kwargs = {}
         for k_dst, k_src in self.key_map.items():

@@ -21,7 +21,7 @@ import torch.utils.checkpoint
 import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from rainbowneko.evaluate import EvaluatorGroup
+from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
 from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.parser import parse_plugin_cfg
@@ -63,10 +63,6 @@ class Trainer:
         self.train_loader_group = DataGroup(
             [self.build_data(dataset, train=True) for name, dataset in cfgs.data_train.items()], loss_weights
         )
-        self.val_loader_group = DataGroup(
-            [self.build_data(dataset, train=False) for name, dataset in cfgs.data_eval.items()], loss_weights,
-            cycle=False
-        ) if cfgs.data_eval is not None else None
 
         # calculate steps and epochs
         self.steps_per_epoch = len(self.train_loader_group.loader_list[0])
@@ -85,14 +81,14 @@ class Trainer:
 
         torch.backends.cuda.matmul.allow_tf32 = cfgs.allow_tf32
 
-        if self.is_local_main_process and self.cfgs.train.metrics is not None:
-            self.evaluator_train, _ = self.build_evaluator(self.cfgs.train.metrics)
-            self.evaluator_train.to(self.accelerator.device)
+        if self.cfgs.train.metrics is not None:
+            self.metric_train = self.cfgs.train.metrics
+            self.metric_train.to(self.accelerator.device)
         else:
-            self.evaluator_train = None
+            self.metric_train = None
 
-        if self.is_local_main_process and self.cfgs.evaluator is not None:
-            self.evaluator, self.eval_interval = self.build_evaluator(self.cfgs.evaluator)
+        if self.cfgs.evaluator is not None:
+            self.evaluator = self.build_evaluator(self.cfgs.evaluator)
             self.evaluator.to(self.accelerator.device)
         else:
             self.evaluator = None
@@ -197,18 +193,24 @@ class Trainer:
             )
 
     def build_evaluator(self, cfgs_eval):
+        def build_one(cfgs_eval_one):
+            dataset_cfg = cfgs_eval_one.keywords.pop('dataset', None)
+            val_loader_group = DataGroup(
+                [self.build_data(dataset, train=False) for name, dataset in dataset_cfg.items()], None,
+                cycle=False
+            )
+
+            evaluator = cfgs_eval_one(trainer=self, data_loader_group=val_loader_group)
+            return evaluator
+
         if cfgs_eval is not None:
-            eval_interval = cfgs_eval.keywords.pop('interval', None)
-            try:
-                evaluator = cfgs_eval(
-                    exp_dir=self.exp_dir,
-                    model=self.model_wrapper,
-                )
-            except:  # maybe not in RainbowNeko format
-                evaluator = cfgs_eval()
-            return evaluator, eval_interval
+            if isinstance(cfgs_eval, dict):
+                evaluator_dict = {name:build_one(cfg) for name, cfg in cfgs_eval.items()}
+                return EvaluatorGroup(loggers=self.loggers, evaluator_dict=evaluator_dict)
+            else:
+                return build_one(cfgs_eval)
         else:
-            return None, None
+            return None
 
     @property
     def model_raw(self):
@@ -343,20 +345,20 @@ class Trainer:
                         "train/LR_model": {"format": "{:.2e}", "data": [lr_model]},
                         "train/Loss": {"format": "{:.5f}", "data": [loss_sum]},
                     }
-                    if self.evaluator_train is not None:
+                    if self.metric_train is not None:
                         pred_list_cat = {k: torch.cat(v) for k, v in pred_list.items()}
                         target_list_cat = {k: torch.cat(v) for k, v in target_list.items()}
-                        self.evaluator_train.reset()
-                        self.evaluator_train.update(pred_list_cat, target_list_cat)
-                        metrics_dict = self.evaluator_train.evaluate()
-                        log_data.update(EvaluatorGroup.format(metrics_dict))
+                        self.metric_train.reset()
+                        self.metric_train.update(pred_list_cat, target_list_cat)
+                        metrics_dict = self.metric_train.finish(self.accelerator.gather, self.is_local_main_process)
+                        log_data.update(MetricGroup.format(metrics_dict))
                     self.loggers.log(
                         datas=log_data,
                         step=self.global_step,
                     )
 
-            if self.evaluator is not None and self.val_loader_group is not None and self.global_step % self.eval_interval == 0:
-                self.evaluate()
+            if self.evaluator is not None:
+                self.evaluator.evaluate(self.global_step, self.model_wrapper)
                 self.model_wrapper.train()
 
             if self.global_step >= self.cfgs.train.train_steps:
@@ -365,10 +367,6 @@ class Trainer:
         self.wait_for_everyone()
         if self.is_local_main_process:
             self.save_model()
-
-    def forward(self, input_data, **kwargs):
-        model_pred = self.model_wrapper(input_data, **kwargs)
-        return model_pred
 
     def train_one_step(self, data_list):
         pred_list, target_list = {}, {}
@@ -384,7 +382,7 @@ class Trainer:
                         k: v.to(self.device, dtype=self.weight_dtype) for k, v in data["plugin_input"].items()
                     }
 
-                model_pred = self.forward(input_data, **other_datas)
+                model_pred = self.model_wrapper(input_data, **other_datas)
                 pred_list = addto_dictlist(pred_list, model_pred, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
                 target_list = addto_dictlist(target_list, target, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
                 loss = self.get_loss(model_pred, target) * self.train_loader_group.get_loss_weights(idx)
@@ -427,84 +425,6 @@ class Trainer:
 
     def wait_for_everyone(self):
         self.accelerator.wait_for_everyone()
-
-    @torch.inference_mode()
-    def evaluate(self, gather_interval=10):
-        self.model_wrapper.eval()
-        pred_list = {}
-        target_list = {}
-
-        def update(pred_list, target_list):
-            # 在每个GPU上收集预测和目标
-            # gathered_predictions_cat = self.accelerator.gather(pred_list)
-            # gathered_targets_cat = self.accelerator.gather(target_list)
-            # one gpu eval
-            gathered_predictions_cat = pred_list
-            gathered_targets_cat = target_list
-
-            try:
-                gathered_predictions = {k: sum(v, []) for k, v in gathered_predictions_cat.items()}
-                gathered_targets = {k: sum(v, []) for k, v in gathered_targets_cat.items()}
-            except:
-                gathered_predictions = gathered_predictions_cat
-                gathered_targets = gathered_targets_cat
-
-            if self.is_local_main_process:
-                # 主进程处理gathered数据，并计算部分指标
-                self.evaluator.update(gathered_predictions, gathered_targets)
-
-            pred_list.clear()
-            target_list.clear()
-
-        self.evaluator.reset()
-        for idx, data_list in enumerate(tqdm(self.val_loader_group, disable=not self.is_local_main_process)):
-            pred, target = self.eval_one_step(data_list)
-            pred_list = addto_dictlist(pred_list, pred)
-            target_list = addto_dictlist(target_list, target)
-
-            # 定期汇总和计算指标
-            if (idx + 1) % gather_interval == 0:
-                update(pred_list, target_list)
-        if len(pred_list) > 0:
-            update(pred_list, target_list)
-
-        metric = self.evaluator.evaluate()
-        if not isinstance(metric, dict):
-            metric = {'metric': metric}
-
-        self.loggers.info('Evaluate')
-        log_data = {
-            "eval/Step": {
-                "format": "{}",
-                "data": [self.global_step],
-            }
-        }
-        log_data.update(EvaluatorGroup.format(metric, prefix='eval/'))
-        self.loggers.log(log_data, self.global_step)
-
-    def eval_one_step(self, data_list):
-        pred_list = {}
-        target_list = {}
-
-        for idx, data in enumerate(data_list):
-            image = data.pop("image").to(self.device, dtype=self.weight_dtype)
-            target = {k: v.to(self.device) for k, v in data.pop("label").items()}
-            other_datas = {
-                k: v.to(self.device, dtype=self.weight_dtype) for k, v in data.items() if k != "plugin_input"
-            }
-            if "plugin_input" in data:
-                other_datas["plugin_input"] = {
-                    k: v.to(self.device, dtype=self.weight_dtype) for k, v in data["plugin_input"].items()
-                }
-
-            model_pred = self.forward(image, **other_datas)
-
-            pred_list = addto_dictlist(pred_list, model_pred)
-            target_list = addto_dictlist(target_list, target)
-
-        pred_list_cat = {k: (torch.cat(v) if isinstance(v, torch.Tensor) else v) for k, v in pred_list.items()}
-        target_list_cat = {k: (torch.cat(v) if isinstance(v, torch.Tensor) else v) for k, v in target_list.items()}
-        return pred_list_cat, target_list_cat
 
 
 def neko_train():

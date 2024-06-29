@@ -1,3 +1,3 @@
-from .base import BaseEvaluator, EvaluatorGroup, EvaluatorContainer
-from .classification import ClsEvaluatorContainer
-from .image import ImageEvaluatorContainer
+from .base import BaseMetric, MetricContainer, FullMetricContainer, MetricGroup
+from .evaluator import Evaluator, EvaluatorGroup
+from .torchmetrics import TorchMetricsContainer
