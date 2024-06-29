@@ -86,6 +86,7 @@ class CfgModelParser:
         named_modules = {k: v for k, v in model.named_modules()}
 
         train_params = []
+        train_layers = []
 
         if self.cfg_model is not None:
             for item in self.cfg_model:
@@ -94,11 +95,12 @@ class CfgModelParser:
                     layer = named_modules[layer_name]
                     layer.requires_grad_(True)
                     layer.train()
+                    train_layers.append(layer)
                     params_group.extend(layer.parameters())
                 train_params.append({"params": list(set(params_group)), "lr": getattr(item, "lr", self.lr),
                                     "weight_decay": getattr(item, "weight_decay", self.weight_decay)})
 
-        return train_params
+        return train_params, train_layers
 
 class CustomModelParser:
     def __init__(self, params_loader, **kwargs):
@@ -106,8 +108,8 @@ class CustomModelParser:
         self.kwargs = kwargs
 
     def get_params_group(self, model):
-        train_params = self.params_loader(model, **self.kwargs)
-        return train_params
+        train_params, train_layers = self.params_loader(model, **self.kwargs)
+        return train_params, train_layers
 
 def parse_plugin_cfg(model, cfg_plugin, default_lr=1e-5) -> Tuple[List, Dict[str, PluginGroup]]:
     train_params = []

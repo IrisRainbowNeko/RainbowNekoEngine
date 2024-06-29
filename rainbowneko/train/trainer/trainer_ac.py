@@ -278,7 +278,8 @@ class Trainer:
 
     def get_param_group_train(self):
         # make model part and plugin
-        train_params = self.cfgs.model_part.get_params_group(self.model_wrapper)
+        train_params, train_layers = self.cfgs.model_part.get_params_group(self.model_wrapper)
+        self.model_wrapper.trainable_layers = train_layers
 
         train_params_plugin, self.all_plugin = parse_plugin_cfg(self.model_wrapper, self.cfgs.model_plugin)
         train_params += train_params_plugin

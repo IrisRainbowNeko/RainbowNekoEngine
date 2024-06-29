@@ -10,18 +10,6 @@ class LossContainer(nn.Module):
 
     def forward(self, pred, target):
         args, kwargs = self.key_mapper(pred=pred, target=target)
-        args = []
-        kwargs = {}
-        for k_dst, k_src in self.key_map.items():
-            keys = k_src.split('.')
-            v = locals()[keys[0]]
-            for k in keys[1:]:
-                v = v[k]
-            if isinstance(k_dst, int):
-                args.append(v)
-            else:
-                kwargs[k_dst] = v
-
         return self.loss(*args, **kwargs) * self.alpha
 
 class LossGroup(nn.Module):

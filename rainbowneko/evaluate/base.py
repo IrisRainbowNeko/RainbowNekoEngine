@@ -44,7 +44,7 @@ class MetricContainer(BaseMetric):
 
         metric_all = gather(metric_all)
         total = gather(total)
-        return metric_all*total/total.sum()
+        return (metric_all*total/total.sum()).item()
 
     def to(self, device):
         self.metric.to(device)
@@ -79,7 +79,7 @@ class FullMetricContainer(MetricContainer):
 
         v_metric = self.metric(*self.args_list, **self.kwargs_list)
 
-        return v_metric
+        return v_metric.item()
 
 
 class MetricGroup(BaseMetric):

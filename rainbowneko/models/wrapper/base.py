@@ -1,6 +1,9 @@
 from torch import nn
 from typing import Dict, List
 
+from torch.nn.modules.module import T
+
+
 class BaseWrapper(nn.Module):
 
     @property
@@ -10,6 +13,14 @@ class BaseWrapper(nn.Module):
     @property
     def trainable_parameters(self) -> List[nn.Parameter]:
         return [v for k, v in self.named_parameters() if v.requires_grad]
+
+    @property
+    def trainable_layers(self) -> List[nn.Module]:
+        return self._trainable_layers
+
+    @trainable_layers.setter
+    def trainable_layers(self, layers: List[nn.Module]):
+        self._trainable_layers = layers
 
     def update_model(self, step:int):
         pass
@@ -22,6 +33,13 @@ class BaseWrapper(nn.Module):
 
     def enable_xformers(self):
         pass
+
+    def train(self, mode: bool = True):
+        self.training = mode
+
+        for layer in self.trainable_layers:
+            layer.train(mode)
+        return self
 
 class SingleWrapper(BaseWrapper):
     def __init__(self, model):
