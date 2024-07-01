@@ -1,5 +1,8 @@
 
 class KeyMapper:
+    cls_map = {0: 'pred.pred', 1: 'target.label'}
+    image_map = {0: 'pred.pred', 1: 'target.target_image'}
+
     def __init__(self, host=None, key_map=None):
         if key_map is None and host is not None:
             if hasattr(host, '_key_map'):
