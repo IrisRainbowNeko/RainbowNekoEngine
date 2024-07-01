@@ -47,7 +47,8 @@ class MetricContainer(BaseMetric):
         return (metric_all*total/total.sum()).item()
 
     def to(self, device):
-        self.metric.to(device)
+        if hasattr(self.metric, 'to'):
+            self.metric.to(device)
 
 class FullMetricContainer(MetricContainer):
 
