@@ -42,9 +42,12 @@ class MetricContainer(BaseMetric):
         except:
             metric_all = torch.tensor(self.metric_list).mean()
 
-        metric_all = gather(metric_all)
-        total = gather(total)
-        return (metric_all*total/total.sum()).item()
+        metric_all = metric_all.cuda()
+        total = total.cuda()
+        if gather is not None:
+            metric_all = gather(metric_all)
+            total = gather(total)
+        return (metric_all*total/total.sum()).sum().item()
 
     def to(self, device):
         if hasattr(self.metric, 'to'):

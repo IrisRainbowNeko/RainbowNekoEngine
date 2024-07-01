@@ -59,13 +59,13 @@ class Trainer:
         # build dataset
         self.batch_size_list = []
         assert len(cfgs.data_train) > 0, "At least one dataset is need."
-        loss_weights = [dataset.keywords["loss_weight"] for name, dataset in cfgs.data_train.items()]
+        loss_weights = {name:dataset.keywords["loss_weight"] for name, dataset in cfgs.data_train.items()}
         self.train_loader_group = DataGroup(
-            [self.build_data(dataset, train=True) for name, dataset in cfgs.data_train.items()], loss_weights
+            {name:self.build_data(dataset, train=True) for name, dataset in cfgs.data_train.items()}, loss_weights
         )
 
         # calculate steps and epochs
-        self.steps_per_epoch = len(self.train_loader_group.loader_list[0])
+        self.steps_per_epoch = len(self.train_loader_group.first_loader())
         if self.cfgs.train.train_epochs is not None:
             self.cfgs.train.train_steps = self.cfgs.train.train_epochs * self.steps_per_epoch
         else:
@@ -143,7 +143,7 @@ class Trainer:
             prepare_obj_list.extend([self.optimizer, self.lr_scheduler] if self.lr_scheduler else [self.optimizer])
             prepare_name_list.extend(["optimizer", "lr_scheduler"] if self.lr_scheduler else ["optimizer"])
 
-        prepare_obj_list.extend(self.train_loader_group.loader_list)
+        prepare_obj_list.extend(self.train_loader_group.loader_dict.values())
         prepared_obj = self.accelerator.prepare(*prepare_obj_list)
 
         # prepared model
@@ -156,8 +156,9 @@ class Trainer:
         prepared_obj = prepared_obj[N_trainable_models:]
 
         # prepared dataset
-        ds_num = len(self.train_loader_group.loader_list)
-        self.train_loader_group.loader_list = list(prepared_obj[-ds_num:])
+        ds_num = len(self.train_loader_group.loader_dict)
+        for i, (k,v) in enumerate(self.train_loader_group.loader_dict.items()):
+            self.train_loader_group.loader_dict[k] = prepared_obj[-ds_num+i]
         prepared_obj = prepared_obj[:-ds_num]
 
         # prepared optimizer and scheduler
@@ -196,7 +197,7 @@ class Trainer:
         def build_one(cfgs_eval_one):
             dataset_cfg = cfgs_eval_one.keywords.pop('dataset', None)
             val_loader_group = DataGroup(
-                [self.build_data(dataset, train=False) for name, dataset in dataset_cfg.items()], None,
+                {name:self.build_data(dataset, train=False) for name, dataset in dataset_cfg.items()}, None,
                 cycle=False
             )
 
@@ -306,7 +307,7 @@ class Trainer:
 
         self.loggers.info("***** Running training *****")
         self.loggers.info(
-            f"  Num batches each epoch = {[len(loader) for loader in self.train_loader_group.loader_list]}"
+            f"  Num batches each epoch = {[len(loader) for loader in self.train_loader_group.loader_dict.values()]}"
         )
         self.loggers.info(f"  Num Steps = {self.cfgs.train.train_steps}")
         self.loggers.info(f"  Instantaneous batch size per device = {sum(self.batch_size_list)}")
@@ -318,8 +319,8 @@ class Trainer:
 
         self.model_wrapper.train()
         loss_sum = None
-        for data_list in self.train_loader_group:
-            loss, pred_list, target_list = self.train_one_step(data_list)
+        for data_dict in self.train_loader_group:
+            loss, pred_list, target_list = self.train_one_step(data_dict)
             loss_sum = loss if loss_sum is None else (loss_ema * loss_sum + (1 - loss_ema) * loss)
 
             self.global_step += 1
@@ -351,7 +352,7 @@ class Trainer:
                         target_list_cat = {k: torch.cat(v) for k, v in target_list.items()}
                         self.metric_train.reset()
                         self.metric_train.update(pred_list_cat, target_list_cat)
-                        metrics_dict = self.metric_train.finish(self.accelerator.gather, self.is_local_main_process)
+                        metrics_dict = self.metric_train.finish(None, self.is_local_main_process)
                         log_data.update(MetricGroup.format(metrics_dict))
                     self.loggers.log(
                         datas=log_data,
@@ -369,10 +370,10 @@ class Trainer:
         if self.is_local_main_process:
             self.save_model()
 
-    def train_one_step(self, data_list):
+    def train_one_step(self, data_dict):
         pred_list, target_list = {}, {}
         with self.accelerator.accumulate(self.model_wrapper):
-            for idx, data in enumerate(data_list):
+            for ds_name, data in data_dict.items():
                 input_data = data.pop("image").to(self.device, dtype=self.weight_dtype)
                 target = {k: v.to(self.device) for k, v in data.pop("label").items()}
                 other_datas = {
@@ -386,7 +387,7 @@ class Trainer:
                 model_pred = self.model_wrapper(input_data, **other_datas)
                 pred_list = addto_dictlist(pred_list, model_pred, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
                 target_list = addto_dictlist(target_list, target, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
-                loss = self.get_loss(model_pred, target) * self.train_loader_group.get_loss_weights(idx)
+                loss = self.get_loss(model_pred, target) * self.train_loader_group.get_loss_weights(ds_name)
                 self.accelerator.backward(loss, retain_graph=self.cfgs.train.retain_graph)
 
             if hasattr(self, "optimizer"):

@@ -39,8 +39,8 @@ class Evaluator:
         model.eval()
         self.metric.reset()
 
-        for lid, loader in self.data_loader_group.loader_list:
-            for idx, data in enumerate(tqdm(loader, disable=not self.trainer.is_local_main_process)):
+        for loader in self.data_loader_group.loader_dict.values():
+            for data in tqdm(loader, disable=not self.trainer.is_local_main_process):
                 pred, target = self.forward_one_step(model, data)
                 self.metric.update(pred, target)
 
@@ -49,7 +49,8 @@ class Evaluator:
         if not isinstance(v_metric, dict):
             v_metric = {'metric': v_metric}
 
-        self.trainer.loggers.info('Evaluate')
+        data_size = {name:len(loader.dataset) for name, loader in self.data_loader_group.loader_dict.items()}
+        self.trainer.loggers.info(f'Evaluate: data size {data_size}')
         log_data = {
             "eval/Step": {
                 "format": "{}",

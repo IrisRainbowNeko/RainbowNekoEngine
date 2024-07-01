@@ -36,9 +36,12 @@ class BaseWrapper(nn.Module):
 
     def train(self, mode: bool = True):
         self.training = mode
-
-        for layer in self.trainable_layers:
-            layer.train(mode)
+        
+        if hasattr(self, 'trainable_layers'):
+            for layer in self.trainable_layers:
+                layer.train(mode)
+        else:
+            super().train(mode)
         return self
 
 class SingleWrapper(BaseWrapper):
