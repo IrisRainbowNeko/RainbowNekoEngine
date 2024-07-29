@@ -27,26 +27,27 @@ class RandomContext:
         self.cuda = cuda
 
     def __enter__(self):
-        # Save Python random state
-        self.py_state_save = random.getstate()
         random.setstate(self.py_state)
-
-        # Save NumPy random state
-        self.np_state_save = np.random.get_state()
         np.random.set_state(self.np_state)
-
-        # Save PyTorch random state
-        self.torch_state_save = torch.get_rng_state()
         torch.set_rng_state(self.torch_state)
-
-        # Save CUDA random state if available
         if self.cuda and torch.cuda.is_available():
-            self.cuda_state_save = torch.cuda.get_rng_state()
             torch.cuda.set_rng_state(self.cuda_state)
 
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        # Save Python random state
+        if self.py_state_save is None:
+            self.py_state_save = random.getstate()
+
+        # Save NumPy random state
+        if self.np_state_save is None:
+            self.np_state_save = np.random.get_state()
+
+        # Save PyTorch random state
+        if self.torch_state_save is None:
+            self.torch_state_save = torch.get_rng_state()
+
         # Restore Python random state
         random.setstate(self.py_state_save)
 
@@ -58,6 +59,8 @@ class RandomContext:
 
         # Restore CUDA random state if available
         if self.cuda and torch.cuda.is_available() and self.cuda_state is not None:
+            if self.cuda_state_save is None:
+                self.cuda_state_save = torch.cuda.get_rng_state()
             torch.cuda.set_rng_state(self.cuda_state_save)
 
 
