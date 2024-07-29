@@ -1,22 +1,18 @@
+import random
+import time
 from functools import partial
 from typing import Optional, Union
 
+import numpy as np
 import torch
-from .lr_scheduler import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 from torch import nn
 from torch.optim import lr_scheduler
 
-import random
-import numpy as np
-import torch
+from .lr_scheduler import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 
 class RandomContext:
     def __init__(self, cuda=False):
-        self.py_state = random.getstate()
-        self.np_state = np.random.get_state()
-        self.torch_state = torch.get_rng_state()
-        if cuda:
-            self.cuda_state = torch.cuda.get_rng_state()
+        self.seed = int(time.perf_counter() * 1e6)
 
         self.py_state_save = None
         self.np_state_save = None
@@ -27,27 +23,26 @@ class RandomContext:
         self.cuda = cuda
 
     def __enter__(self):
-        random.setstate(self.py_state)
-        np.random.set_state(self.np_state)
-        torch.set_rng_state(self.torch_state)
+        # Save Python random state
+        self.py_state_save = random.getstate()
+        random.seed(self.seed)
+
+        # Save NumPy random state
+        self.np_state_save = np.random.get_state()
+        np.random.seed(self.seed)
+
+        # Save PyTorch random state
+        self.torch_state_save = torch.get_rng_state()
+        torch.manual_seed(self.seed)
+
+        # Save CUDA random state if available
         if self.cuda and torch.cuda.is_available():
-            torch.cuda.set_rng_state(self.cuda_state)
+            self.cuda_state_save = torch.cuda.get_rng_state()
+            torch.cuda.manual_seed(self.seed)
 
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        # Save Python random state
-        if self.py_state_save is None:
-            self.py_state_save = random.getstate()
-
-        # Save NumPy random state
-        if self.np_state_save is None:
-            self.np_state_save = np.random.get_state()
-
-        # Save PyTorch random state
-        if self.torch_state_save is None:
-            self.torch_state_save = torch.get_rng_state()
-
         # Restore Python random state
         random.setstate(self.py_state_save)
 
@@ -59,8 +54,6 @@ class RandomContext:
 
         # Restore CUDA random state if available
         if self.cuda and torch.cuda.is_available() and self.cuda_state is not None:
-            if self.cuda_state_save is None:
-                self.cuda_state_save = torch.cuda.get_rng_state()
             torch.cuda.set_rng_state(self.cuda_state_save)
 
 
