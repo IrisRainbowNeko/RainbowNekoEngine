@@ -1,10 +1,12 @@
-from rainbowneko.models.wrapper import BaseWrapper
-from tqdm.auto import tqdm
-from rainbowneko.utils import addto_dictlist
-import torch
-from .base import BaseMetric, MetricGroup
-from rainbowneko.train.data import DataGroup
 from typing import Dict
+
+import torch
+from tqdm.auto import tqdm
+
+from rainbowneko.models.wrapper import BaseWrapper
+from rainbowneko.train.data import DataGroup
+from .metrics import BaseMetric, MetricGroup
+
 
 class Evaluator:
     def __init__(self, trainer: "Trainer", data_loader_group: DataGroup, metric: BaseMetric, interval=100):

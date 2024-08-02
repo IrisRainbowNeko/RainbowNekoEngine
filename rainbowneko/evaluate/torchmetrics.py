@@ -1,4 +1,4 @@
-from .base import MetricContainer
+from .metrics import MetricContainer
 import torch
 
 class TorchMetricsContainer(MetricContainer):

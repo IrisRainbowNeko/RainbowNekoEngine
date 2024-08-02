@@ -97,7 +97,7 @@ class CfgModelParser:
                     layer.train()
                     train_layers.append(layer)
                     params_group.extend(layer.parameters())
-                train_params.append({"params": list(set(params_group)), "lr": getattr(item, "lr", self.lr),
+                train_params.append({"params": list(dict.fromkeys(params_group)), "lr": getattr(item, "lr", self.lr),
                                     "weight_decay": getattr(item, "weight_decay", self.weight_decay)})
 
         return train_params, train_layers

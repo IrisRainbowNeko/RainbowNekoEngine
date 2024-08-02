@@ -8,7 +8,7 @@ class KeyMapper:
             if hasattr(host, '_key_map'):
                 self.key_map = host._key_map
             else:
-                self.key_map = {0: 'pred.pred', 1: 'target.label'}
+                self.key_map = self.cls_map
         else:
             self.key_map = key_map
 
