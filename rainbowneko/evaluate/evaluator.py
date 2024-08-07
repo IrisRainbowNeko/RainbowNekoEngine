@@ -41,8 +41,8 @@ class Evaluator:
         model.eval()
         self.metric.reset()
 
-        for loader in self.data_loader_group.loader_dict.values():
-            for data in tqdm(loader, disable=not self.trainer.is_local_main_process):
+        for data_dict in tqdm(self.data_loader_group, disable=not self.trainer.is_local_main_process):
+            for ds_name, data in data_dict.items():
                 pred, target = self.forward_one_step(model, data)
                 self.metric.update(pred, target)
 
