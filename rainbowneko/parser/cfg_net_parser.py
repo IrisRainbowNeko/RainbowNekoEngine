@@ -102,6 +102,43 @@ class CfgModelParser:
 
         return train_params, train_layers
 
+class CfgWDModelParser(CfgModelParser):
+    def get_params_group(self, model):
+        named_modules = {k: v for k, v in model.named_modules()}
+
+        train_params = []
+        train_layers = []
+
+        wd_params = set()
+        for m in model.modules():
+            if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
+                wd_params.add(m.weight)
+
+        if self.cfg_model is not None:
+            for item in self.cfg_model:
+                params_group = []
+                params_group_wd = []
+                for layer_name in get_match_layers(item.layers, named_modules):
+                    layer = named_modules[layer_name]
+                    layer.requires_grad_(True)
+                    layer.train()
+                    train_layers.append(layer)
+                    for p in layer.parameters():
+                        if p in wd_params:
+                            params_group_wd.append(p)
+                        else:
+                            params_group.append(p)
+                if len(params_group)>0:
+                    train_params.append({"params": list(dict.fromkeys(params_group)), "lr": getattr(item, "lr", self.lr),
+                                        "weight_decay": 0})
+                if len(params_group_wd) > 0:
+                    train_params.append({"params": list(dict.fromkeys(params_group_wd)), "lr": getattr(item, "lr", self.lr),
+                                         "weight_decay": getattr(item, "weight_decay", self.weight_decay)})
+
+
+        return train_params, train_layers
+
+
 class CustomModelParser:
     def __init__(self, params_loader, **kwargs):
         self.params_loader = params_loader

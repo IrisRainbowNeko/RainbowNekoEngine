@@ -33,8 +33,6 @@ class DataSource:
     def load_label(self, img_name: str) -> Dict[str, Any]:
         raise NotImplementedError()
 
-    def get_image_size(self, path: str) -> Tuple[int, int]:
-        return get_image_size(path)
 
 
 class ComposeDataSource(DataSource):
@@ -95,3 +93,6 @@ class VisionDataSource(DataSource):
             canvas.paste(image, (0, 0, x, y), image)
             image = canvas
         return {'image': image.convert("RGB")}
+
+    def get_image_size(self, path: str) -> Tuple[int, int]:
+        return get_image_size(path)
