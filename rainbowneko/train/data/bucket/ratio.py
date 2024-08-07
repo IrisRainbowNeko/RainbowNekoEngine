@@ -137,9 +137,9 @@ class RatioBucket(BaseBucket):
         # make len(bucket)%bs==0
         self.data_len = 0
         for bidx, bucket in enumerate(self.buckets):
-            rest = len(bucket)%bs
+            rest = len(bucket)%self.bs
             if rest>0:
-                bucket.extend(rs.choice(bucket, bs-rest))
+                bucket.extend(rs.choice(bucket, self.bs-rest))
             self.data_len += len(bucket)
             self.buckets[bidx] = np.array(bucket)
 

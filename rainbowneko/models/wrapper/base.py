@@ -39,7 +39,10 @@ class BaseWrapper(nn.Module):
         
         if hasattr(self, 'trainable_layers'):
             for layer in self.trainable_layers:
-                layer.train(mode)
+                if layer==self:
+                    super().train(mode)
+                else:
+                    layer.train(mode)
         else:
             super().train(mode)
         return self

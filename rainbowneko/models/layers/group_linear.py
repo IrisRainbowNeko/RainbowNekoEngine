@@ -60,9 +60,9 @@ class GroupLinear(nn.Module):
         input(G,N,CI) x weight.T(G,CI,CO) [+ bias(G,1,CO)] -> out(G,N,CO)
         '''
         if self.bias is None:
-            return torch.bmm(self.weight.transpose(1,2), input)
+            return torch.bmm(input, self.weight.transpose(1,2))
         else:
-            return torch.baddbmm(self.bias, self.weight.transpose(1, 2), input)
+            return torch.baddbmm(self.bias, input, self.weight.transpose(1, 2))
 
     def extra_repr(self) -> str:
         return f'in_features={self.in_features}, out_features={self.out_features}, group={self.group}, bias={self.bias is not None}'

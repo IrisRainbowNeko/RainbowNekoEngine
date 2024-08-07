@@ -6,7 +6,7 @@ class ImageTrans:
         self.trans = trans
 
     def __call__(self, data):
-        data['img'] = self.trans(data['img'])
+        data['image'] = self.trans(data['image'])
         return data
 
 class ImageLabelTrans:
@@ -14,8 +14,8 @@ class ImageLabelTrans:
         self.trans = trans
 
     def __call__(self, data):
-        img, label = self.trans(data['img'], data['label'])
-        data['img'] = img
+        img, label = self.trans(data['image'], data['label'])
+        data['image'] = img
         data['label'] = label
         return data
 
@@ -27,7 +27,7 @@ class MixUP:
         self._dist = torch.distributions.Beta(torch.tensor([alpha]), torch.tensor([alpha]))
 
     def __call__(self, data):
-        img, label = data['img'], data['label']['label']
+        img, label = data['image'], data['label']['label']
 
         if label.dim() == 1:
             label = F.one_hot(label, num_classes=self.num_classes)
@@ -41,6 +41,6 @@ class MixUP:
         img[:N_mix] = img[:N_mix].roll(1, 0).mul_(1.0 - lam_i).add_(img[:N_mix].mul(lam_i))
         label[:N_mix] = label[:N_mix].roll(1, 0).mul_(1.0 - lam_t).add_(label[:N_mix].mul(lam_t))
 
-        data['img'] = img
+        data['image'] = img
         data['label']['label'] = label
         return data
