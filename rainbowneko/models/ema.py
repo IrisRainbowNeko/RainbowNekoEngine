@@ -47,7 +47,11 @@ class ModelEMA:
     def state_dict(self) -> Dict[str, torch.Tensor]:
         return self.train_params
 
-    def load_state_dict(self, state: Dict[str, torch.Tensor]):
+    def load_state_dict(self, state: Dict[str, torch.Tensor], prefix=None):
         for k, v in state:
-            if k in self.train_params:
-                self.train_params[k] = v
+            if prefix is None:
+                if k in self.train_params:
+                    self.train_params[k] = v
+            else:
+                if k in self.train_params and k.startswith(prefix):
+                    self.train_params[k] = v

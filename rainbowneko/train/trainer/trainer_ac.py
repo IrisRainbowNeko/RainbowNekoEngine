@@ -316,6 +316,7 @@ class Trainer:
         self.global_step = 0
         if self.cfgs.train.resume is not None:
             self.global_step = self.cfgs.train.resume.start_step
+            self.lr_scheduler.step(self.cfgs.train.resume.start_step)
 
         self.model_wrapper.train()
         loss_sum = None

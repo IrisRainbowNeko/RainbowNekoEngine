@@ -71,13 +71,19 @@ class CkptManagerPKL(CkptManagerBase):
     def load_ckpt_to_model(self, model: nn.Module, ckpt_path, model_ema=None):
         sd = self.load_ckpt(ckpt_path)
         if "base" in sd:
-            model.load_state_dict(sd["base"], strict=False)
+            for item in self.saved_model:
+                block = model if item['model'] == '' else eval(f"model.{item['model']}")
+                missing_keys, unexpected_keys = block.load_state_dict(sd["base"], strict=False)
+                if len(missing_keys)>0:
+                    print(f'missing_keys of model.{item['model']}: {missing_keys}')
         if "plugin" in sd:
             model.load_state_dict(sd["plugin"], strict=False)
 
         if model_ema is not None:
             if "base" in sd:
-                model_ema.load_state_dict(sd["base_ema"])
+                for item in self.saved_model:
+                    prefix = None if item['model'] == '' else item['model']
+                    model_ema.load_state_dict(sd["base_ema"], prefix=prefix)
             if "plugin" in sd:
                 model_ema.load_state_dict(sd["plugin_ema"])
 
