@@ -1,5 +1,5 @@
 from typing import Union, Iterable, Dict, Any
-from omegaconf import DictConfig
+from rainbowneko.utils import is_dict
 
 
 class KeyMapper:
@@ -16,7 +16,7 @@ class KeyMapper:
             self.key_map = self.parse_key_map(key_map)
 
     def parse_key_map(self, key_map: Union[Iterable[str], Dict[Any, str]]):
-        if isinstance(key_map, (dict, DictConfig)):
+        if is_dict(key_map):
             return key_map
         else:
             key_map_parse = {}

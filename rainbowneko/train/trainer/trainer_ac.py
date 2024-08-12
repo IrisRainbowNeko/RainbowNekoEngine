@@ -27,7 +27,7 @@ from rainbowneko.parser import load_config_with_cli
 from rainbowneko.parser import parse_plugin_cfg
 from rainbowneko.train.data import RatioBucket, DataGroup, get_sampler
 from rainbowneko.train.loggers import LoggerGroup
-from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, addto_dictlist
+from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, addto_dictlist, is_dict
 from tqdm import tqdm
 
 try:
@@ -205,7 +205,7 @@ class Trainer:
             return evaluator
 
         if cfgs_eval is not None:
-            if isinstance(cfgs_eval, dict):
+            if is_dict(cfgs_eval):
                 evaluator_dict = {name:build_one(cfg) for name, cfg in cfgs_eval.items()}
                 return EvaluatorGroup(loggers=self.loggers, evaluator_dict=evaluator_dict)
             else:
