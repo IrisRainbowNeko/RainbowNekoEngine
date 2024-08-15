@@ -20,5 +20,5 @@ class LossGroup(nn.Module):
     def forward(self, pred, target):
         loss = 0
         for loss_item in self.loss_list:
-            loss += loss_item(pred, target)
+            loss += loss_item(pred, target).squeeze()
         return loss

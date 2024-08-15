@@ -64,7 +64,10 @@ class KeyMapper:
     def map_data(self, src):
         data = {}
         for k_dst, k_src in self.key_map.items():
-            keys = k_src.split('.')
+            if isinstance(k_src, int):
+                keys = [k_src]
+            else:
+                keys = k_src.split('.')
             v = self.get_value(src, keys)
             data[k_dst] = v
         return data
