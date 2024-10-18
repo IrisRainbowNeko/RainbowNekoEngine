@@ -8,8 +8,8 @@ class LossContainer(nn.Module):
         self.loss = loss
         self.alpha = weight
 
-    def forward(self, pred, target):
-        args, kwargs = self.key_mapper(pred=pred, target=target)
+    def forward(self, pred, inputs):
+        args, kwargs = self.key_mapper(pred=pred, inputs=inputs)
         return self.loss(*args, **kwargs) * self.alpha
 
 class LossGroup(nn.Module):

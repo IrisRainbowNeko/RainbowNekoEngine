@@ -184,7 +184,7 @@ class Trainer:
             self.ema_model = self.cfgs.model.ema(self.model_wrapper.named_parameters())
 
     def build_loss(self):
-        self.criterion = self.cfgs.train.loss()
+        self.criterion = self.cfgs.train.loss
 
     def build_ckpt_manager(self):
         self.ckpt_manager = self.cfgs.ckpt_manager()
@@ -321,7 +321,7 @@ class Trainer:
         self.model_wrapper.train()
         loss_sum = None
         for data_dict in self.train_loader_group:
-            loss, pred_list, target_list = self.train_one_step(data_dict)
+            loss, pred_dict, inputs_dict = self.train_one_step(data_dict)
             loss_sum = loss if loss_sum is None else (loss_ema * loss_sum + (1 - loss_ema) * loss)
 
             self.global_step += 1
@@ -349,12 +349,18 @@ class Trainer:
                         "train/Loss": {"format": "{:.5f}", "data": [loss_sum]},
                     }
                     if self.metric_train is not None:
-                        pred_list_cat = {k: torch.cat(v) for k, v in pred_list.items()}
-                        target_list_cat = {k: torch.cat(v) for k, v in target_list.items()}
-                        self.metric_train.reset()
-                        self.metric_train.update(pred_list_cat, target_list_cat)
-                        metrics_dict = self.metric_train.finish(None, self.is_local_main_process)
-                        log_data.update(MetricGroup.format(metrics_dict))
+                        if is_dict(self.metric_train):
+                            for ds_name in pred_dict.keys():
+                                self.metric_train[ds_name].reset()
+                                self.metric_train[ds_name].update(pred_dict[ds_name], inputs_dict[ds_name])
+                                metrics_dict = self.metric_train[ds_name].finish(None, self.is_local_main_process)
+                                log_data.update(MetricGroup.format(metrics_dict, prefix=f'{ds_name}/'))
+                        else:
+                            self.metric_train.reset()
+                            for ds_name in pred_dict.keys():
+                                self.metric_train.update(pred_dict[ds_name], inputs_dict[ds_name])
+                            metrics_dict = self.metric_train.finish(None, self.is_local_main_process)
+                            log_data.update(MetricGroup.format(metrics_dict))
                     self.loggers.log(
                         datas=log_data,
                         step=self.global_step,
@@ -372,23 +378,20 @@ class Trainer:
             self.save_model()
 
     def train_one_step(self, data_dict):
-        pred_list, target_list = {}, {}
+        to_dev = lambda x: x.to(self.device, dtype=self.weight_dtype) if isinstance(x, torch.Tensor) else x
+        v_proc = lambda v: v.detach() if isinstance(v, torch.Tensor) else v
+
+        pred_dict, inputs_dict = {}, {}
         with self.accelerator.accumulate(self.model_wrapper):
             for ds_name, data in data_dict.items():
-                input_data = data.pop("image").to(self.device, dtype=self.weight_dtype)
-                target = {k: v.to(self.device) for k, v in data.pop("label").items()}
-                other_datas = {
-                    k: v.to(self.device, dtype=self.weight_dtype) for k, v in data.items() if k != "plugin_input"
-                }
+                input_datas = {k: to_dev(v) for k, v in data.items() if k != "plugin_input"}
                 if "plugin_input" in data:
-                    other_datas["plugin_input"] = {
-                        k: v.to(self.device, dtype=self.weight_dtype) for k, v in data["plugin_input"].items()
-                    }
+                    input_datas["plugin_input"] = {k: to_dev(v) for k, v in data["plugin_input"].items()}
 
-                model_pred = self.model_wrapper(input_data, **other_datas)
-                pred_list = addto_dictlist(pred_list, model_pred, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
-                target_list = addto_dictlist(target_list, target, v_proc=lambda v: v.detach() if isinstance(v, torch.Tensor) else v)
-                loss = self.get_loss(model_pred, target) * self.train_loader_group.get_loss_weights(ds_name)
+                model_pred = self.model_wrapper(**input_datas)
+                pred_dict[ds_name] = {k: v_proc(v) for k, v in model_pred.items()}
+                inputs_dict[ds_name] = {k: v_proc(v) for k, v in input_datas.items()}
+                loss = self.get_loss(ds_name, model_pred, input_datas)
                 self.accelerator.backward(loss, retain_graph=self.cfgs.train.retain_graph)
 
             if hasattr(self, "optimizer"):
@@ -405,11 +408,15 @@ class Trainer:
 
             self.model_raw.update_model(self.global_step)  # Some model may update by step
             self.update_ema()
-        return loss.item(), pred_list, target_list
+        return loss.item(), pred_dict, inputs_dict
 
-    def get_loss(self, model_pred, target):
-        loss = self.criterion(model_pred, target).mean()
-        return loss
+    def get_loss(self, ds_name, model_pred, inputs):
+        weight = self.train_loader_group.get_loss_weights(ds_name)
+        if is_dict(self.criterion):
+            loss = self.criterion[ds_name](model_pred, inputs).mean()
+        else:
+            loss = self.criterion(model_pred, inputs).mean()
+        return loss * weight
 
     def update_ema(self):
         if hasattr(self, "ema_model"):

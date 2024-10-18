@@ -1,26 +1,29 @@
 import os
-from typing import List, Tuple, Any, Dict
+from typing import Any, Dict
 
-from rainbowneko.utils.img_size_tool import types_support
-from rainbowneko.utils.utils import get_file_name, get_file_ext
-from .base import VisionDataSource
 from addict import Dict as ADict
+from rainbowneko.utils.img_size_tool import types_support
+from rainbowneko.utils.utils import get_file_ext
+
+from .base import VisionDataSource
 
 
 class ImageFolderClassSource(VisionDataSource):
-    def __init__(self, img_root, image_transforms=None, bg_color=(255, 255, 255), repeat=1, use_cls_index=True,
-                 **kwargs):
-        super(ImageFolderClassSource, self).__init__(img_root, image_transforms=image_transforms, bg_color=bg_color,
-                                                     repeat=repeat, **kwargs)
+    def __init__(self, img_root, repeat=1, use_cls_index=True, **kwargs):
+        super(ImageFolderClassSource, self).__init__(img_root, repeat=repeat, **kwargs)
 
         self.use_cls_index = use_cls_index
         self.img_paths, self.label_dict = self._load_img_label(img_root)
 
-    def get_data_id(self, index: int) -> str:
-        return self.img_paths[index]
-
     def __len__(self):
         return len(self.img_paths)
+
+    def __getitem__(self, index) -> Dict[str, Any]:
+        path = self.img_paths[index]
+        return {
+            'image': path,
+            'label': self.load_label(path)
+        }
 
     def _load_img_label(self, img_root):
         sub_folders = [os.path.join(img_root, x) for x in os.listdir(img_root)]
@@ -47,24 +50,9 @@ class ImageFolderClassSource(VisionDataSource):
             self.cls_id_dict = cls_id_dict
         return class_imgs, label_dict
 
-    def get_image_list(self) -> List[Tuple[str, "ImageFolderClassSource"]]:
-        sub_folders = [os.path.join(self.img_root, x) for x in os.listdir(self.img_root)]
-        class_imgs = []
-        for class_folder in sub_folders:
-            class_name = os.path.basename(class_folder)
-            imgs = [(os.path.join(class_folder, x), self) for x in os.listdir(class_folder) if
-                    get_file_ext(x) in types_support]
-            class_imgs.extend(imgs * self.repeat[class_name])
-        return class_imgs
-
-    def get_class_name(self, path: str) -> str:
-        img_root, img_name = os.path.split(path)
-        img_root, class_name = os.path.split(img_root)
-        return class_name
-
     def load_label(self, path: str) -> Dict[str, Any]:
         img_root, img_name = os.path.split(path)
         img_root, class_name = os.path.split(img_root)
 
         label = self.label_dict[class_name].get(img_name, None)
-        return {'label': label}
+        return label

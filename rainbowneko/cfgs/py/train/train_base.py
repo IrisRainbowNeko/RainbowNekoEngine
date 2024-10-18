@@ -30,7 +30,7 @@ def make_cfg():
 
             resume=None,
 
-            loss=partial(MSELoss),
+            loss=MSELoss(),
             optimizer=partial(torch.optim.AdamW, weight_decay=1e-3),
             scale_lr=True,  # auto scale lr with total batch size
             scheduler=dict(

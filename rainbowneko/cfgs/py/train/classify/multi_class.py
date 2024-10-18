@@ -45,7 +45,7 @@ def make_cfg():
             max_grad_norm=None,
             save_step=2000,
 
-            loss=partial(LossContainer, loss=CrossEntropyLoss()),
+            loss=LossContainer(loss=CrossEntropyLoss()),
 
             optimizer=partial(torch.optim.AdamW, weight_decay=5e-4),
 

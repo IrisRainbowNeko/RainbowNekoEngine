@@ -4,10 +4,12 @@ import cv2
 import numpy as np
 
 from .base import BaseBucket
+from ..handler import AutoSizeHandler
 
 
 class PosNegBucket(BaseBucket):
     can_shuffle = False
+    handler = AutoSizeHandler(mode='full')
 
     def __init__(self, target_size: Union[Tuple[int, int], int] = 512, pos_rate=0.5, **kwargs):
         self.target_size = (target_size, target_size) if isinstance(target_size, int) else target_size
@@ -34,10 +36,6 @@ class PosNegBucket(BaseBucket):
         self.rs.shuffle(img_idxs)
 
         self.img_idxs = img_idxs
-
-    def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
-        w, h = image['img'].size
-        return image, [h, w, 0, 0, h, w]
 
     def __getitem__(self, idx) -> Tuple[Tuple[str, 'DataSource'], Tuple[int, int]]:
 

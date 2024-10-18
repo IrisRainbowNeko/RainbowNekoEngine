@@ -2,20 +2,21 @@ import math
 import os.path
 import pickle
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Tuple
 
 import cv2
 import numpy as np
-from rainbowneko.utils.img_size_tool import get_image_size
 from loguru import logger
 from sklearn.cluster import KMeans
 from tqdm import tqdm
 
-from ..utils import resize_crop_fix, pad_crop_fix
 from .base import BaseBucket
+from ..utils import resize_crop_fix, pad_crop_fix
+from ..handler import AutoSizeHandler
+
 
 class RatioBucket(BaseBucket):
     can_shuffle = False
+    handler = AutoSizeHandler()
 
     def __init__(self, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
         self.target_area = target_area
@@ -74,29 +75,44 @@ class RatioBucket(BaseBucket):
         ratios_log = np.array(ratios_log)
         self.size_buckets = np.array(self.size_buckets)
 
+        # get images ratio
+        def get_ratio(info):
+            data, source = info
+            w, h = source.get_image_size(data)
+            ratio = np.log2(w/h)
+            return ratio
+
+        ratio_list = []
+        self.source.return_source = True
+        with ThreadPoolExecutor() as executor:
+            for ratio in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
+                ratio_list.append(ratio)
+        ratio_list = np.array(ratio_list)
+        self.source.return_source = False
+
         # fill buckets with images w,h
-        self.idx_bucket_map = np.empty(len(self.source), dtype=int)
-        for i, (file, source) in enumerate(self.source):
-            w, h = source.get_image_size(file)
-            bucket_id = np.abs(ratios_log-np.log2(w/h)).argmin()
-            self.buckets[bucket_id].append(i)
-            self.idx_bucket_map[i] = bucket_id
+        bucket_id = np.abs(ratio_list[:,None] - ratios_log[None,:]).argmin(axis=-1)
+        self.idx_bucket_map = bucket_id
+        for bidx in range(self.num_bucket):
+            self.buckets.append(np.where(bucket_id == bidx)[0].tolist())
         logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
     def build_buckets_from_images(self):
         logger.info('build buckets from images')
 
-        def get_ratio(data):
-            file, source = data
-            w, h = source.get_image_size(file)
+        def get_ratio(info):
+            data, source = info
+            w, h = source.get_image_size(data)
             ratio = np.log2(w/h)
             return ratio
 
         ratio_list = []
+        self.source.return_source = True
         with ThreadPoolExecutor() as executor:
             for ratio in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
                 ratio_list.append(ratio)
         ratio_list = np.array(ratio_list)
+        self.source.return_source = False
 
         # 聚类，选出指定个数的bucket
         kmeans = KMeans(n_clusters=self.num_bucket, random_state=114514, verbose=True, tol=1e-3).fit(ratio_list.reshape(-1, 1))
@@ -113,14 +129,12 @@ class RatioBucket(BaseBucket):
         self.size_buckets = np.array(self.size_buckets)
 
         self.buckets = []  # [bucket_id:[file_idx,...]]
-        self.idx_bucket_map = np.empty(len(self.source), dtype=int)
+        self.idx_bucket_map = labels
         for bidx in range(self.num_bucket):
-            bnow = labels == bidx
-            self.buckets.append(np.where(bnow)[0].tolist())
-            self.idx_bucket_map[bnow] = bidx
+            self.buckets.append(np.where(labels == bidx)[0].tolist())
         logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
-    def build(self, bs: int, world_size: int, source: 'DataSource'):
+    def build(self, bs: int, world_size: int, source: 'ComposeDataSource'):
         '''
         :param bs: batch_size * n_gpus * accumulation_step
         :param img_root_list:
@@ -159,13 +173,12 @@ class RatioBucket(BaseBucket):
 
         self.idx_bucket = bucket_list.reshape(-1)
 
-    def crop_resize(self, image, size, mask_interp=cv2.INTER_CUBIC):
-        return resize_crop_fix(image, size, mask_interp=mask_interp)
-
     def __getitem__(self, idx):
         file_idx = self.idx_bucket[idx]
         bucket_idx = self.idx_bucket_map[file_idx]
-        return self.source[file_idx], self.size_buckets[bucket_idx]
+        datas = self.source[file_idx]
+        datas['image_size'] = self.size_buckets[bucket_idx]
+        return datas
 
     def __len__(self):
         return self.data_len
@@ -185,6 +198,8 @@ class RatioBucket(BaseBucket):
         return arb
 
 class SizeBucket(RatioBucket):
+    handler = AutoSizeHandler(mode='pad')
+
     def __init__(self, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
         super().__init__(step_size=step_size, num_bucket=num_bucket, pre_build_bucket=pre_build_bucket)
 
@@ -194,16 +209,18 @@ class SizeBucket(RatioBucket):
         '''
         logger.info('build buckets from images size')
 
-        def get_size(data):
-            file, source = data
-            w, h = source.get_image_size(file)
+        def get_size(info):
+            data, source = info
+            w, h = source.get_image_size(data)
             return w, h
 
         size_list = []
+        self.source.return_source = True
         with ThreadPoolExecutor() as executor:
             for w, h in tqdm(executor.map(get_size, self.source), desc='get image info', total=len(self.source)):
                 size_list.append([w, h])
         size_list = np.array(size_list)
+        self.source.return_source = False
 
         # 聚类，选出指定个数的bucket
         kmeans = KMeans(n_clusters=self.num_bucket, random_state=114514).fit(size_list)
@@ -214,15 +231,10 @@ class SizeBucket(RatioBucket):
         self.size_buckets = (np.round(size_buckets/self.step_size)*self.step_size).astype(int)
 
         self.buckets = []  # [bucket_id:[file_idx,...]]
-        self.idx_bucket_map = np.empty(len(self.source), dtype=int)
+        self.idx_bucket_map = labels
         for bidx in range(self.num_bucket):
-            bnow = labels == bidx
-            self.buckets.append(np.where(bnow)[0].tolist())
-            self.idx_bucket_map[bnow] = bidx
+            self.buckets.append(np.where(labels==bidx)[0].tolist())
         logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
-
-    def crop_resize(self, image, size):
-        return pad_crop_fix(image, size)
 
     @classmethod
     def from_files(cls, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None, **kwargs):
@@ -241,18 +253,20 @@ class RatioSizeBucket(RatioBucket):
         '''
         logger.info('build buckets from images')
 
-        def get_ratio(data):
-            file, source = data
-            w, h = source.get_image_size(file)
+        def get_ratio(info):
+            data, source = info
+            w, h = source.get_image_size(data)
             ratio = np.log2(w/h)
             log_area = np.log2(min(w * h, self.max_area))
             return ratio, log_area
 
         ratio_list = []
+        self.source.return_source = True
         with ThreadPoolExecutor() as executor:
             for ratio, log_area in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
                 ratio_list.append([ratio, log_area])
         ratio_list = np.array(ratio_list)
+        self.source.return_source = False
 
         # 聚类，选出指定个数的bucket
         kmeans = KMeans(n_clusters=self.num_bucket, random_state=114514).fit(ratio_list)
@@ -270,11 +284,9 @@ class RatioSizeBucket(RatioBucket):
         self.size_buckets = np.array(self.size_buckets)
 
         self.buckets = []  # [bucket_id:[file_idx,...]]
-        self.idx_bucket_map = np.empty(len(self.source), dtype=int)
+        self.idx_bucket_map = labels
         for bidx in range(self.num_bucket):
-            bnow = labels == bidx
-            self.buckets.append(np.where(bnow)[0].tolist())
-            self.idx_bucket_map[bnow] = bidx
+            self.buckets.append(np.where(labels==bidx)[0].tolist())
         logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
     @classmethod
