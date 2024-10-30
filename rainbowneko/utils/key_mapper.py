@@ -1,10 +1,12 @@
-from typing import Union, Iterable, Dict, Any
-from rainbowneko.utils import is_dict
+from typing import Union, Iterable, Dict, Any, List
+
+from addict import Dict as ADict
+from rainbowneko.utils import is_dict, dict_parse_list
 
 
 class KeyMapper:
-    cls_map = {0: 'pred.pred', 1: 'target.label'} # 'pred.pred -> 0', 'target.label -> 1'
-    image_map = {0: 'pred.pred', 1: 'target.target_image'}
+    cls_map = {0: 'pred.pred', 1: 'inputs.label'} # 'pred.pred -> 0', 'inputs.label -> 1'
+    image_map = {0: 'pred.pred', 1: 'inputs.target_image'}
 
     def __init__(self, host=None, key_map: Union[Iterable[str], Dict[Any, str]] = None):
         if key_map is None and host is not None:
@@ -37,7 +39,12 @@ class KeyMapper:
                 key_map_parse[dst] = src
             return key_map_parse
 
-    def get_value(self, v, keys):
+    def get_value(self, v, keys: Union[str, List]):
+        if isinstance(keys, str):
+            keys = keys.split('.')
+        elif isinstance(keys, int):
+            keys = [keys]
+
         for k in keys:
             if isinstance(v, (list, tuple)):
                 try:
@@ -49,28 +56,50 @@ class KeyMapper:
                 v = v[k]
         return v
 
-    def map_args(self, **src):
-        args = []
-        kwargs = {}
-        for k_dst, k_src in self.key_map.items():
-            keys = k_src.split('.')
-            v = self.get_value(src, keys)
-            if isinstance(k_dst, int):
-                args.append(v)
-            else:
-                kwargs[k_dst] = v
-        return args, kwargs
+    def set_value(self, v, keys: Union[str, List], data: ADict):
+        if isinstance(keys, str):
+            keys = keys.split('.')
+        elif isinstance(keys, int):
+            keys = [keys]
+
+        try:
+            k = int(keys[0])
+            data = data['args']
+        except ValueError:
+            data = data['kwargs']
+
+        for k in keys[:-1]:
+            try:
+                k = int(k)
+            except ValueError:
+                pass
+            data = data[k]
+
+        try:
+            k = int(keys[-1])
+            data[k] = v
+        except ValueError:
+            data[keys[-1]] = v
 
     def map_data(self, src):
-        data = {}
+        data = ADict({'args':{}, 'kwargs':{}})
         for k_dst, k_src in self.key_map.items():
-            if isinstance(k_src, int):
-                keys = [k_src]
-            else:
-                keys = k_src.split('.')
-            v = self.get_value(src, keys)
-            data[k_dst] = v
-        return data
+            v = self.get_value(src, k_src)
+            self.set_value(v, k_dst, data)
+        data = dict_parse_list(data.to_dict())
+        args, kwargs = data['args'], data['kwargs']
+
+        return args, kwargs
 
     def __call__(self, **src):
-        return self.map_args(**src)
+        return self.map_data(src)
+
+if __name__ == '__main__':
+    # mapper = KeyMapper(key_map=['image -> input', 'target.label -> 0'])
+    # data = {'image': 'image_data', 'target': {'label': 'label_data'}}
+
+    mapper = KeyMapper(key_map=['0 -> input', '1 -> target.label'])
+    data = ('t1', 't2')
+
+    args, kwargs = mapper.map_data(data)
+    print(args, kwargs)

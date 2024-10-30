@@ -1,3 +1,4 @@
-from .base import DataHandler, HandlerGroup
+from .base import DataHandler, HandlerGroup, HandlerChain
 from .image import ImageHandler, LoadImageHandler, AutoSizeHandler
 from .label import LabelHandler
+from .batch import MixUPHandler

@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 class DistillationLoss(nn.Module):
     def __init__(self, T, weight=0.95):
-        super().__init__(None)
+        super().__init__()
         self.T=T
         self.kl_div = nn.KLDivLoss()
         self.alpha = T*T * 2.0 * weight

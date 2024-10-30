@@ -149,3 +149,17 @@ def addto_dictlist(dict_list: Dict[str, List], data: Dict[str, Any], v_proc=None
         else:
             dict_list[k].append(v)
     return dict_list
+
+def set_list_value(lst, index, value, default=None):
+    if index >= len(lst):
+        lst.extend([default] * (index - len(lst) + 1))
+    lst[index] = value
+
+def dict_parse_list(data: Dict[str, Any]):
+    if isinstance(data, dict):
+        if len(data)>0 and isinstance(next(iter(data)), int):
+            return [dict_parse_list(data[i]) for i in range(len(data))]
+        else:
+            return {k: dict_parse_list(v) for k, v in data.items()}
+    else:
+        return data

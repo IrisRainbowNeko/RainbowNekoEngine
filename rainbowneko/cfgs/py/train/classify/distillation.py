@@ -32,7 +32,7 @@ def make_cfg():
             )
         ]),
 
-        ckpt_manager=partial(CkptManagerPKL, _partial_=True, saved_model=(
+        ckpt_manager=CkptManagerPKL(_partial_=True, saved_model=(
             {'model': 'model_student', 'trainable': False},
         )),
 
@@ -40,17 +40,16 @@ def make_cfg():
             train_epochs=100,
             save_step=2000,
 
-            loss=partial(LossGroup, loss_list=[
+            loss=LossGroup(_replace_=True, loss_list=[
                 LossContainer(CrossEntropyLoss(), weight=0.05),
-                DistillationLoss(T=5.0, weight=0.95),
+                LossContainer(DistillationLoss(T=5.0, weight=0.95)),
             ]),
         ),
 
         model=dict(
             name='cifar-resnet18',
-            wrapper=partial(DistillationWrapper,
-                            model_teacher=load_resnet(torchvision.models.resnet50(),
-                                                      r'E:\codes\python_project\RainbowNekoEngine\exps\resnet50-2024-01-16-17-08-57\ckpts\cifar-resnet50-6000.ckpt'),
+            wrapper=partial(DistillationWrapper, _replace_=True,
+                            model_teacher=load_resnet(torchvision.models.resnet50()),
                             model_student=load_resnet(torchvision.models.resnet18())
                             )
         ),

@@ -6,7 +6,8 @@ import torch
 py_state_prev = [random.getstate()]
 np_state_prev = [np.random.get_state()]
 torch_state_prev = [torch.get_rng_state()]
-cuda_state_prev = [torch.cuda.get_rng_state()]
+if torch.cuda.is_available():
+    cuda_state_prev = [torch.cuda.get_rng_state()]
 
 
 class RandomContext:
@@ -14,7 +15,10 @@ class RandomContext:
         self.py_state = py_state_prev[0]
         self.np_state = np_state_prev[0]
         self.torch_state = torch_state_prev[0]
-        self.cuda_state = cuda_state_prev[0]
+
+        cuda = cuda and torch.cuda.is_available()
+        if cuda:
+            self.cuda_state = cuda_state_prev[0]
 
         self.py_state_save = None
         self.np_state_save = None

@@ -22,16 +22,17 @@ class BaseMetric:
 
 
 class MetricContainer(BaseMetric):
-    def __init__(self, metric, key_map=None):
+    def __init__(self, metric, device='cpu', key_map=None):
         super().__init__()
         self.key_mapper = KeyMapper(metric, key_map)
         self.metric = metric
+        self.device = device
 
     def reset(self):
         self.metric_list = []
 
-    def update(self, pred, target):
-        args, kwargs = self.key_mapper(pred=pred, target=target)
+    def update(self, pred, inputs):
+        args, kwargs = self.key_mapper(pred=pred, inputs=inputs)
         v_metric = self.metric(*args, **kwargs)
         self.metric_list.append(v_metric)
 
@@ -42,14 +43,15 @@ class MetricContainer(BaseMetric):
         except:
             metric_all = torch.tensor(self.metric_list).mean()
 
-        metric_all = metric_all.cuda()
-        total = total.cuda()
+        metric_all = metric_all.to(self.device)
+        total = total.to(self.device)
         if gather is not None:
             metric_all = gather(metric_all)
             total = gather(total)
         return (metric_all*total/total.sum()).sum().item()
 
     def to(self, device):
+        self.device = device
         if hasattr(self.metric, 'to'):
             self.metric.to(device)
 

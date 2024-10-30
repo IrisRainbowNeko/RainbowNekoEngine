@@ -2,6 +2,7 @@ from functools import partial
 
 import torch
 import torchvision
+import torchvision.transforms as T
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
@@ -12,8 +13,9 @@ from rainbowneko.evaluate import MetricGroup, MetricContainer, Evaluator
 from rainbowneko.models.wrapper import SingleWrapper
 from rainbowneko.parser import make_base, CfgModelParser
 from rainbowneko.train.data import FixedBucket
-from rainbowneko.train.data import ImageLabelDataset
+from rainbowneko.train.data import BaseDataset
 from rainbowneko.train.data.source import IndexSource
+from rainbowneko.train.data.handler import HandlerChain, ImageHandler, LoadImageHandler
 from rainbowneko.train.loss import LossContainer
 
 num_classes = 10
@@ -66,18 +68,23 @@ def make_cfg():
         ),
 
         data_train=dict(
-            dataset1=partial(ImageLabelDataset, batch_size=128, loss_weight=1.0,
+            dataset1=partial(BaseDataset, batch_size=128, loss_weight=1.0,
                 source=dict(
                     data_source1=IndexSource(
-                        data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=True, download=True),
-                        image_transforms=torchvision.transforms.Compose([
-                            torchvision.transforms.RandomCrop(size=32, padding=4),
-                            torchvision.transforms.RandomHorizontalFlip(),
-                            torchvision.transforms.ToTensor(),
-                            torchvision.transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
-                        ])
+                        data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=True, download=True)
                     ),
                 ),
+                handler=HandlerChain(handlers=dict(
+                    load=LoadImageHandler(),
+                    bucket=FixedBucket.handler, # bucket 会自带一些处理模块
+                    image=ImageHandler(transform=T.Compose([
+                            T.RandomCrop(size=32, padding=4),
+                            T.RandomHorizontalFlip(),
+                            T.ToTensor(),
+                            T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
+                        ]),
+                    )
+                )),
                 bucket=FixedBucket(target_size=32),
             )
         ),
@@ -89,16 +96,21 @@ def make_cfg():
                 f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
             )),
             dataset=dict(
-                dataset1=partial(ImageLabelDataset, batch_size=128, loss_weight=1.0,
+                dataset1=partial(BaseDataset, batch_size=128, loss_weight=1.0,
                     source=dict(
                         data_source1=IndexSource(
-                            data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=False, download=True),
-                            image_transforms=torchvision.transforms.Compose([
-                                torchvision.transforms.ToTensor(),
-                                torchvision.transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
-                            ])
+                            data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=False, download=True)
                         ),
                     ),
+                    handler=HandlerChain(handlers=dict(
+                        load=LoadImageHandler(),
+                        bucket=FixedBucket.handler,
+                        image=ImageHandler(transform=T.Compose([
+                                T.ToTensor(),
+                                T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
+                            ]),
+                        )
+                    )),
                     bucket=FixedBucket(target_size=32),
                 )
             )

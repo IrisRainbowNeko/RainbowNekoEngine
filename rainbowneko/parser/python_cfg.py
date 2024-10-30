@@ -96,10 +96,15 @@ class PythonCfgParser(YamlCfgParser):
         # 将AST转换回代码字符串
         new_code = ast.unparse(new_tree)
 
-        # 使用yapf格式化代码
-        # new_code, _ = FormatCode(new_code, style_config='facebook')
+        # self.print_code(new_code)
 
         return new_code
+
+    def print_code(self, code):
+        # 使用yapf格式化代码
+        from yapf.yapflib.yapf_api import FormatCode
+        new_code, _ = FormatCode(code, style_config='facebook')
+        print(new_code)
 
     def load_cfg(self, path: str, trans=True):
         # record for save

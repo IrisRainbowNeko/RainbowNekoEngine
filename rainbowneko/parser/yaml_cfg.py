@@ -37,12 +37,12 @@ class YamlCfgParser:
                 if child._get_child('_replace_'):
                     if key in base_cfg:
                         replace_keys.append(key)
-                    break
+                    continue
                 else:
                     if key in base_cfg:
                         self.remove_replace(base_cfg[key], child)
                     else:
-                        break
+                        continue
         for key in replace_keys:
             del base_cfg[key]
             del cfg[key]['_replace_']

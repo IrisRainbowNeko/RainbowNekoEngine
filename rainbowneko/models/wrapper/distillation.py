@@ -4,38 +4,44 @@ import torch
 from torch import nn
 
 from .base import BaseWrapper
+from rainbowneko.utils import KeyMapper
 
 
 class DistillationWrapper(BaseWrapper):
-    def __init__(self, model_teacher, model_student, ema=None):
+    def __init__(self, model_teacher, model_student, ema=None, key_map_in_student=None, key_map_in_teacher=None, key_map_out=None):
         super().__init__()
         self.model_teacher = model_teacher
         self.model_student = model_student
 
+        self.key_map_in_student = self.build_mapper(key_map_in_student, default=('image -> 0',))
+        self.key_map_in_teacher = self.build_mapper(key_map_in_teacher, default=('image -> 0',))
+        self.key_mapper_out = self.build_mapper(key_map_out, default=('pred_student -> pred', 'pred_teacher -> pred_teacher'))
+
         if ema is not None:
-            self.ema_teacher = ema(self.model_teacher.named_parameters())
+            self.ema_teacher = ema(self.model_teacher)
 
-    def forward(self, img, img_teacher=None, plugin_input={}, **kwargs):
-        input_all = dict(**plugin_input)
-        if img_teacher is None:
-            img_teacher = img
+    def forward(self, ds_name, plugin_input={}, **kwargs):
+        inputs_T_args, inputs_T_kwargs = self.get_inputs_feed(self.key_map_in_teacher, self.model_teacher, kwargs, plugin_input,
+                                                              ds_name=ds_name)
+        inputs_S_args, inputs_S_kwargs = self.get_inputs_feed(self.key_map_in_student, self.model_student, kwargs, plugin_input,
+                                                              ds_name=ds_name)
 
-        if hasattr(self.model_teacher, 'input_feeder'):
-            input_all['img'] = img_teacher
-            for feeder in self.model_teacher.input_feeder:
-                feeder(input_all)
-        if hasattr(self.model_student, 'input_feeder'):
-            input_all['img'] = img
-            for feeder in self.model_student.input_feeder:
-                feeder(input_all)
+        res = {}
+        if len(inputs_T_args)>0 or len(inputs_T_kwargs)>0:
+            with torch.inference_mode():
+                if hasattr(self, 'ema_teacher'):
+                    out_teacher = self.ema_teacher(*inputs_T_args, **inputs_T_kwargs)
+                else:
+                    out_teacher = self.model_teacher(*inputs_T_args, **inputs_T_kwargs)
+            res['pred_teacher'] = out_teacher
+        out_student = self.model_student(*inputs_S_args, **inputs_S_kwargs)
+        res['pred_student'] = out_student
 
-        with torch.inference_mode():
-            out_teacher = self.model_teacher(img_teacher, **kwargs)
-        out_student = self.model_student(img, **kwargs)
-        return {'pred': out_student, 'pred_teacher': out_teacher}
+        return self.get_map_data(self.key_mapper_out, res, ds_name=ds_name)[1]
 
     def update_model(self, step:int):
-        self.ema_teacher.step(self.model_student.named_parameters())
+        if hasattr(self, 'ema_teacher'):
+            self.ema_teacher.step(self.model_student)
 
     @property
     def trainable_models(self) -> Dict[str, nn.Module]:

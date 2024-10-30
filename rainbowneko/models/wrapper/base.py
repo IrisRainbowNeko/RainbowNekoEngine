@@ -1,7 +1,7 @@
 from torch import nn
-from typing import Dict, List
+from typing import Dict, List, Tuple, Any
 
-from rainbowneko.utils import KeyMapper
+from rainbowneko.utils import KeyMapper, is_dict, is_list
 
 
 class BaseWrapper(nn.Module):
@@ -47,23 +47,44 @@ class BaseWrapper(nn.Module):
             super().train(mode)
         return self
 
+    def build_mapper(self, key_map, model=None, default=None):
+        if is_dict(key_map) and len(key_map)>0:
+            first_key = next(iter(key_map.values()))
+            if is_dict(first_key) or isinstance(first_key, tuple) or is_list(first_key):
+                return {k:KeyMapper(model, v or default) for k, v in key_map.items()}
+        return KeyMapper(model, key_map or default)
+
+    def get_map_data(self, key_mapper, kwargs, ds_name:str=None) -> Tuple[Tuple, Dict[str, Any]]:
+        if is_dict(key_mapper):
+            model_args, model_kwargs = key_mapper[ds_name].map_data(kwargs)
+        else:
+            model_args, model_kwargs = key_mapper.map_data(kwargs)
+        return model_args, model_kwargs
+
+    def get_inputs_feed(self, key_mapper_in, model, kwargs, plugin_input={}, ds_name=None) -> Tuple[Tuple, Dict[str, Any]]:
+        model_args, model_kwargs = self.get_map_data(key_mapper_in, kwargs, ds_name)
+
+        input_all = dict(_args_=model_args, **model_kwargs, **plugin_input)
+
+        if hasattr(model, 'input_feeder'):
+            for feeder in model.input_feeder:
+                feeder(input_all)
+        return model_args, model_kwargs
+
 class SingleWrapper(BaseWrapper):
-    def __init__(self, model, key_map=None):
+    def __init__(self, model, key_map_in=None, key_map_out=None):
         super().__init__()
         self.model = model
-        self.key_mapper = KeyMapper(model, key_map or {'pred': '0'})
+        self.key_mapper_in = self.build_mapper(key_map_in, model, {0: 'image'})
+        self.key_mapper_out = self.build_mapper(key_map_out, model, {'pred': 0})
 
-    def forward(self, input_data, plugin_input={}, **kwargs):
-        input_all = dict(input_data=input_data, **plugin_input)
+    def forward(self, ds_name, plugin_input={}, **kwargs):
+        model_args, model_kwargs = self.get_inputs_feed(self.key_mapper_in, self.model, kwargs, plugin_input, ds_name=ds_name)
 
-        if hasattr(self.model, 'input_feeder'):
-            for feeder in self.model.input_feeder:
-                feeder(input_all)
-
-        out = self.model(input_data, **kwargs)
+        out = self.model(*model_args, **model_kwargs)
         if not isinstance(out, tuple):
             out = (out,)
-        return self.key_mapper.map_data(out)
+        return self.get_map_data(self.key_mapper_out, out, ds_name=ds_name)[1]
 
     @property
     def trainable_models(self) -> Dict[str, nn.Module]:

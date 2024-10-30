@@ -26,15 +26,18 @@ class BaseDataset(Dataset):
     """
 
     def __init__(self, bucket: BaseBucket = None, source: Dict[str, DataSource] = None, handler: DataHandler = None,
-                 batch_transform: Callable=None, **kwargs):
+                 batch_handler: DataHandler=None, **kwargs):
         self.bucket: BaseBucket = bucket
         self.source = ComposeDataSource(list(source.values()))
         self.handler = handler
-        self.batch_transform = batch_transform
+        self.batch_handler = batch_handler
+
+    def build_bucket(self, bs, world_size):
+        self.bucket.build(bs=bs, world_size=world_size, source=self.source)
 
     def batch_process(self, batch: Dict[str, Union[List, torch.Tensor]]):
-        if self.batch_transform is not None:
-            batch = self.batch_transform(batch)
+        if self.batch_handler is not None:
+            batch = self.batch_handler(batch)
         return batch
 
     def __len__(self):
@@ -76,7 +79,10 @@ class BaseDataset(Dataset):
                 elif isinstance(v[0], dict):
                     pass
                 else:
-                    data[k] = self.create_tensor(v)
+                    try:
+                        data[k] = self.create_tensor(v)
+                    except:
+                        pass
             return data
 
         datas = batch_merge(datas)

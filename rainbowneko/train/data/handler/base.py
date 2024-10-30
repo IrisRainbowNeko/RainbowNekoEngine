@@ -10,26 +10,41 @@ class DataHandler:
         raise NotImplementedError
 
     def __call__(self, data) -> Dict[str, Any]:
-        data_proc = self.handle(**self.key_mapper_in.map_data(data))
-        return self.key_mapper_out.map_data(data_proc)
+        data_proc = self.handle(**self.key_mapper_in.map_data(data)[1])
+        return self.key_mapper_out.map_data(data_proc)[1]
 
 class HandlerGroup(DataHandler):
-    def __init__(self, handlers: Dict[str, DataHandler]):
+    def __init__(self, handlers: Dict[str, DataHandler], key_map_in=None, key_map_out=None):
         self.handlers = handlers
+        self.key_mapper_in = KeyMapper(key_map=key_map_in) if key_map_in else None
+        self.key_mapper_out = KeyMapper(key_map=key_map_out) if key_map_out else None
 
-    def __call__(self, data) -> Dict[str, Any]:
+    def __call__(self, data:Dict[str, Any]) -> Dict[str, Any]:
+        if self.key_mapper_in:
+            data = self.key_mapper_in.map_data(data)[1]
         data_new = {}
         for name, handler in self.handlers.items():
             data_new.update(handler(data))
-        return data_new
+        data.update(data_new)
+        if self.key_mapper_out:
+            data = self.key_mapper_out.map_data(data)[1]
+        return data
 
 class HandlerChain(DataHandler):
-    def __init__(self, handlers: Dict[str, DataHandler]):
+    def __init__(self, handlers: Dict[str, DataHandler], key_map_in=None, key_map_out=None):
         self.handlers = handlers
+        self.key_mapper_in = KeyMapper(key_map=key_map_in) if key_map_in else None
+        self.key_mapper_out = KeyMapper(key_map=key_map_out) if key_map_out else None
 
-    def __call__(self, data) -> Dict[str, Any]:
+    def __call__(self, data:Dict[str, Any]) -> Dict[str, Any]:
+        data = data.copy()
+        if self.key_mapper_in:
+            data = self.key_mapper_in.map_data(data)[1]
         for name, handler in self.handlers.items():
-            data.update(handler(data))
+            tmp = handler(data)
+            data.update(tmp)
+        if self.key_mapper_out:
+            data = self.key_mapper_out.map_data(data)[1]
         return data
 
 class SyncHandler(DataHandler):

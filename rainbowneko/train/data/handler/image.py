@@ -20,7 +20,7 @@ class LoadImageHandler(DataHandler):
             canvas = Image.new('RGBA', image.size, self.bg_color)
             canvas.paste(image, (0, 0, x, y), image)
             image = canvas
-        return {'image': image.convert("RGB")}
+        return image.convert("RGB")
 
     def handle(self, image):
         if isinstance(image, str):
@@ -48,7 +48,7 @@ class ImageHandler(DataHandler):
             canvas = Image.new('RGBA', image.size, self.bg_color)
             canvas.paste(image, (0, 0, x, y), image)
             image = canvas
-        return {'image': image.convert("RGB")}
+        return image.convert("RGB")
 
     def procees_image(self, image):
         if isinstance(self.transform, (A.BaseCompose, A.BasicTransform)):
@@ -82,12 +82,14 @@ class AutoSizeHandler(DataHandler):
 
     def handle(self, image, size):
         if self.mode == 'full':
-            w, h = image['img'].size
+            w, h = image.size
             coord = [h, w, 0, 0, h, w]
         elif self.mode == 'resize':
-            image, coord = resize_crop_fix(image, size)
+            image, coord = resize_crop_fix({'image': image}, size)
+            image = image['image']
         elif self.mode == 'pad':
-            image, coord = pad_crop_fix(image, size)
+            image, coord = pad_crop_fix({'image': image}, size)
+            image = image['image']
         else:
             raise NotImplementedError(f'mode {self.mode} not supported')
         return {'image': image, 'coord': coord}

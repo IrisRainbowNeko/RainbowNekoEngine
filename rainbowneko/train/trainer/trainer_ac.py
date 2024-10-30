@@ -83,7 +83,12 @@ class Trainer:
 
         if self.cfgs.train.metrics is not None:
             self.metric_train = self.cfgs.train.metrics
-            self.metric_train.to(self.accelerator.device)
+            if is_dict(self.metric_train):
+                for metric in self.metric_train.values():
+                    if metric is not None:
+                        metric.to(self.accelerator.device)
+            else:
+                self.metric_train.to(self.accelerator.device)
         else:
             self.metric_train = None
 
@@ -247,11 +252,7 @@ class Trainer:
         self.batch_size_list.append(batch_size)
 
         dataset = data_builder()
-        dataset.bucket.build(
-            bs=batch_size,
-            world_size=self.world_size,
-            source=dataset.source,
-        )
+        dataset.build_bucket(bs=batch_size, world_size=self.world_size)
         self.loggers.info(f"len(dataset): {len(dataset)}")
 
         return dataset, batch_size
@@ -351,10 +352,11 @@ class Trainer:
                     if self.metric_train is not None:
                         if is_dict(self.metric_train):
                             for ds_name in pred_dict.keys():
-                                self.metric_train[ds_name].reset()
-                                self.metric_train[ds_name].update(pred_dict[ds_name], inputs_dict[ds_name])
-                                metrics_dict = self.metric_train[ds_name].finish(None, self.is_local_main_process)
-                                log_data.update(MetricGroup.format(metrics_dict, prefix=f'{ds_name}/'))
+                                if self.metric_train[ds_name] is not None:
+                                    self.metric_train[ds_name].reset()
+                                    self.metric_train[ds_name].update(pred_dict[ds_name], inputs_dict[ds_name])
+                                    metrics_dict = self.metric_train[ds_name].finish(None, self.is_local_main_process)
+                                    log_data.update(MetricGroup.format(metrics_dict, prefix=f'{ds_name}/'))
                         else:
                             self.metric_train.reset()
                             for ds_name in pred_dict.keys():
@@ -378,20 +380,30 @@ class Trainer:
             self.save_model()
 
     def train_one_step(self, data_dict):
-        to_dev = lambda x: x.to(self.device, dtype=self.weight_dtype) if isinstance(x, torch.Tensor) else x
+        def to_dev(x):
+            if isinstance(x, torch.Tensor):
+                if torch.is_floating_point(x):
+                    return x.to(self.device, dtype=self.weight_dtype)
+                else:
+                    return x.to(self.device)
+            else:
+                return x
+
         v_proc = lambda v: v.detach() if isinstance(v, torch.Tensor) else v
 
         pred_dict, inputs_dict = {}, {}
+        loss_all = []
         with self.accelerator.accumulate(self.model_wrapper):
             for ds_name, data in data_dict.items():
                 input_datas = {k: to_dev(v) for k, v in data.items() if k != "plugin_input"}
                 if "plugin_input" in data:
                     input_datas["plugin_input"] = {k: to_dev(v) for k, v in data["plugin_input"].items()}
 
-                model_pred = self.model_wrapper(**input_datas)
+                model_pred = self.model_wrapper(ds_name, **input_datas)
                 pred_dict[ds_name] = {k: v_proc(v) for k, v in model_pred.items()}
                 inputs_dict[ds_name] = {k: v_proc(v) for k, v in input_datas.items()}
                 loss = self.get_loss(ds_name, model_pred, input_datas)
+                loss_all.append(loss.item())
                 self.accelerator.backward(loss, retain_graph=self.cfgs.train.retain_graph)
 
             if hasattr(self, "optimizer"):
@@ -408,7 +420,7 @@ class Trainer:
 
             self.model_raw.update_model(self.global_step)  # Some model may update by step
             self.update_ema()
-        return loss.item(), pred_dict, inputs_dict
+        return sum(loss_all), pred_dict, inputs_dict
 
     def get_loss(self, ds_name, model_pred, inputs):
         weight = self.train_loader_group.get_loss_weights(ds_name)
