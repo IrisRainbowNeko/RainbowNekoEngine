@@ -189,7 +189,11 @@ class Trainer:
             self.ema_model = self.cfgs.model.ema(self.model_wrapper.named_parameters())
 
     def build_loss(self):
-        self.criterion = self.cfgs.train.loss
+        criterion = self.cfgs.train.loss
+        if is_dict(criterion):
+            self.criterion = {name:loss.to(self.device) for name, loss in criterion.items()}
+        else:
+            self.criterion = criterion.to(self.device)
 
     def build_ckpt_manager(self):
         self.ckpt_manager = self.cfgs.ckpt_manager()
