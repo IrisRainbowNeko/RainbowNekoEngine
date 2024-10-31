@@ -58,4 +58,5 @@ class SyncHandler(DataHandler):
         for name, handler in self.handlers.items():
             with random_context:
                 data_new.update(handler(data))
-        return data_new
+        data.update(data_new)
+        return data

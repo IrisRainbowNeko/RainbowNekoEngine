@@ -52,8 +52,8 @@ class ImageHandler(DataHandler):
 
     def procees_image(self, image):
         if isinstance(self.transform, (A.BaseCompose, A.BasicTransform)):
-            image_A = self.transform(image=np.array(image))
-            image.update(image_A)
+            image_A = self.transform(image=np.array(cv2.cvtColor(image, cv2.COLOR_RGB2BGR)))
+            image = Image.fromarray(cv2.cvtColor(image_A['image'], cv2.COLOR_BGR2RGB))
         else:
             image = self.transform(image)
         return image
