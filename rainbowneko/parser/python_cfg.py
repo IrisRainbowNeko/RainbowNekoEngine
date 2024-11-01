@@ -82,7 +82,7 @@ class PythonCfgParser(YamlCfgParser):
         source_code = inspect.getsource(func)
 
         # 分离函数定义和函数体
-        start_index = source_code.find('\n') + 1  # 找到第一个换行符后的索引
+        start_index = source_code.find(':\n') + 2  # 找到第一个换行符后的索引
         function_body = source_code[start_index:].strip()
         return function_body
 
@@ -106,6 +106,31 @@ class PythonCfgParser(YamlCfgParser):
         new_code, _ = FormatCode(code, style_config='facebook')
         print(new_code)
 
+    def resolve_sub_cfgs(self, module, cfg):
+        if isinstance(cfg, dict):
+            if '_target_' in cfg and getattr(cfg['_target_'], '_neko_cfg_', False):
+                code = self.get_code(cfg['_target_'])
+                code_format = self.transform_code(code)
+                del cfg['_target_']
+                cfg = eval(code_format, vars(module), cfg)
+                return cfg
+
+            for key, value in cfg.items():
+                if isinstance(value, dict):
+                    res = self.resolve_sub_cfgs(module, value)
+                    if res is not None:
+                        cfg[key] = res
+                if isinstance(value, list):
+                    self.resolve_sub_cfgs(module, value)
+        elif isinstance(cfg, list):
+            for idx, value in enumerate(cfg):
+                if isinstance(value, dict):
+                    res = self.resolve_sub_cfgs(module, value)
+                    if res is not None:
+                        cfg[idx] = res
+                elif isinstance(value, list):
+                    self.resolve_sub_cfgs(module, value)
+
     def load_cfg(self, path: str, trans=True):
         # record for save
         if len(self.cfg_dict) == 0:
@@ -113,10 +138,11 @@ class PythonCfgParser(YamlCfgParser):
         else:
             self.cfg_dict[path] = path
 
-        if path.endswith('.py'):  # import_module do not need .py suffix
-            path = path[:-3]
-        path = path.replace('/', '.').replace('\\', '.')
-        module = importlib.import_module(path)
+        # load module
+        module_name = os.path.splitext(os.path.basename(path))[0]
+        spec = importlib.util.spec_from_file_location(module_name, path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
 
         if trans:
             code = self.get_code(module.make_cfg)
@@ -124,6 +150,7 @@ class PythonCfgParser(YamlCfgParser):
             cfg = eval(code_format, vars(module))
         else:
             cfg = module.config
+        self.resolve_sub_cfgs(module, cfg)
 
         return OmegaConf.create(cfg, flags={"allow_objects": True})
 

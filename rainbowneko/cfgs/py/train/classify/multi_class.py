@@ -17,6 +17,7 @@ from rainbowneko.train.data import BaseDataset
 from rainbowneko.train.data.source import IndexSource
 from rainbowneko.train.data.handler import HandlerChain, ImageHandler, LoadImageHandler
 from rainbowneko.train.loss import LossContainer
+from rainbowneko.utils import neko_cfg
 
 num_classes = 10
 
@@ -67,19 +68,54 @@ def make_cfg():
             wrapper=partial(SingleWrapper, model=load_resnet())
         ),
 
-        data_train=dict(
+        data_train=cfg_data(), # config can be split into another function with @neko_cfg
+
+        evaluator=cfg_evaluator(),
+    )
+
+@neko_cfg
+def cfg_data():
+    dict(
+        dataset1=partial(BaseDataset, batch_size=128, loss_weight=1.0,
+            source=dict(
+                data_source1=IndexSource(
+                    data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=True, download=True)
+                ),
+            ),
+            handler=HandlerChain(handlers=dict(
+                load=LoadImageHandler(),
+                bucket=FixedBucket.handler, # bucket 会自带一些处理模块
+                image=ImageHandler(transform=T.Compose([
+                        T.RandomCrop(size=32, padding=4),
+                        T.RandomHorizontalFlip(),
+                        T.ToTensor(),
+                        T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
+                    ]),
+                )
+            )),
+            bucket=FixedBucket(target_size=32),
+        )
+    )
+
+@neko_cfg
+def cfg_evaluator():
+    partial(Evaluator,
+        interval=500,
+        metric=MetricGroup(metric_dict=dict(
+            acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
+            f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
+        )),
+        dataset=dict(
             dataset1=partial(BaseDataset, batch_size=128, loss_weight=1.0,
                 source=dict(
                     data_source1=IndexSource(
-                        data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=True, download=True)
+                        data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=False, download=True)
                     ),
                 ),
                 handler=HandlerChain(handlers=dict(
                     load=LoadImageHandler(),
-                    bucket=FixedBucket.handler, # bucket 会自带一些处理模块
+                    bucket=FixedBucket.handler,
                     image=ImageHandler(transform=T.Compose([
-                            T.RandomCrop(size=32, padding=4),
-                            T.RandomHorizontalFlip(),
                             T.ToTensor(),
                             T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
                         ]),
@@ -87,32 +123,5 @@ def make_cfg():
                 )),
                 bucket=FixedBucket(target_size=32),
             )
-        ),
-
-        evaluator=partial(Evaluator,
-            interval=500,
-            metric=MetricGroup(metric_dict=dict(
-                acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
-                f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
-            )),
-            dataset=dict(
-                dataset1=partial(BaseDataset, batch_size=128, loss_weight=1.0,
-                    source=dict(
-                        data_source1=IndexSource(
-                            data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=False, download=True)
-                        ),
-                    ),
-                    handler=HandlerChain(handlers=dict(
-                        load=LoadImageHandler(),
-                        bucket=FixedBucket.handler,
-                        image=ImageHandler(transform=T.Compose([
-                                T.ToTensor(),
-                                T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
-                            ]),
-                        )
-                    )),
-                    bucket=FixedBucket(target_size=32),
-                )
-            )
-        ),
+        )
     )
