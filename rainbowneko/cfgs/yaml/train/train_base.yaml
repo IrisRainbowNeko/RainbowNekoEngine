@@ -1,4 +1,4 @@
-exp_dir: exps/2024-11-01-17-30-01
+exp_dir: exps/${neko.time:}
 mixed_precision: null
 allow_tf32: false
 seed: 114514
