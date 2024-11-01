@@ -16,19 +16,18 @@ from functools import partial
 
 import hydra
 import torch
-# fix checkpoint bug for train part of model
 import torch.utils.checkpoint
 import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
+
 from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
 from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.parser import parse_plugin_cfg
-from rainbowneko.train.data import RatioBucket, DataGroup, get_sampler
+from rainbowneko.train.data import DataGroup, get_sampler
 from rainbowneko.train.loggers import LoggerGroup
-from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, addto_dictlist, is_dict
-from tqdm import tqdm
+from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict
 
 try:
     import xformers
