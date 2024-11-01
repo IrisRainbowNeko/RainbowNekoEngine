@@ -1,0 +1,7 @@
+model_part:
+  _target_: rainbowneko.parser.cfg_net_parser.CfgModelParser
+  cfg_model:
+    - lr: 1.0e-06
+      layers:
+        - ''
+model_plugin: null

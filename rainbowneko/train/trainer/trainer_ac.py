@@ -456,7 +456,7 @@ class Trainer:
 def neko_train():
     import subprocess
     import sys
-    subprocess.run(["accelerate", "launch", "-m", "rainbowneko.train.trainer.trainer_ac"] + sys.argv[1:])
+    subprocess.run(["accelerate", "launch", "-m", "rainbowneko.train.trainer.trainer_ac"] + sys.argv[1:], check=True)
 
 
 if __name__ == "__main__":

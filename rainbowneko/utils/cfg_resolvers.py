@@ -17,6 +17,6 @@ def get(name):
     exec(f'import {module}')
     return eval(name)
 
-OmegaConf.register_new_resolver("neko.get", get)
+OmegaConf.register_new_resolver("neko.get", get) # get python object
 
 #OmegaConf.register_new_resolver("neko.dtype", lambda dtype: dtype_dict.get(dtype, torch.float32))

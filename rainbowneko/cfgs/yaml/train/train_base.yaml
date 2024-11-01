@@ -1,0 +1,45 @@
+exp_dir: exps/2024-11-01-17-30-01
+mixed_precision: null
+allow_tf32: false
+seed: 114514
+
+ckpt_manager:
+  _target_: rainbowneko.ckpt_manager.ckpt_pkl.CkptManagerPKL
+  _partial_: true
+
+train:
+  train_steps: 1000
+  train_epochs: null
+  gradient_accumulation_steps: 1
+  workers: 4
+  max_grad_norm: 1.0
+  set_grads_to_none: false
+  retain_graph: false
+  save_step: 100
+  resume: null
+  loss:
+    _target_: torch.nn.modules.loss.MSELoss
+  optimizer:
+    _target_: torch.optim.adamw.AdamW
+    _partial_: true
+    weight_decay: 0.001
+  scale_lr: true
+  scheduler:
+    name: one_cycle
+    num_warmup_steps: 0.2
+  metric: null
+
+logger:
+  - _target_: rainbowneko.train.loggers.cli_logger.CLILogger
+    _partial_: true
+    out_path: train.log
+    log_step: 20
+
+model:
+  name: model
+  enable_xformers: true
+  gradient_checkpointing: true
+  force_cast_precision: false
+  ema: null
+  wrapper: null
+evaluator: null

@@ -77,7 +77,7 @@ def get_match_layers(layers, all_layers, return_metas=False) -> Union[List[str],
 
 
 class CfgModelParser:
-    def __init__(self, cfg_model, lr=1e-5, weight_decay=0):
+    def __init__(self, cfg_model: List[Dict], lr=1e-5, weight_decay=0):
         self.cfg_model = cfg_model
         self.lr = lr
         self.weight_decay = weight_decay
