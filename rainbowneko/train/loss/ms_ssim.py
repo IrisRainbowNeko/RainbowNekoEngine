@@ -4,12 +4,11 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 class MSSSIMLoss(torch.nn.Module):
-    def __init__(self, size_average=True, max_val=1, device='cuda'):
+    def __init__(self, size_average=True, max_val=1):
         super(MSSSIMLoss, self).__init__()
         self.size_average = size_average
         self.max_val = max_val
-        self.device = device
-        self.weight = torch.tensor([0.0448, 0.2856, 0.3001, 0.2363, 0.1333], device=device)
+        self.weight = torch.tensor([0.0448, 0.2856, 0.3001, 0.2363, 0.1333])
 
     def gaussian(self, window_size, sigma):
         gauss = torch.Tensor([math.exp(-(x - window_size//2)**2/float(2*sigma**2)) for x in range(window_size)])
@@ -25,7 +24,7 @@ class MSSSIMLoss(torch.nn.Module):
         _, c, w, h = img1.size()
         window_size = min(w, h, 11)
         sigma = 1.5 * window_size / 11
-        window = self.create_window(window_size, sigma, c).to(self.device)
+        window = self.create_window(window_size, sigma, c).to(img1.device)
         mu1 = F.conv2d(img1, window, padding=window_size//2, groups=c)
         mu2 = F.conv2d(img2, window, padding=window_size//2, groups=c)
 
@@ -47,8 +46,9 @@ class MSSSIMLoss(torch.nn.Module):
             return ssim_map.mean(), mcs_map.mean()
 
     def ms_ssim(self, img1, img2, levels=5):
-        msssim = torch.empty(levels, device=self.device)
-        mcs = torch.empty(levels, device=self.device)
+        self.weight = self.weight.to(img1.device)
+        msssim = torch.empty(levels, device=img1.device)
+        mcs = torch.empty(levels, device=img1.device)
         for i in range(levels):
             ssim_map, mcs_map = self._ssim(img1, img2)
             msssim[i] = ssim_map

@@ -15,23 +15,24 @@ class Evaluator:
         self.metric = metric
         self.interval = interval
 
-    def forward_one_step(self, model, data):
-        device = self.trainer.device
-        weight_dtype = self.trainer.weight_dtype
+    def to_dev(self, x):
+        if isinstance(x, torch.Tensor):
+            if torch.is_floating_point(x):
+                return x.to(self.trainer.device, dtype=self.trainer.weight_dtype)
+            else:
+                return x.to(self.trainer.device)
+        else:
+            return x
 
-        image = data.pop("image").to(device, dtype=weight_dtype)
-        target = {k: v.to(device) for k, v in data.pop("label").items()}
-        other_datas = {
-            k: v.to(device, dtype=weight_dtype) for k, v in data.items() if k != "plugin_input"
-        }
+    def forward_one_step(self, ds_name, model, data):
+
+        input_datas = {k: self.to_dev(v) for k, v in data.items() if k != "plugin_input"}
         if "plugin_input" in data:
-            other_datas["plugin_input"] = {
-                k: v.to(device, dtype=weight_dtype) for k, v in data["plugin_input"].items()
-            }
+            input_datas["plugin_input"] = {k: self.to_dev(v) for k, v in data["plugin_input"].items()}
 
-        model_pred = model(image, **other_datas)
+        model_pred = model(ds_name, **input_datas)
 
-        return model_pred, target
+        return model_pred, input_datas
 
     @torch.inference_mode()
     def evaluate(self, step:int, model: BaseWrapper):
@@ -43,8 +44,8 @@ class Evaluator:
 
         for data_dict in tqdm(self.data_loader_group, disable=not self.trainer.is_local_main_process):
             for ds_name, data in data_dict.items():
-                pred, target = self.forward_one_step(model, data)
-                self.metric.update(pred, target)
+                pred, input_datas = self.forward_one_step(ds_name, model, data)
+                self.metric.update(pred, input_datas)
 
         v_metric = self.metric.finish(self.trainer.accelerator.gather, self.trainer.is_local_main_process)
 

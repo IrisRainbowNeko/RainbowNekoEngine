@@ -75,7 +75,7 @@ class CkptManagerPKL(CkptManagerBase):
                 block = model if item['model'] == '' else eval(f"model.{item['model']}")
                 missing_keys, unexpected_keys = block.load_state_dict(sd["base"], strict=False)
                 if len(missing_keys)>0:
-                    print(f'missing_keys of model.{item['model']}: {missing_keys}')
+                    print(f'missing_keys of model.{item["model"]}: {missing_keys}')
         if "plugin" in sd:
             model.load_state_dict(sd["plugin"], strict=False)
 

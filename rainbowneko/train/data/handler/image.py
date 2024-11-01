@@ -53,7 +53,10 @@ class ImageHandler(DataHandler):
     def procees_image(self, image):
         if isinstance(self.transform, (A.BaseCompose, A.BasicTransform)):
             image_A = self.transform(image=np.array(image))
-            image = Image.fromarray(image_A['image'])
+            if isinstance(image_A['image'], np.ndarray):
+                image = Image.fromarray(image_A['image'])
+            else:
+                image = image_A['image']
         else:
             image = self.transform(image)
         return image
