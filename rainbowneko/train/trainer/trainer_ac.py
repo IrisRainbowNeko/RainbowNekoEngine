@@ -251,6 +251,15 @@ class Trainer:
     def make_hooks(self):
         pass
 
+    def to_dev(self, x):
+        if isinstance(x, torch.Tensor):
+            if torch.is_floating_point(x):
+                return x.to(self.device, dtype=self.weight_dtype)
+            else:
+                return x.to(self.device)
+        else:
+            return x
+
     def build_dataset(self, data_builder: partial):
         batch_size = data_builder.keywords.pop("batch_size")
         self.batch_size_list.append(batch_size)
@@ -384,14 +393,6 @@ class Trainer:
             self.save_model()
 
     def train_one_step(self, data_dict):
-        def to_dev(x):
-            if isinstance(x, torch.Tensor):
-                if torch.is_floating_point(x):
-                    return x.to(self.device, dtype=self.weight_dtype)
-                else:
-                    return x.to(self.device)
-            else:
-                return x
 
         v_proc = lambda v: v.detach() if isinstance(v, torch.Tensor) else v
 
@@ -399,9 +400,9 @@ class Trainer:
         loss_all = []
         with self.accelerator.accumulate(self.model_wrapper):
             for ds_name, data in data_dict.items():
-                input_datas = {k: to_dev(v) for k, v in data.items() if k != "plugin_input"}
+                input_datas = {k: self.to_dev(v) for k, v in data.items() if k != "plugin_input"}
                 if "plugin_input" in data:
-                    input_datas["plugin_input"] = {k: to_dev(v) for k, v in data["plugin_input"].items()}
+                    input_datas["plugin_input"] = {k: self.to_dev(v) for k, v in data["plugin_input"].items()}
 
                 model_pred = self.model_wrapper(ds_name, **input_datas)
                 pred_dict[ds_name] = {k: v_proc(v) for k, v in model_pred.items()}
