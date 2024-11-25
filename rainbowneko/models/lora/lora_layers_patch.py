@@ -14,6 +14,7 @@ import torch
 from einops import einsum
 from torch import nn
 from torch.nn import functional as F
+from torch.nn.modules.utils import _pair
 
 from .lora_base_patch import LoraBlock
 
@@ -28,12 +29,17 @@ class LoraLayer(LoraBlock):
             if isinstance(self.rank, float):
                 self.rank = max(round(host.out_features * self.rank), 1)
 
+            self.in_features = host.in_features
+            self.out_features = host.out_features
             self.W_down = nn.Parameter(torch.empty(self.rank, host.in_features))
             self.W_up = nn.Parameter(torch.empty(host.out_features, self.rank))
             if bias:
                 self.bias = nn.Parameter(torch.empty(host.out_features))
             else:
                 self.register_parameter('bias', None)
+
+        def extra_repr(self) -> str:
+            return f'in_features={self.in_features}, rank={self.rank}, out_features={self.out_features}'
 
         def reset_parameters(self):
             nn.init.kaiming_uniform_(self.W_down, a=math.sqrt(5))
@@ -67,6 +73,10 @@ class LoraLayer(LoraBlock):
             if isinstance(self.rank, float):
                 self.rank = max(round(host.out_channels * self.rank), 1)
 
+            self.in_channels = host.in_channels
+            self.out_channels = host.out_channels
+            self.kernel_size = host.kernel_size
+
             self.W_down = nn.Parameter(torch.empty(self.rank, host.in_channels, *host.kernel_size))
             self.W_up = nn.Parameter(torch.empty(host.out_channels, self.rank, 1, 1))
             if bias:
@@ -78,6 +88,23 @@ class LoraLayer(LoraBlock):
             self.padding = host.padding
             self.dilation = host.dilation
             self.groups = host.groups
+            self.padding_mode = host.padding_mode
+            self._reversed_padding_repeated_twice = host._reversed_padding_repeated_twice
+
+        def extra_repr(self):
+            s = ('{in_channels}, {out_channels}, rank={rank}, kernel_size={kernel_size}'
+                 ', stride={stride}')
+            if self.padding != (0,) * len(self.padding):
+                s += ', padding={padding}'
+            if self.dilation != (1,) * len(self.dilation):
+                s += ', dilation={dilation}'
+            if self.groups != 1:
+                s += ', groups={groups}'
+            if self.bias is None:
+                s += ', bias=False'
+            if self.padding_mode != 'zeros':
+                s += ', padding_mode={padding_mode}'
+            return s.format(**self.__dict__)
 
         def reset_parameters(self):
             nn.init.kaiming_uniform_(self.W_down, a=math.sqrt(5))
@@ -92,6 +119,9 @@ class LoraLayer(LoraBlock):
             return self.bias if self.bias else None
 
         def forward(self, x, weight, bias=None):
+            if self.padding_mode != 'zeros':
+                return F.conv2d(F.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
+                                weight, bias, self.stride, _pair(0), self.dilation, self.groups)
             return F.conv2d(x, weight, bias, self.stride, self.padding, self.dilation, self.groups)
 
         def get_collapsed_param(self):

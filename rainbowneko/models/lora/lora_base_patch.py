@@ -59,6 +59,9 @@ class LoraBlock(PatchPluginBlock):
         self.rank = self.layer.rank
         self.register_buffer('alpha', torch.tensor(alpha / self.rank if alpha_auto_scale else alpha))
 
+    def extra_repr(self) -> str:
+        return f'rank={self.rank}, alpha={self.alpha}, bias={self.bias}'
+
     def get_weight(self):
         return self.layer.get_weight() * self.alpha
 
