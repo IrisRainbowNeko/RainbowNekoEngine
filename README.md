@@ -1,5 +1,14 @@
 # RainbowNeko Engine
 
+[![PyPI](https://img.shields.io/pypi/v/rainbowneko)](https://pypi.org/project/rainbowneko/)
+[![GitHub stars](https://img.shields.io/github/stars/IrisRainbowNeko/RainbowNekoEngine)](https://github.com/IrisRainbowNeko/RainbowNekoEngine/stargazers)
+[![GitHub license](https://img.shields.io/github/license/IrisRainbowNeko/RainbowNekoEngine)](https://github.com/IrisRainbowNeko/RainbowNekoEngine/blob/master/LICENSE)
+[![codecov](https://codecov.io/gh/IrisRainbowNeko/RainbowNekoEngine/branch/main/graph/badge.svg)](https://codecov.io/gh/IrisRainbowNeko/RainbowNekoEngine)
+[![open issues](https://isitmaintained.com/badge/open/IrisRainbowNeko/RainbowNekoEngine.svg)](https://github.com/IrisRainbowNeko/RainbowNekoEngine/issues)
+
+
+[📘English document](https://rainbownekoengine.readthedocs.io/en/latest/)
+[📘中文文档](https://rainbownekoengine.readthedocs.io/zh-cn/latest/)
 
 ## Introduction
 RainbowNeko Engine is a toolbox for pytorch based neural network training and inference. Multiple tasks and training strategies are built-in and highly expandable.
