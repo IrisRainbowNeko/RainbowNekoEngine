@@ -3,14 +3,14 @@ Welcome to RainbowNeko Engine documentation!
 
 .. toctree::
    :maxdepth: 1
-   :caption: 开始使用
+   :caption: Start
 
    get_started.md
    guide/intro.md
 
 .. toctree::
    :maxdepth: 1
-   :caption: 模型训练
+   :caption: Train
 
    train/first.md
    train/data.md
@@ -19,25 +19,25 @@ Welcome to RainbowNeko Engine documentation!
 
 .. toctree::
    :maxdepth: 1
-   :caption: 训练进阶
+   :caption: Advanced Training
 
    train_adv/layer_train.md
    train_adv/handler.md
 
 .. toctree::
    :maxdepth: 1
-   :caption: 配置文件
+   :caption: Configuration File
 
    guide/cfg.md
 
 .. toctree::
    :maxdepth: 1
-   :caption: 插件开发指南
+   :caption: Plugin Development
 
    dev/model_plugin.md
 
 .. toctree::
-   :caption: 语言切换
+   :caption: Language
 
    switch_language.md
 
