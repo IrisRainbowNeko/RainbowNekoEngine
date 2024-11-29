@@ -392,7 +392,6 @@ class Trainer:
             self.save_model()
 
     def train_one_step(self, data_dict):
-
         v_proc = lambda v: v.detach() if isinstance(v, torch.Tensor) else v
 
         pred_dict, inputs_dict = {}, {}
@@ -452,12 +451,14 @@ class Trainer:
     def wait_for_everyone(self):
         self.accelerator.wait_for_everyone()
 
-
 def neko_train():
     import subprocess
-    import sys
-    subprocess.run(["accelerate", "launch", "-m", "rainbowneko.train.trainer.trainer_ac"] + sys.argv[1:], check=True)
+    parser = argparse.ArgumentParser(description='RainbowNeko Launcher')
+    parser.add_argument('--launch_cfg', type=str, default='cfgs/launcher/multi.yaml')
+    args, train_args = parser.parse_known_args()
 
+    subprocess.run(["accelerate", "launch", '--config_file', args.launch_cfg, "-m",
+                    "rainbowneko.train.trainer.trainer_ac"] + train_args, check=True)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Stable Diffusion Training")
