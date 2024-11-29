@@ -13,7 +13,6 @@ python格式的配置文件支持完整的python语法，可以在配置中进�
 from functools import partial
 
 from cfgs.py.train.classify import multi_class
-from rainbowneko.parser import make_base
 from rainbowneko.train.data import BaseDataset
 from rainbowneko.train.data.handler import MixUPHandler, HandlerChain
 from rainbowneko.train.loss import LossContainer, SoftCELoss
@@ -24,7 +23,7 @@ multi_class.num_classes = num_classes
 
 def make_cfg():
     dict(
-        _base_=make_base(multi_class) + [],
+        _base_=[multi_class],
 
         train=dict(
             loss=LossContainer(loss=SoftCELoss()),
@@ -59,6 +58,11 @@ dict(
 ```
 
 ````
+
+```{note}
+`+-*/`等运算操作左右的`call`节点，不会被解析器转换成`dict`和`list`，会直接执行。
+```
+
 
 #### partial使用
 
@@ -102,18 +106,13 @@ data_train:
 配置文件可以继承，比如在python配置文件中，通过`import`导入配置文件，在`_base_`中配置，就可以继承另一个配置文件的配置。
 ```python
 from cfgs.py.train.classify import multi_class
-from rainbowneko.parser import make_base
 
 dict(
-    _base_=make_base(multi_class) + [],
+    _base_=[multi_class],
     ...
 )
 ```
-比如这里继承`multi_class`这个配置文件，通过make_base函数，可以自动获取`multi_class`的路径。
-
-```{note}
-`_base_=make_base(multi_class) + []`是为了让make_base直接执行，`+-*/`等运算操作左右的`call`节点，不会被解析器转换成`dict`和`list`。
-```
+比如这里继承`multi_class`这个配置文件，可以自动获取`multi_class`的内容并继承。
 
 在配置中定义的参数，会覆盖父配置文件的内容。对于嵌套的配置，只会替换内层定义的参数，不会把`dict`或者调用整个替换。
 

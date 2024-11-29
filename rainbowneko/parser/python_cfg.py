@@ -3,11 +3,18 @@ import importlib
 import inspect
 import os
 import shutil
+from typing import Union
+from types import ModuleType
 
 from omegaconf import OmegaConf
 
 from .yaml_cfg import YamlCfgParser
 
+def get_rel_path(path):
+    if not isinstance(path, str):
+        path = path.__file__
+    current_dir = os.getcwd()
+    return os.path.relpath(path, current_dir)
 
 class CallTransformer(ast.NodeTransformer):
     transform_parent = (ast.Call, ast.Expr, ast.Dict, ast.List)
@@ -131,18 +138,30 @@ class PythonCfgParser(YamlCfgParser):
                 elif isinstance(value, list):
                     self.resolve_sub_cfgs(module, value)
 
-    def load_cfg(self, path: str, trans=True):
-        # record for save
-        if len(self.cfg_dict) == 0:
-            self.cfg_dict['cfg.py'] = path
-        else:
-            self.cfg_dict[path] = path
+    def load_cfg(self, path: Union[str, ModuleType], trans=True):
+        if isinstance(path, str):
+            # record for save
+            if len(self.cfg_dict) == 0:
+                self.cfg_dict['cfg.py'] = path
+            else:
+                self.cfg_dict[path] = path
 
-        # load module
-        module_name = os.path.splitext(os.path.basename(path))[0]
-        spec = importlib.util.spec_from_file_location(module_name, path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+            # load module
+            module_name = os.path.splitext(os.path.basename(path))[0]
+            spec = importlib.util.spec_from_file_location(module_name, path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        elif isinstance(path, ModuleType):
+            # record for save
+            cfg_path = get_rel_path(path)
+            if len(self.cfg_dict) == 0:
+                self.cfg_dict['cfg.py'] = cfg_path
+            else:
+                self.cfg_dict[cfg_path] = cfg_path
+
+            module = path
+        else:
+            raise ValueError(f'base must be str or module. But type of base is {type(path)}')
 
         if trans:
             code = self.get_code(module.make_cfg)

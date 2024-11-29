@@ -1,7 +1,4 @@
-from functools import partial
-
 from cfgs.py.train.classify import multi_class
-from rainbowneko.parser import make_base
 from rainbowneko.train.data import BaseDataset
 from rainbowneko.train.data.handler import MixUPHandler, HandlerChain
 from rainbowneko.train.loss import LossContainer, SoftCELoss
@@ -12,7 +9,7 @@ multi_class.num_classes = num_classes
 
 def make_cfg():
     dict(
-        _base_=make_base(multi_class) + [],
+        _base_=[multi_class],
 
         train=dict(
             loss=LossContainer(loss=SoftCELoss()),

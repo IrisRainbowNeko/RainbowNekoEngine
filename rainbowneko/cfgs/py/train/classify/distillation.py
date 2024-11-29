@@ -5,12 +5,11 @@ import torchvision
 from torch import nn
 from torch.nn import CrossEntropyLoss
 
+from cfgs.py.train.classify import multi_class
 from rainbowneko.ckpt_manager import CkptManagerPKL
 from rainbowneko.models.wrapper import DistillationWrapper
+from rainbowneko.parser import CfgModelParser
 from rainbowneko.train.loss import LossContainer, LossGroup, DistillationLoss
-from rainbowneko.parser import make_base, CfgModelParser
-
-from cfgs.py.train.classify import multi_class
 
 num_classes = 10
 
@@ -23,7 +22,7 @@ def load_resnet(model, path=None):
 
 def make_cfg():
     dict(
-        _base_=make_base(multi_class)+[],
+        _base_=[multi_class],
 
         model_part=CfgModelParser([
             dict(

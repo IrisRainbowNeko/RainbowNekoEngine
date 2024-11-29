@@ -3,18 +3,17 @@
 ## Basic Format
 
 ```{tip}
-The configuration files for the RainbowNeko Engine support two formats: **Python** and **YAML**. It is recommended to use the **Python** format due to its higher flexibility, simplicity, and better readability.
+The configuration files for the RainbowNeko Engine support both **Python** and **YAML** formats. It is recommended to use the **Python** format due to its higher flexibility, simplicity, ease of use, and better readability.
 ```
 
 ### Python Format
 
-The Python format allows the use of full Python syntax in configuration files, enabling function and class calls within the configuration. For example:
+Configuration files in Python format support full Python syntax, allowing for function and class calls within the configuration. For example:
 
 ```python
 from functools import partial
 
 from cfgs.py.train.classify import multi_class
-from rainbowneko.parser import make_base
 from rainbowneko.train.data import BaseDataset
 from rainbowneko.train.data.handler import MixUPHandler, HandlerChain
 from rainbowneko.train.loss import LossContainer, SoftCELoss
@@ -24,8 +23,8 @@ multi_class.num_classes = num_classes
 
 
 def make_cfg():
-    dict(
-        _base_=make_base(multi_class) + [],
+    return dict(
+        _base_=[multi_class],
 
         train=dict(
             loss=LossContainer(loss=SoftCELoss()),
@@ -42,10 +41,10 @@ def make_cfg():
     )
 ```
 
-Configurations must be defined within a `make_cfg` function as a `dict`. Full Python syntax is supported in configurations, including function calls and operations.
+The configuration should be defined within a `make_cfg` function that returns a `dict`. Full Python syntax is supported in the configuration, including function calls and operations.
 
 ````{note}
-The configuration function is not executed directly. Instead, it is parsed by the parser using AST (Abstract Syntax Tree), converting all `call` operations into `dict` and `list`. After parsing, the framework instantiates components as needed.
+The configuration function is not executed directly. Instead, it is parsed by an interpreter using AST (Abstract Syntax Tree), which converts all `call` operations into `dict` and `list`. After parsing, the framework instantiates them where necessary.
 
 For example:
 ```python
@@ -53,8 +52,7 @@ dict(
     layer=Linear(4, 4, bias=False)
 )
 ```
-
-During parsing, this will be automatically translated into:
+During parsing, it will be automatically translated into:
 ```python
 dict(
     layer=dict(_target_=Linear, _args_=[4, 4], bias=False)
@@ -62,21 +60,25 @@ dict(
 ```
 ````
 
-#### Using `partial`
-
-Some modules in the configuration require the use of `partial` because additional parameters need to be passed when using them. This can be achieved in two ways:
-
-```python
-optimizer=partial(torch.optim.AdamW, weight_decay=5e-4)
-# Automatically converted by the parser
-optimizer=torch.optim.AdamW(_partial_=True, weight_decay=5e-4)
+```{note}
+Operations such as `+-*/` on both sides of a `call` node will not be converted into `dict` or `list` by the parser; they will be executed directly.
 ```
 
-#### Configuration Functions
+#### Using `partial`
+
+Some modules in the configuration may require additional parameters during use. These can be defined using `partial`, which can be implemented in two ways:
+
+```python
+optimizer = partial(torch.optim.AdamW, weight_decay=5e-4)
+# Automatically converted by the parser
+optimizer = torch.optim.AdamW(_partial_=True, weight_decay=5e-4)
+```
+
+#### Configuration Function
 
 ### YAML Format
 
-In YAML-format configuration files, when referencing a class or function, you must specify the full path. For example:
+In YAML format configuration files, when referencing a class or function, you must provide its full path. For example:
 
 ```yaml
 _base_:
@@ -99,32 +101,27 @@ data_train:
       handlers:
         mixup:
           _target_: rainbowneko.train.data.handler.MixUPHandler
-          num_classes: ${num_classes} # Reference configuration value
+          num_classes: ${num_classes} # Reference to another configuration parameter
 ```
 
 ## Inheritance
 
-Configuration files can inherit from others. In Python configuration files, this is achieved by importing another configuration file and specifying it in `_base_`.
+Configuration files can inherit from others. For example, in Python configuration files, you can inherit another file’s settings by importing it and specifying it in `_base_`:
 
 ```python
 from cfgs.py.train.classify import multi_class
-from rainbowneko.parser import make_base
 
 dict(
-    _base_=make_base(multi_class) + [],
+    _base_=[multi_class],
     ...
 )
 ```
 
-For example, inheriting the `multi_class` configuration file allows you to automatically retrieve its path through the `make_base` function.
+Here, inheriting the `multi_class` configuration file automatically includes its content.
 
-```{note}
-The `_base_=make_base(multi_class) + []` construct ensures that `make_base` executes directly. Operations like `+`, `-`, `*`, `/` around call nodes prevent them from being converted into `dict` or `list` by the parser.
-```
+Parameters defined in the current configuration override those from the parent file. For nested configurations, only inner parameters are replaced; the entire `dict` or call is not replaced.
 
-Parameters defined in a child configuration file override those in the parent file. For nested configurations, only explicitly defined parameters are replaced; entire dictionaries or calls are not replaced unless specified.
-
-For example, if the parent configuration defines `data_train` as follows:
+For instance, if the parent file’s `data_train` has this structure:
 
 ```python
 dict(
@@ -150,7 +147,7 @@ dict(
 )
 ```
 
-To modify only the dataset path in a child configuration file:
+You can modify just the dataset path in a child file like this:
 
 ```python
 dict(
@@ -164,10 +161,10 @@ dict(
 )
 ```
 
-This modifies only the `root` parameter for CIFAR10 without affecting other parameters like `handler` and `bucket`.
+This only modifies the `root` parameter of `CIFAR10`, leaving other parameters unchanged. The `handler` and `bucket` parameters within `dataset1` remain unaltered.
 
 ````{tip}
-Since the parser converts calls into dictionaries during inheritance, parameters can also be modified as follows:
+Since the parser converts calls into dictionaries during inheritance, you can modify parameters like this:
 
 ```python
 dict(
@@ -180,15 +177,16 @@ dict(
     )
 )
 ```
-Here, `IndexSource()` is equivalent to `dict(_target_=IndexSource)`.
+
+Here, calling `IndexSource()` is equivalent to writing `dict(_target_=IndexSource)`.
 ````
 
-### Full Replacement
+### Complete Replacement
 
-To completely replace a node from a parent configuration file without retaining any part of it:
+To completely replace a parent file’s node without retaining any part of it:
 
 ```python
-dataset1=partial(BaseDataset,
+dataset1 = partial(BaseDataset,
     _replace_=True,
     ...
 )
@@ -196,7 +194,7 @@ dataset1=partial(BaseDataset,
 
 ### Deletion
 
-To delete a node from a parent configuration file:
+To delete a node from a parent file:
 
 ```python
 dict(
@@ -207,22 +205,22 @@ dict(
 
 ## Referencing Other Configurations
 
-You can reference configurations from other nodes within a single node:
+A node can reference another node’s parameter. For example:
 
 ```python
 train=dict(
     train_epochs=100,
 )
-epochs='${train.train_epochs}' # References train_epochs from train node.
+epochs='${train.train_epochs}' # Reference to train's train_epochs parameter
 ```
 
-Relative paths can also be used for references:
+You can also use relative paths for references:
 
 ```python
 model=dict(
     wrapper=DistillationWrapper(_partial_=True, _replace_=True,
         model_teacher=load_resnet(torchvision.models.resnet18()),
-        model_student='${.model_teacher}', # References model_teacher at the same level.
+        model_student='${.model_teacher}', # Reference to sibling node model_teacher
         ...
     )
 ),

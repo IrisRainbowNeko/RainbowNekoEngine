@@ -11,11 +11,11 @@ from cfgs.py.train import train_base, tuning_base
 from rainbowneko.ckpt_manager import CkptManagerPKL
 from rainbowneko.evaluate import MetricGroup, MetricContainer, Evaluator
 from rainbowneko.models.wrapper import SingleWrapper
-from rainbowneko.parser import make_base, CfgWDModelParser
-from rainbowneko.train.data import FixedBucket
+from rainbowneko.parser import CfgWDModelParser
 from rainbowneko.train.data import BaseDataset
-from rainbowneko.train.data.source import IndexSource
+from rainbowneko.train.data import FixedBucket
 from rainbowneko.train.data.handler import HandlerChain, ImageHandler, LoadImageHandler
+from rainbowneko.train.data.source import IndexSource
 from rainbowneko.train.loss import LossContainer
 from rainbowneko.utils import neko_cfg
 
@@ -28,7 +28,7 @@ def load_resnet():
 
 def make_cfg():
     dict(
-        _base_=make_base(train_base, tuning_base)+[],
+        _base_=[train_base, tuning_base],
 
         model_part=CfgWDModelParser([
             dict(
