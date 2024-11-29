@@ -14,8 +14,6 @@ RainbowNeko Engine is a toolbox for pytorch based neural network training and in
 git clone https://github.com/IrisRainbowNeko/RainbowNekoEngine.git
 cd RainbowNekoEngine
 pip install -e .
-# Modified based on this project or start a new project and make initialization
-nekoinit
 ```
 
 3. To use xFormers to reduce VRAM usage and accelerate training:
@@ -28,6 +26,14 @@ pip install xformers>=0.0.17
 ```
 
 ## User guidance
+
+### Start a new project
+```bash
+mkdir my_project
+cd my_project
+# Modified based on this project or start a new project and make initialization
+nekoinit
+```
 
 ### Training
 

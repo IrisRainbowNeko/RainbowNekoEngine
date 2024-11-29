@@ -307,7 +307,7 @@ class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
             for layer_name, layer in named_modules.items():
                 if isinstance(layer, cls.wrapable_classes) or isinstance(layer, cls.container_cls):
                     # For plugins that need parent_block
-                    if 'parent_block' in kwargs:
+                    if kwargs.get('parent_block', False):
                         parent_name, host_name = split_module_name(layer_name)
                         kwargs['parent_block'] = named_modules[parent_name]
                         kwargs['host_name'] = host_name

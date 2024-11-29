@@ -11,7 +11,7 @@ from cfgs.py.train import train_base, tuning_base
 from rainbowneko.ckpt_manager import CkptManagerPKL
 from rainbowneko.evaluate import MetricGroup, MetricContainer, Evaluator
 from rainbowneko.models.wrapper import SingleWrapper
-from rainbowneko.parser import make_base, CfgModelParser
+from rainbowneko.parser import make_base, CfgWDModelParser
 from rainbowneko.train.data import FixedBucket
 from rainbowneko.train.data import BaseDataset
 from rainbowneko.train.data.source import IndexSource
@@ -30,9 +30,9 @@ def make_cfg():
     dict(
         _base_=make_base(train_base, tuning_base)+[],
 
-        model_part=CfgModelParser([
+        model_part=CfgWDModelParser([
             dict(
-                lr=1e-2,
+                lr=1e-4,
                 layers=[''],  # train all layers
             )
         ]),
