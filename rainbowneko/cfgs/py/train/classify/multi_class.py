@@ -43,7 +43,7 @@ def make_cfg():
         )),
 
         train=dict(
-            train_epochs=100,
+            train_epochs=10,
             workers=2,
             max_grad_norm=None,
             save_step=2000,

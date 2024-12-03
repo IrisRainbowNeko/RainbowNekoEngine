@@ -9,11 +9,14 @@ class KeyMapper:
     image_map = {0: 'pred.pred', 1: 'inputs.target_image'}
 
     def __init__(self, host=None, key_map: Union[Iterable[str], Dict[Any, str]] = None):
-        if key_map is None and host is not None:
-            if hasattr(host, '_key_map'):
-                self.key_map = self.parse_key_map(host._key_map)
+        if key_map is None:
+            if host is None:
+                self.key_map = None
             else:
-                self.key_map = self.cls_map
+                if hasattr(host, '_key_map'):
+                    self.key_map = self.parse_key_map(host._key_map)
+                else:
+                    self.key_map = self.cls_map
         else:
             self.key_map = self.parse_key_map(key_map)
 
@@ -82,6 +85,9 @@ class KeyMapper:
             data[keys[-1]] = v
 
     def map_data(self, src):
+        if self.key_map is None:
+            return None, src
+
         data = ADict({'args':{}, 'kwargs':{}})
         for k_dst, k_src in self.key_map.items():
             v = self.get_value(src, k_src)

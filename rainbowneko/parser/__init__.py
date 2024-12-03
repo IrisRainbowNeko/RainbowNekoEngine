@@ -1,4 +1,4 @@
-from .cfg_net_parser import parse_plugin_cfg, CfgModelParser, CustomModelParser, CfgWDModelParser
+from .model import CfgModelParser, CustomModelParser, CfgWDModelParser
 from .python_cfg import PythonCfgParser
 from .yaml_cfg import YamlCfgParser
 

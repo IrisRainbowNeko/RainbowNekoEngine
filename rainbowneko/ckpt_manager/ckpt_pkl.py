@@ -52,6 +52,7 @@ class CkptManagerPKL(CkptManagerBase):
     def save_plugins(
             self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, step: int, model_ema=None
     ):
+        # TODO: save plugins with saved_model
         if len(plugins) > 0:
             sd_plugin = {}
             for plugin_name, plugin in plugins.items():
@@ -101,33 +102,3 @@ class CkptManagerPKL(CkptManagerBase):
 
         self.save_model(model, model_ema=getattr(ema, "model", None), name=name, step=step)
         self.save_plugins(model, all_plugin, name=name, step=step, model_ema=getattr(self, "model", None))
-
-    @classmethod
-    def load(cls, pretrained_model, **kwargs):
-        if len(kwargs) > 0:
-            print(f'Unused kwargs in load model: {", ".join(kwargs.keys())}')
-
-        raise NotImplementedError(f"{cls} dose not support load()")
-
-    @classmethod
-    def load_to_model(cls, model: BaseWrapper, ckpt_path: Union[str, Dict[str, str]], **kwargs):
-        if len(kwargs) > 0:
-            print(f'Unused kwargs in load model: {", ".join(kwargs.keys())}')
-
-        manager = cls()
-
-        # rainbowneko format model ckpt is in 'base' key.
-        def load_ckpt(ckpt_path):
-            ckpt = manager.load_ckpt(ckpt_path)
-            if 'base' in ckpt:
-                return ckpt['base']
-            else:
-                return ckpt
-
-        if isinstance(ckpt_path, str):
-            model.load_state_dict(load_ckpt(ckpt_path))
-        else:
-            for k, v in ckpt_path.items():
-                eval(f'model.{k}').load_state_dict(load_ckpt(v))
-
-        return model

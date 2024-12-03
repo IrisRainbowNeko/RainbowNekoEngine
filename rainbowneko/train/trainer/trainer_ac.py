@@ -24,7 +24,6 @@ from accelerate.utils import set_seed
 from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
 from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.parser import load_config_with_cli
-from rainbowneko.parser import parse_plugin_cfg
 from rainbowneko.train.data import DataGroup, get_sampler
 from rainbowneko.train.loggers import LoggerGroup
 from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict
@@ -292,10 +291,16 @@ class Trainer:
 
     def get_param_group_train(self):
         # make model part and plugin
-        train_params, train_layers = self.cfgs.model_part.get_params_group(self.model_wrapper)
+        if self.cfgs.model_part is None:
+            train_params, train_layers = [], []
+        else:
+            train_params, train_layers = self.cfgs.model_part.get_params_group(self.model_wrapper)
         self.model_wrapper.trainable_layers = train_layers
 
-        train_params_plugin, self.all_plugin = parse_plugin_cfg(self.model_wrapper, self.cfgs.model_plugin)
+        if self.cfgs.model_plugin is None:
+            train_params_plugin, self.all_plugin = [], {}
+        else:
+            train_params_plugin, self.all_plugin = self.cfgs.model_plugin.get_params_group(self.model_wrapper)
         train_params += train_params_plugin
 
         N_params_unet = format_number(sum(sum(x.numel() for x in p["params"]) for p in train_params))

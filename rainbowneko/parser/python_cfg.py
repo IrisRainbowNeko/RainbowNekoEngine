@@ -18,11 +18,15 @@ def get_rel_path(path):
 
 class CallTransformer(ast.NodeTransformer):
     transform_parent = (ast.Call, ast.Expr, ast.Dict, ast.List)
+    node_skip = ast.Lambda
 
     def __init__(self):
         self.parent_stack = []
 
     def visit(self, node):
+        if isinstance(node, self.node_skip):
+            return node
+
         # 在遍历到每个节点时，将当前节点推入栈
         self.parent_stack.append(node)
         result = super().visit(node)

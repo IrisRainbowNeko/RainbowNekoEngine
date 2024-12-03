@@ -28,7 +28,7 @@ def get_data_files(data_dir, prefix=''):
 setuptools.setup(
     name="rainbowneko",
     py_modules=["rainbowneko"],
-    version="0.5.1",
+    version="0.6",
     author="IrisRainbowNeko",
     author_email="rainbow-neko@outlook.com",
     description="Neural network training and inference framework",
@@ -54,6 +54,7 @@ setuptools.setup(
             'nekoinit = rainbowneko.tools.init_proj:main',
             'neko_train = rainbowneko.train.trainer.trainer_ac:neko_train',
             'neko_train_1gpu = rainbowneko.train.trainer.trainer_ac_single:neko_train',
+            'neko_run = rainbowneko.infer.infer_workflow:run_workflow',
         ]
     },
 

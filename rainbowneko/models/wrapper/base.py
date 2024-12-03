@@ -54,11 +54,11 @@ class BaseWrapper(nn.Module):
                 return {k:KeyMapper(model, v or default) for k, v in key_map.items()}
         return KeyMapper(model, key_map or default)
 
-    def get_map_data(self, key_mapper, kwargs, ds_name:str=None) -> Tuple[Tuple, Dict[str, Any]]:
+    def get_map_data(self, key_mapper, data, ds_name:str=None) -> Tuple[Tuple, Dict[str, Any]]:
         if is_dict(key_mapper):
-            model_args, model_kwargs = key_mapper[ds_name].map_data(kwargs)
+            model_args, model_kwargs = key_mapper[ds_name].map_data(data)
         else:
-            model_args, model_kwargs = key_mapper.map_data(kwargs)
+            model_args, model_kwargs = key_mapper.map_data(data)
         return model_args, model_kwargs
 
     def get_inputs_feed(self, key_mapper_in, model, kwargs, plugin_input={}, ds_name=None) -> Tuple[Tuple, Dict[str, Any]]:
@@ -78,7 +78,7 @@ class SingleWrapper(BaseWrapper):
         self.key_mapper_in = self.build_mapper(key_map_in, model, {0: 'image'})
         self.key_mapper_out = self.build_mapper(key_map_out, model, {'pred': 0})
 
-    def forward(self, ds_name, plugin_input={}, **kwargs):
+    def forward(self, ds_name=None, plugin_input={}, **kwargs):
         model_args, model_kwargs = self.get_inputs_feed(self.key_mapper_in, self.model, kwargs, plugin_input, ds_name=ds_name)
 
         out = self.model(*model_args, **model_kwargs)

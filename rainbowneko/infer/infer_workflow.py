@@ -1,23 +1,30 @@
+import argparse
+
+import hydra
 import torch
-from addict import Dict
-
-from .workflow import MemoryMixin
-
+from rainbowneko.parser import load_config_with_cli
+from .workflow import BasicAction
 
 class WorkflowRunner:
-    def __init__(self):
-        self.memory = Dict()
+    def __init__(self, parser, cfgs):
+        cfgs = hydra.utils.instantiate(cfgs)
+        self.cfgs = cfgs
+        self.parser = parser
+
+        self.actions: BasicAction = cfgs
 
     @torch.inference_mode()
-    def run(self, actions, states=None):
+    def run(self, states=None):
         if states is None:
             states = dict()
-        N_steps = len(actions)
-        for step, act in enumerate(actions):
-            print(f'[{step + 1}/{N_steps}] action: {type(act).__name__}')
-            if isinstance(act, MemoryMixin):
-                states = act(memory=self.memory, **states)
-            else:
-                states = act(**states)
-            print(f'states: {", ".join(states.keys())}')
+        states = self.actions(**states)
         return states
+
+def run_workflow():
+    parser = argparse.ArgumentParser(description='RainbowNeko Workflow Launcher')
+    parser.add_argument('--cfg', type=str, default='')
+    args, cfg_args = parser.parse_known_args()
+
+    parser, conf = load_config_with_cli(args.cfg, args_list=cfg_args)
+    runner = WorkflowRunner(parser, conf)
+    runner.run()
