@@ -46,7 +46,7 @@ class NekoModelLoader:
             if isinstance(item.path, str):
                 plugin_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin_ema' if load_ema else 'plugin']
             else:
-                plugin_state = item.path.load() # model loader
+                plugin_state = item.path.load(named_modules=named_modules) # model loader
 
             # filter layers to load
             layers = item.get('layers', 'all')
@@ -65,7 +65,7 @@ class NekoModelLoader:
                 plugin_block_state.setdefault(f'{prefix}.{name}', {})[block_name] = p
 
             # set plugin hyper params or build plugin
-            auto_build = item.get('auto_build', False) # TODO: auto build plugin
+            plugin_type = item.get('type', 'auto') # TODO: auto build plugin
             if hasattr(self.host, name):  # MultiPluginBlock
                 getattr(self.host, name).set_hyper_params(**item)
             else:
