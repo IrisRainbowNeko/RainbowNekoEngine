@@ -321,7 +321,8 @@ class Trainer:
             self.lr_scheduler = get_scheduler(self.cfgs.train.scheduler, self.optimizer, self.cfgs.train.train_steps)
 
     def train(self, loss_ema=0.93):
-        total_batch_size = sum(self.batch_size_list) * self.world_size * self.cfgs.train.gradient_accumulation_steps
+        acc_steps = self.cfgs.train.gradient_accumulation_steps
+        total_batch_size = sum(self.batch_size_list) * self.world_size * acc_steps
 
         self.loggers.info("***** Running training *****")
         self.loggers.info(
@@ -330,10 +331,11 @@ class Trainer:
         self.loggers.info(f"  Num Steps = {self.cfgs.train.train_steps}")
         self.loggers.info(f"  Instantaneous batch size per device = {sum(self.batch_size_list)}")
         self.loggers.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-        self.loggers.info(f"  Gradient Accumulation steps = {self.cfgs.train.gradient_accumulation_steps}")
+        self.loggers.info(f"  Gradient Accumulation steps = {acc_steps}")
         self.global_step = 0
+        self.real_step = 0
         if self.cfgs.train.resume is not None:
-            self.global_step = self.cfgs.train.resume.start_step
+            self.global_step = self.cfgs.train.resume.start_step * acc_steps
             self.lr_scheduler.step(self.cfgs.train.resume.start_step)
 
         self.model_wrapper.train()
@@ -343,24 +345,31 @@ class Trainer:
             loss_sum = loss if loss_sum is None else (loss_ema * loss_sum + (1 - loss_ema) * loss)
 
             self.global_step += 1
+            acc_step = self.global_step%acc_steps
+            self.real_step = max(1, self.global_step//acc_steps)
             if self.is_local_main_process:
-                if self.global_step % self.cfgs.train.save_step == 0:
+                if self.real_step % self.cfgs.train.save_step == 0 and acc_step==acc_steps-1:
                     self.save_model()
                 if self.global_step % self.min_log_step == 0:
                     # get learning rate from optimizer
                     lr_model = self.optimizer.param_groups[0]["lr"] if hasattr(self, "optimizer") else 0.0
-                    log_data = {
-                        "train/Step": {
+                    if acc_steps>1:
+                        log_step={
+                            "format": "[{}/{}]({}/{})",
+                            "data": [self.real_step, self.cfgs.train.train_steps, self.global_step%acc_steps, acc_steps],
+                        }
+                    else:
+                        log_step={
                             "format": "[{}/{}]",
-                            "data": [self.global_step, self.cfgs.train.train_steps],
-                        },
+                            "data": [self.real_step, self.cfgs.train.train_steps],
+                        }
+                    log_data = {
+                        "train/Step": log_step,
                         "train/Epoch": {
                             "format": "[{}/{}]<{}/{}>",
                             "data": [
-                                self.global_step // self.steps_per_epoch,
-                                self.cfgs.train.train_epochs,
-                                self.global_step % self.steps_per_epoch,
-                                self.steps_per_epoch,
+                                self.global_step // self.steps_per_epoch, self.cfgs.train.train_epochs,
+                                self.global_step % self.steps_per_epoch, self.steps_per_epoch,
                             ],
                         },
                         "train/LR_model": {"format": "{:.2e}", "data": [lr_model]},
@@ -382,14 +391,14 @@ class Trainer:
                             log_data.update(MetricGroup.format(metrics_dict))
                     self.loggers.log(
                         datas=log_data,
-                        step=self.global_step,
+                        step=self.real_step,
                     )
 
-            if self.evaluator is not None:
-                self.evaluator.evaluate(self.global_step, self.model_wrapper)
+            if self.evaluator is not None and acc_step==acc_steps-1:
+                self.evaluator.evaluate(self.real_step, self.model_wrapper)
                 self.model_wrapper.train()
 
-            if self.global_step >= self.cfgs.train.train_steps:
+            if self.real_step >= self.cfgs.train.train_steps and acc_step==acc_steps-1:
                 break
 
         self.wait_for_everyone()
@@ -426,7 +435,7 @@ class Trainer:
                     self.lr_scheduler.step()
                 self.optimizer.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
 
-            self.model_raw.update_model(self.global_step)  # Some model may update by step
+            self.model_raw.update_model(self.real_step)  # Some model may update by step
             self.update_ema()
         return sum(loss_all), pred_dict, inputs_dict
 
@@ -445,13 +454,13 @@ class Trainer:
     def save_model(self, from_raw=False):
         self.ckpt_manager.save(
             name=self.cfgs.model.name,
-            step=self.global_step,
+            step=self.real_step,
             model=self.model_raw,
             all_plugin=self.all_plugin,
             ema=getattr(self, "ema_model", None),
         )
 
-        self.loggers.info(f"Saved state, step: {self.global_step}")
+        self.loggers.info(f"Saved state, step: {self.real_step}")
 
     def wait_for_everyone(self):
         self.accelerator.wait_for_everyone()

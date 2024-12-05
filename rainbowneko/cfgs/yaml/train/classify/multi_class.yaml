@@ -32,7 +32,7 @@ train:
   scale_lr: false
   scheduler:
     name: cosine
-    num_warmup_steps: 10
+    warmup_steps: 10
   metrics:
     _target_: rainbowneko.evaluate.metrics.MetricGroup
     metric_dict:

@@ -1,4 +1,4 @@
-gpu_ids: '0' # which gpu to use
+gpu_ids: all # which gpu to use
 
 compute_environment: LOCAL_MACHINE
 debug: false

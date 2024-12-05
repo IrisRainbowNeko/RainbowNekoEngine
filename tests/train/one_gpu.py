@@ -9,6 +9,13 @@ class PyCFGTester(TestCase):
         neko_train()
         sys.argv = argv
 
+    def test_multi_class_py_acc(self):
+        argv = sys.argv
+        sys.argv = sys.argv+['--cfg', 'cfgs/py/train/classify/multi_class.py', 'train.train_steps=40', 'train.train_epochs=null',
+                             'train.gradient_accumulation_steps=4']
+        neko_train()
+        sys.argv = argv
+
     def test_multi_class_yaml(self):
         argv = sys.argv
         sys.argv = sys.argv+['--cfg', 'cfgs/yaml/train/classify/multi_class.yaml', 'train.train_steps=40', 'train.train_epochs=null']

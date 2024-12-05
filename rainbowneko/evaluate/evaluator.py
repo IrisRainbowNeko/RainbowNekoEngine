@@ -78,11 +78,11 @@ class Evaluator:
         log_data = {
             "eval/Step": {
                 "format": "{}",
-                "data": [self.trainer.global_step],
+                "data": [step],
             }
         }
         log_data.update(MetricGroup.format(v_metric, prefix='eval/'))
-        self.trainer.loggers.log(log_data, self.trainer.global_step)
+        self.trainer.loggers.log(log_data, step)
 
     def to(self, device):
         self.metric.to(device)
