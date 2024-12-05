@@ -14,13 +14,13 @@ def get_scheduler(cfg, optimizer, num_training_steps):
     elif isinstance(cfg, partial):
         return cfg(optimizer=optimizer, training_steps=num_training_steps)
     else:
-        return get_scheduler_with_name(optimizer=optimizer, num_training_steps=num_training_steps, **cfg)
+        return get_scheduler_with_name(optimizer=optimizer, training_steps=num_training_steps, **cfg)
 
 def get_scheduler_with_name(
     name: Union[str, SchedulerType],
     optimizer: Optimizer,
-    num_warmup_steps: Optional[int] = None,
-    num_training_steps: Optional[int] = None,
+    warmup_steps: Optional[int] = None,
+    training_steps: Optional[int] = None,
     **kwargs
 ):
     """
@@ -31,10 +31,10 @@ def get_scheduler_with_name(
             The name of the scheduler to use.
         optimizer (`torch.optim.Optimizer`):
             The optimizer that will be used during training.
-        num_warmup_steps (`int`, *optional*):
+        warmup_steps (`int`, *optional*):
             The number of warmup steps to do. This is not required by all schedulers (hence the argument being
             optional), the function will raise an error if it's unset and the scheduler type requires it.
-        num_training_steps (`int``, *optional*):
+        training_steps (`int``, *optional*):
             The number of training steps to do. This is not required by all schedulers (hence the argument being
             optional), the function will raise an error if it's unset and the scheduler type requires it.
         num_cycles (`int`, *optional*):
@@ -45,21 +45,21 @@ def get_scheduler_with_name(
             The index of the last epoch when resuming training.
     """
     # All other schedulers require `num_training_steps`
-    if num_training_steps is None:
+    if training_steps is None:
         raise ValueError(f"{name} requires `num_training_steps`, please provide that argument.")
 
     # All other schedulers require `num_warmup_steps`
-    if num_warmup_steps is None:
+    if warmup_steps is None:
         raise ValueError(f"{name} requires `num_warmup_steps`, please provide that argument.")
 
-    if isinstance(num_warmup_steps, float): # warmup ratio
-        num_warmup_steps = int(num_warmup_steps * num_training_steps)
+    if isinstance(warmup_steps, float): # warmup ratio
+        warmup_steps = int(warmup_steps * training_steps)
 
     # One Cycle for super convergence
     if name == 'one_cycle':
         scheduler = lr_scheduler.OneCycleLR(optimizer, max_lr=[x['lr'] for x in optimizer.state_dict()['param_groups']],
-                                            steps_per_epoch=num_training_steps, epochs=1,
-                                            pct_start=num_warmup_steps/num_training_steps, **kwargs)
+                                            steps_per_epoch=training_steps, epochs=1,
+                                            pct_start=warmup_steps / training_steps, **kwargs)
         return scheduler
 
     name = SchedulerType(name)
@@ -68,19 +68,19 @@ def get_scheduler_with_name(
         return schedule_func(optimizer, **kwargs)
 
     if name == SchedulerType.CONSTANT_WITH_WARMUP:
-        return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, **kwargs)
+        return schedule_func(optimizer, num_warmup_steps=warmup_steps, **kwargs)
 
     if name == SchedulerType.COSINE_WITH_RESTARTS:
         return schedule_func(
-            optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **kwargs
+            optimizer, num_warmup_steps=warmup_steps, num_training_steps=training_steps, **kwargs
         )
 
     if name == SchedulerType.POLYNOMIAL:
         return schedule_func(
-            optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **kwargs
+            optimizer, num_warmup_steps=warmup_steps, num_training_steps=training_steps, **kwargs
         )
 
-    return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, **kwargs)
+    return schedule_func(optimizer, num_warmup_steps=warmup_steps, num_training_steps=training_steps, **kwargs)
 
 def remove_all_hooks(model: nn.Module) -> None:
     for name, child in model.named_modules():
