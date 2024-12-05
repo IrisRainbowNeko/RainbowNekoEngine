@@ -20,6 +20,7 @@ from typing import Optional, Union
 
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
+from torch.optim import lr_scheduler
 
 
 class SchedulerType(Enum):
@@ -32,7 +33,7 @@ class SchedulerType(Enum):
     PIECEWISE_CONSTANT = "piecewise_constant"
 
 
-def get_constant_schedule(optimizer: Optimizer, last_epoch: int = -1):
+def constant_schedule(optimizer: Optimizer, last_epoch: int = -1):
     """
     Create a schedule with a constant learning rate, using the learning rate set in optimizer.
 
@@ -48,7 +49,7 @@ def get_constant_schedule(optimizer: Optimizer, last_epoch: int = -1):
     return LambdaLR(optimizer, lambda _: 1, last_epoch=last_epoch)
 
 
-def get_constant_schedule_with_warmup(optimizer: Optimizer, num_warmup_steps: int, last_epoch: int = -1):
+def constant_schedule_with_warmup(optimizer: Optimizer, num_warmup_steps: int, last_epoch: int = -1):
     """
     Create a schedule with a constant learning rate preceded by a warmup period during which the learning rate
     increases linearly between 0 and the initial lr set in the optimizer.
@@ -73,7 +74,7 @@ def get_constant_schedule_with_warmup(optimizer: Optimizer, num_warmup_steps: in
     return LambdaLR(optimizer, lr_lambda, last_epoch=last_epoch)
 
 
-def get_piecewise_constant_schedule(optimizer: Optimizer, step_rules: str, last_epoch: int = -1):
+def piecewise_constant_schedule(optimizer: Optimizer, step_rules: str, last_epoch: int = -1):
     """
     Create a schedule with a constant learning rate, using the learning rate set in optimizer.
 
@@ -115,7 +116,7 @@ def get_piecewise_constant_schedule(optimizer: Optimizer, step_rules: str, last_
     return LambdaLR(optimizer, rules_func, last_epoch=last_epoch)
 
 
-def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, last_epoch=-1):
+def linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, last_epoch=-1):
     """
     Create a schedule with a learning rate that decreases linearly from the initial lr set in the optimizer to 0, after
     a warmup period during which it increases linearly from 0 to the initial lr set in the optimizer.
@@ -144,7 +145,7 @@ def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_st
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
 
-def get_cosine_schedule_with_warmup(
+def cosine_schedule_with_warmup(
     optimizer: Optimizer, num_warmup_steps: int, num_training_steps: int, num_cycles: float = 0.5, last_epoch: int = -1
 ):
     """
@@ -178,7 +179,7 @@ def get_cosine_schedule_with_warmup(
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
 
-def get_cosine_with_hard_restarts_schedule_with_warmup(
+def cosine_with_hard_restarts_schedule_with_warmup(
     optimizer: Optimizer, num_warmup_steps: int, num_training_steps: int, num_cycles: int = 1, last_epoch: int = -1
 ):
     """
@@ -213,7 +214,7 @@ def get_cosine_with_hard_restarts_schedule_with_warmup(
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
 
-def get_polynomial_decay_schedule_with_warmup(
+def polynomial_decay_schedule_with_warmup(
     optimizer, num_warmup_steps, num_training_steps, lr_end=1e-7, power=1.0, last_epoch=-1
 ):
     """
@@ -264,86 +265,33 @@ def get_polynomial_decay_schedule_with_warmup(
 
 
 TYPE_TO_SCHEDULER_FUNCTION = {
-    SchedulerType.LINEAR: get_linear_schedule_with_warmup,
-    SchedulerType.COSINE: get_cosine_schedule_with_warmup,
-    SchedulerType.COSINE_WITH_RESTARTS: get_cosine_with_hard_restarts_schedule_with_warmup,
-    SchedulerType.POLYNOMIAL: get_polynomial_decay_schedule_with_warmup,
-    SchedulerType.CONSTANT: get_constant_schedule,
-    SchedulerType.CONSTANT_WITH_WARMUP: get_constant_schedule_with_warmup,
-    SchedulerType.PIECEWISE_CONSTANT: get_piecewise_constant_schedule,
+    SchedulerType.LINEAR: linear_schedule_with_warmup,
+    SchedulerType.COSINE: cosine_schedule_with_warmup,
+    SchedulerType.COSINE_WITH_RESTARTS: cosine_with_hard_restarts_schedule_with_warmup,
+    SchedulerType.POLYNOMIAL: polynomial_decay_schedule_with_warmup,
+    SchedulerType.CONSTANT: constant_schedule,
+    SchedulerType.CONSTANT_WITH_WARMUP: constant_schedule_with_warmup,
+    SchedulerType.PIECEWISE_CONSTANT: piecewise_constant_schedule,
 }
 
+def ConstantLR(optimizer: Optimizer, training_steps: int, warmup_steps: int=None, last_epoch: int = -1):
+    if warmup_steps is None:
+        return constant_schedule(optimizer, last_epoch=last_epoch)
+    else:
+        return constant_schedule_with_warmup(optimizer, warmup_steps, last_epoch=last_epoch)
 
-def get_scheduler(
-    name: Union[str, SchedulerType],
-    optimizer: Optimizer,
-    step_rules: Optional[str] = None,
-    num_warmup_steps: Optional[int] = None,
-    num_training_steps: Optional[int] = None,
-    num_cycles: int = 1,
-    power: float = 1.0,
-    last_epoch: int = -1,
-):
-    """
-    Unified API to get any scheduler from its name.
+def MultiStepLR(optimizer: Optimizer, training_steps: int, step_rules: str, last_epoch: int = -1):
+    return piecewise_constant_schedule(optimizer, step_rules, last_epoch=last_epoch)
 
-    Args:
-        name (`str` or `SchedulerType`):
-            The name of the scheduler to use.
-        optimizer (`torch.optim.Optimizer`):
-            The optimizer that will be used during training.
-        step_rules (`str`, *optional*):
-            A string representing the step rules to use. This is only used by the `PIECEWISE_CONSTANT` scheduler.
-        num_warmup_steps (`int`, *optional*):
-            The number of warmup steps to do. This is not required by all schedulers (hence the argument being
-            optional), the function will raise an error if it's unset and the scheduler type requires it.
-        num_training_steps (`int``, *optional*):
-            The number of training steps to do. This is not required by all schedulers (hence the argument being
-            optional), the function will raise an error if it's unset and the scheduler type requires it.
-        num_cycles (`int`, *optional*):
-            The number of hard restarts used in `COSINE_WITH_RESTARTS` scheduler.
-        power (`float`, *optional*, defaults to 1.0):
-            Power factor. See `POLYNOMIAL` scheduler
-        last_epoch (`int`, *optional*, defaults to -1):
-            The index of the last epoch when resuming training.
-    """
-    name = SchedulerType(name)
-    schedule_func = TYPE_TO_SCHEDULER_FUNCTION[name]
-    if name == SchedulerType.CONSTANT:
-        return schedule_func(optimizer, last_epoch=last_epoch)
+def CosineLR(optimizer: Optimizer, training_steps: int, warmup_steps: int=0,  num_cycles: float = 0.5, last_epoch: int = -1):
+    return cosine_schedule_with_warmup(optimizer, warmup_steps, training_steps, num_cycles, last_epoch)
 
-    if name == SchedulerType.PIECEWISE_CONSTANT:
-        return schedule_func(optimizer, step_rules=step_rules, last_epoch=last_epoch)
+def CosineRestartLR(optimizer: Optimizer, training_steps: int, warmup_steps: int=0,  num_cycles: int = 1, last_epoch: int = -1):
+    return cosine_with_hard_restarts_schedule_with_warmup(optimizer, warmup_steps, training_steps, num_cycles, last_epoch)
 
-    # All other schedulers require `num_warmup_steps`
-    if num_warmup_steps is None:
-        raise ValueError(f"{name} requires `num_warmup_steps`, please provide that argument.")
+def PolynomialLR(optimizer, training_steps: int, warmup_steps: int=0, lr_end=1e-7, power=1.0, last_epoch=-1):
+    return polynomial_decay_schedule_with_warmup(optimizer, warmup_steps, training_steps, lr_end, power, last_epoch)
 
-    if name == SchedulerType.CONSTANT_WITH_WARMUP:
-        return schedule_func(optimizer, num_warmup_steps=num_warmup_steps, last_epoch=last_epoch)
-
-    # All other schedulers require `num_training_steps`
-    if num_training_steps is None:
-        raise ValueError(f"{name} requires `num_training_steps`, please provide that argument.")
-
-    if name == SchedulerType.COSINE_WITH_RESTARTS:
-        return schedule_func(
-            optimizer,
-            num_warmup_steps=num_warmup_steps,
-            num_training_steps=num_training_steps,
-            num_cycles=num_cycles,
-            last_epoch=last_epoch,
-        )
-
-    if name == SchedulerType.POLYNOMIAL:
-        return schedule_func(
-            optimizer,
-            num_warmup_steps=num_warmup_steps,
-            num_training_steps=num_training_steps,
-            power=power,
-            last_epoch=last_epoch,
-        )
-
-    return schedule_func(
-        optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps, last_epoch=last_epoch
-    )
+def OneCycleLR(optimizer: Optimizer, training_steps: int, warmup_steps: int=None, **kwargs):
+    return lr_scheduler.OneCycleLR(optimizer, max_lr=[x['lr'] for x in optimizer.state_dict()['param_groups']],
+                                steps_per_epoch=training_steps, epochs=1, pct_start=warmup_steps/training_steps, **kwargs)

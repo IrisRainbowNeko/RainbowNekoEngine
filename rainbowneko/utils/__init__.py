@@ -6,3 +6,4 @@ from .net import (get_scheduler, get_scheduler_with_name, remove_layers, remove_
 from .utils import *
 from .key_mapper import KeyMapper
 from .random import RandomContext
+from .lr_scheduler import ConstantLR, CosineLR, CosineRestartLR, MultiStepLR, PolynomialLR, OneCycleLR

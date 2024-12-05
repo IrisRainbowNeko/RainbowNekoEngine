@@ -12,7 +12,7 @@ def get_scheduler(cfg, optimizer, num_training_steps):
     if cfg is None:
         return None
     elif isinstance(cfg, partial):
-        return cfg(optimizer=optimizer)
+        return cfg(optimizer=optimizer, training_steps=num_training_steps)
     else:
         return get_scheduler_with_name(optimizer=optimizer, num_training_steps=num_training_steps, **cfg)
 

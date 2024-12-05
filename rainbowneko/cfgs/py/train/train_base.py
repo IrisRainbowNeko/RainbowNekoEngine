@@ -6,6 +6,7 @@ from torch.nn import MSELoss
 
 from rainbowneko.ckpt_manager import CkptManagerPKL
 from rainbowneko.train.loggers import CLILogger
+from rainbowneko.utils import OneCycleLR
 
 time_format="%Y-%m-%d-%H-%M-%S"
 
@@ -33,9 +34,9 @@ def make_cfg():
             loss=MSELoss(),
             optimizer=partial(torch.optim.AdamW, weight_decay=1e-3),
             scale_lr=True,  # auto scale lr with total batch size
-            scheduler=dict(
-                name='one_cycle',
-                num_warmup_steps=0.2,
+            scheduler=OneCycleLR(
+                _partial_=True,
+                warmup_steps=0.2,
             ),
 
             metric=None,

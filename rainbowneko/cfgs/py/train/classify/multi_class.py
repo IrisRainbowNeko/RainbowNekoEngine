@@ -17,7 +17,7 @@ from rainbowneko.train.data import FixedBucket
 from rainbowneko.train.data.handler import HandlerChain, ImageHandler, LoadImageHandler
 from rainbowneko.train.data.source import IndexSource
 from rainbowneko.train.loss import LossContainer
-from rainbowneko.utils import neko_cfg
+from rainbowneko.utils import neko_cfg, CosineLR
 
 num_classes = 10
 
@@ -53,9 +53,9 @@ def make_cfg():
             optimizer=partial(torch.optim.AdamW, weight_decay=5e-4),
 
             scale_lr=False,
-            scheduler=dict(
-                name='cosine',
-                num_warmup_steps=10,
+            scheduler=CosineLR(
+                _partial_=True,
+                warmup_steps=100,
             ),
             metrics=MetricGroup(metric_dict=dict(
                 acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
