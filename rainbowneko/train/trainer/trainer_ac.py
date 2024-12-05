@@ -65,9 +65,9 @@ class Trainer:
         # calculate steps and epochs
         self.steps_per_epoch = len(self.train_loader_group.first_loader())
         if self.cfgs.train.train_epochs is not None:
-            self.cfgs.train.train_steps = self.cfgs.train.train_epochs * self.steps_per_epoch
+            self.cfgs.train.train_steps = self.cfgs.train.train_epochs * self.steps_per_epoch // self.cfgs.train.gradient_accumulation_steps
         else:
-            self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.train_steps / self.steps_per_epoch)
+            self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.gradient_accumulation_steps * self.cfgs.train.train_steps / self.steps_per_epoch)
 
         self.build_optimizer_scheduler()
         self.build_loss()
