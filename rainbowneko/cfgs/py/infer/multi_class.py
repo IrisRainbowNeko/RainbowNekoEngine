@@ -8,6 +8,7 @@ import torchvision.transforms as T
 from rainbowneko.train.data import IndexSource, HandlerChain, LoadImageHandler, ImageHandler
 from rainbowneko.infer import HandlerAction
 from rainbowneko.utils import neko_cfg
+from rainbowneko.parser.model import NekoModelLoader
 
 num_classes = 10
 
@@ -66,11 +67,10 @@ def make_cfg():
         PrepareAction(device='cpu', dtype=torch.float16),
         BuildModelAction(SingleWrapper(_partial_=True, model=load_resnet())),
         LoadModelAction(dict(
-            part=[dict(
+            model=NekoModelLoader(
                 module_to_load='model',
-                path='exps/2024-12-02-14-19-39/ckpts/cifar-resnet18-3900.ckpt',
-                alpha=1.0
-            )]
+                path='exps/cifar/ckpts/cifar-resnet18-3900.ckpt',
+            ),
         )),
         infer_one(path=r"E:\dataset\frog10.png")
         #infer_all(path=r'D:\others\dataset\cifar')

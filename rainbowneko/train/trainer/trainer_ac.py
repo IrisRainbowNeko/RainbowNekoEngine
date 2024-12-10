@@ -29,7 +29,7 @@ from rainbowneko.parser import load_config_with_cli
 from rainbowneko.train.data import DataGroup, get_sampler
 from rainbowneko.train.loggers import LoggerGroup
 from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict
-from rainbowneko.parser.model import NekoModelLoader
+from rainbowneko.parser.model import NekoLoader
 from rainbowneko.ckpt_manager import CkptManagerBase
 
 try:
@@ -242,10 +242,9 @@ class Trainer:
     @torch.no_grad()
     def load_resume(self):
         if self.cfgs.train.resume is not None:
-            for ckpt in self.cfgs.train.resume:
-                NekoModelLoader(self.model_wrapper).load_all(ckpt)
-                if hasattr(self, "ema_model"):
-                    NekoModelLoader(self.ema_model.model).load_all(ckpt)
+            NekoLoader.load_all(self.model_wrapper, self.cfgs.train.resume)
+            if hasattr(self, "ema_model"):
+                NekoLoader.load_all(self.ema_model.model, self.cfgs.train.resume)
 
     def make_hooks(self):
         pass

@@ -49,5 +49,9 @@ class CkptManager(CkptManagerBase):
                 self.source.put(f"{name}-{plugin_name}-{step}.{self.format.EXT}", sd_plugin, self.format)
 
     def load(self, name, ext=None, **kwargs):
-        ext = ext or self.format.EXT
-        return self.source.get(f"{name}.{ext}", self.format, **kwargs)
+        return self.source.get(name, self.format, **kwargs)
+        # if len(postfix := name.rsplit(".", 1)) == 2 and postfix[1].isalpha():
+        #     return self.source.get(name, self.format, **kwargs)
+        # else:
+        #     ext = ext or self.format.EXT
+        #     return self.source.get(f"{name}.{ext}", self.format, **kwargs)

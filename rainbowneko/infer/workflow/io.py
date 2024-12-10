@@ -3,7 +3,7 @@ import torch
 
 from PIL import Image
 from .base import BasicAction
-from rainbowneko.parser.model import NekoModelLoader
+from rainbowneko.parser.model import NekoLoader
 
 class LoadImageAction(BasicAction):
     def __init__(self, image_paths:Union[str, List[str]], image_transforms=None, key_map_in=None, key_map_out=None):
@@ -30,8 +30,7 @@ class LoadModelAction(BasicAction):
         self.cfg=cfg
 
     def forward(self, model, **states):
-        loader = NekoModelLoader(model)
-        loader.load_all(self.cfg)
+        NekoLoader.load_all(model, self.cfg)
 
 class FeedAction(BasicAction):
     def __init__(self, key_map_in=None, key_map_out=None, **datas):
