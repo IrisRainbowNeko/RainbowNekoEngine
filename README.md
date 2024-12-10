@@ -52,16 +52,22 @@ Training scripts based on 🤗 Accelerate or Colossal-AI are provided.
 
 ```yaml
 # with Accelerate
-neko_train --cfg cfgs/train/cfg_file.yaml
+neko_train --cfg cfgs/train/cfg_file.py
 # with Accelerate and only one GPU
-neko_train_1gpu --cfg cfgs/train/cfg_file.yaml
+neko_train_1gpu --cfg cfgs/train/cfg_file.py
 ```
 
 ### Inference
-TODO
+RainbowNeko Engine inference with workflow configuration file.
+
+```yaml
+neko_run --cfg cfgs/infer/cfg_file.py
+```
 
 ### Tutorials
-TODO
+
+[📘English document](https://rainbownekoengine.readthedocs.io/en/latest/)
+[📘中文文档](https://rainbownekoengine.readthedocs.io/zh-cn/latest/)
 
 ## Contributing
 
