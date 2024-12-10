@@ -20,13 +20,17 @@ import torch.utils.checkpoint
 import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
+from typing import List
 
 from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
 from rainbowneko.models.wrapper import BaseWrapper
+from rainbowneko.models.ema import ModelEMA
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.train.data import DataGroup, get_sampler
 from rainbowneko.train.loggers import LoggerGroup
 from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict
+from rainbowneko.parser.model import NekoModelLoader
+from rainbowneko.ckpt_manager import CkptManagerBase
 
 try:
     import xformers
@@ -184,7 +188,7 @@ class Trainer:
 
     def build_ema(self):
         if self.cfgs.model.ema is not None:
-            self.ema_model = self.cfgs.model.ema(self.model_wrapper.named_parameters())
+            self.ema_model: ModelEMA = self.cfgs.model.ema(self.model_wrapper)
 
     def build_loss(self):
         criterion = self.cfgs.train.loss
@@ -194,11 +198,8 @@ class Trainer:
             self.criterion = criterion.to(self.device)
 
     def build_ckpt_manager(self):
-        self.ckpt_manager = self.cfgs.ckpt_manager()
-        if self.is_local_main_process:
-            self.ckpt_manager.set_save_dir(
-                os.path.join(self.exp_dir, "ckpts"),
-            )
+        self.ckpt_manager: List[CkptManagerBase] = self.cfgs.ckpt_manager
+        self.ckpt_dir = os.path.join(self.exp_dir, "ckpts")
 
     def build_evaluator(self, cfgs_eval):
         def build_one(cfgs_eval_one):
@@ -241,10 +242,10 @@ class Trainer:
     @torch.no_grad()
     def load_resume(self):
         if self.cfgs.train.resume is not None:
-            for ckpt in self.cfgs.train.resume.ckpt_path:
-                self.ckpt_manager.load_ckpt_to_model(
-                    self.model_wrapper, ckpt, model_ema=getattr(self, "ema_model", None)
-                )
+            for ckpt in self.cfgs.train.resume:
+                NekoModelLoader(self.model_wrapper).load_all(ckpt)
+                if hasattr(self, "ema_model"):
+                    NekoModelLoader(self.ema_model.model).load_all(ckpt)
 
     def make_hooks(self):
         pass
@@ -452,13 +453,28 @@ class Trainer:
             self.ema_model.step(self.model_raw.named_parameters())
 
     def save_model(self, from_raw=False):
-        self.ckpt_manager.save(
-            name=self.cfgs.model.name,
-            step=self.real_step,
-            model=self.model_raw,
-            all_plugin=self.all_plugin,
-            ema=getattr(self, "ema_model", None),
-        )
+        for manager in self.ckpt_manager:
+            manager.save_step(
+                self.model_raw,
+                name=self.cfgs.model.name,
+                step=self.real_step,
+                prefix=self.ckpt_dir,
+                model_ema=getattr(self, "ema_model", None),
+            )
+            try:
+                manager.save_plugins(
+                    self.model_raw,
+                    self.all_plugin,
+                    name=self.cfgs.model.name,
+                    step=self.real_step,
+                    model_ema=getattr(self, "ema_model", None),
+                )
+            except:
+                self.loggers.info(f"{manager} not support to save plugin")
+
+                import traceback
+                traceback.print_exc()
+
 
         self.loggers.info(f"Saved state, step: {self.real_step}")
 

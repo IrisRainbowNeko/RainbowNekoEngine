@@ -20,7 +20,7 @@ class NekoModelLoader:
             named_params.update({k: v for k, v in model.named_buffers()})
 
             if isinstance(item.path, str):
-                part_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['base_ema' if load_ema else 'base']
+                part_state = auto_manager(item.path).load(item.path, map_location='cpu')['base_ema' if load_ema else 'base']
             else:
                 part_state = item.path.load() # model loader
             layers = item.get('layers', 'all')
@@ -44,7 +44,7 @@ class NekoModelLoader:
             named_modules = {k: v for k, v in model.named_modules()}
 
             if isinstance(item.path, str):
-                plugin_state = auto_manager(item.path).load_ckpt(item.path, map_location='cpu')['plugin_ema' if load_ema else 'plugin']
+                plugin_state = auto_manager(item.path).load(item.path, map_location='cpu')['plugin_ema' if load_ema else 'plugin']
             else:
                 plugin_state = item.path.load(named_modules=named_modules) # model loader
 

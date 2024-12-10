@@ -10,11 +10,11 @@ model_part:
         - ''
 
 ckpt_manager:
-  _target_: rainbowneko.ckpt_manager.ckpt_pkl.CkptManagerPKL
-  _partial_: true
-  saved_model:
-    - model: model
-      trainable: false
+  -
+    _target_: rainbowneko.ckpt_manager.ckpt_manager
+    saved_model:
+      - model: model
+        trainable: false
 
 train:
   train_epochs: 100

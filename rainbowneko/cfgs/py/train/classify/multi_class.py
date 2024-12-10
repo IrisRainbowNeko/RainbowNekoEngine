@@ -8,7 +8,7 @@ from torch.nn import CrossEntropyLoss
 from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
 
 from cfgs.py.train import train_base, tuning_base
-from rainbowneko.ckpt_manager import CkptManagerPKL
+from rainbowneko.ckpt_manager import ckpt_manager
 from rainbowneko.evaluate import MetricGroup, MetricContainer, Evaluator
 from rainbowneko.models.wrapper import SingleWrapper
 from rainbowneko.parser import CfgWDModelParser
@@ -38,9 +38,9 @@ def make_cfg():
         ]),
 
         # func(_partial_=True, ...) same as partial(func, ...)
-        ckpt_manager=CkptManagerPKL(_partial_=True, saved_model=(
-            {'model':'model', 'trainable':False},
-        )),
+        ckpt_manager=[
+            ckpt_manager(saved_model=({'model':'model', 'trainable':False},))
+        ],
 
         train=dict(
             train_epochs=10,

@@ -9,6 +9,12 @@ class PyCFGTester(TestCase):
         neko_train()
         sys.argv = argv
 
+    def test_multi_class_onnx(self):
+        argv = sys.argv
+        sys.argv = sys.argv+['--cfg', 'cfgs/py/train/classify/multi_class_onnx.py', 'train.train_steps=40', 'train.train_epochs=null']
+        neko_train()
+        sys.argv = argv
+
     def test_multi_class_py_acc(self):
         argv = sys.argv
         sys.argv = sys.argv+['--cfg', 'cfgs/py/train/classify/multi_class.py', 'train.train_steps=40', 'train.train_epochs=null',

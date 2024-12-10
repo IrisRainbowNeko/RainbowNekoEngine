@@ -4,7 +4,7 @@ from functools import partial
 import torch
 from torch.nn import MSELoss
 
-from rainbowneko.ckpt_manager import CkptManagerPKL
+from rainbowneko.ckpt_manager import ckpt_manager
 from rainbowneko.train.loggers import CLILogger
 from rainbowneko.utils import OneCycleLR
 
@@ -17,7 +17,7 @@ def make_cfg():
         allow_tf32=False,
         seed=114514,
 
-        ckpt_manager=partial(CkptManagerPKL),
+        ckpt_manager=[ckpt_manager()],
 
         train=dict(
             train_steps=1000,

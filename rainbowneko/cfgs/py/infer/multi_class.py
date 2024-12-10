@@ -8,7 +8,6 @@ import torchvision.transforms as T
 from rainbowneko.train.data import IndexSource, HandlerChain, LoadImageHandler, ImageHandler
 from rainbowneko.infer import HandlerAction
 from rainbowneko.utils import neko_cfg
-from rainbowneko.ckpt_manager import CkptManagerPKL
 
 num_classes = 10
 

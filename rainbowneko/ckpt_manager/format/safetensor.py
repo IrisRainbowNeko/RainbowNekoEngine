@@ -1,29 +1,21 @@
-"""
-ckpt_safetensors.py
-====================
-    :Name:        save model with safetensors
-    :Author:      Dong Ziyi
-    :Affiliation: HCP Lab, SYSU
-    :Created:     8/04/2023
-    :Licence:     MIT
-"""
+from .pkl import PKLFormat
+from typing import Dict, Any, Union
 
-import os
+import torch
+from torch.serialization import FILE_LIKE
 from safetensors import safe_open
 from safetensors.torch import save_file
+from .base import CkptFormat
 
-from .ckpt_pkl import CkptManagerPKL
+class SafeTensorFormat(CkptFormat):
+    EXT = 'safetensors'
 
-class CkptManagerSafe(CkptManagerPKL):
-
-    def _save_ckpt(self, sd_model, name=None, step=None, save_path=None):
-        if save_path is None:
-            save_path = os.path.join(self.save_dir, f"{name}-{step}.safetensors")
+    def save_ckpt(self, sd_model: Dict[str, Any], save_f: FILE_LIKE):
         sd_unfold = self.unfold_dict(sd_model)
-        save_file(sd_unfold, save_path)
+        save_file(sd_unfold, save_f)
 
-    def load_ckpt(self, ckpt_path, map_location='cpu'):
-        with safe_open(ckpt_path, framework="pt", device=map_location) as f:
+    def load_ckpt(self, ckpt_f: FILE_LIKE, map_location='cpu'):
+        with safe_open(ckpt_f, framework="pt", device=map_location) as f:
             sd_fold = self.fold_dict(f)
         return sd_fold
 

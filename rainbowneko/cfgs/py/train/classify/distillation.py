@@ -6,7 +6,7 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 
 from cfgs.py.train.classify import multi_class
-from rainbowneko.ckpt_manager import CkptManagerPKL
+from rainbowneko.ckpt_manager import ckpt_manager
 from rainbowneko.models.wrapper import DistillationWrapper
 from rainbowneko.parser import CfgModelParser
 from rainbowneko.train.loss import LossContainer, LossGroup, DistillationLoss
@@ -31,9 +31,9 @@ def make_cfg():
             )
         ]),
 
-        ckpt_manager=CkptManagerPKL(_partial_=True, saved_model=(
+        ckpt_manager=[ckpt_manager(saved_model=(
             {'model': 'model_student', 'trainable': False},
-        )),
+        ))],
 
         train=dict(
             train_epochs=100,
