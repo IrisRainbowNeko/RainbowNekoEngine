@@ -18,7 +18,13 @@ RainbowNeko Engine is a toolbox for pytorch based neural network training and in
 
 1. Install [pytorch](https://pytorch.org/)
 
-2. Install from source:
+2. Install with pip:
+```bash
+pip install rainbowneko
+```
+
+or
+Install from source:
 ```bash
 git clone https://github.com/IrisRainbowNeko/RainbowNekoEngine.git
 cd RainbowNekoEngine
