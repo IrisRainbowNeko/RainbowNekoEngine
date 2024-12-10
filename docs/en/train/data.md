@@ -20,7 +20,7 @@ def cfg_data():
                     data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=True, download=True)
                 ),
             ),
-            handler=HandlerChain(handlers=dict(
+            handler=HandlerChain(
                 load=LoadImageHandler(),
                 bucket=FixedBucket.handler,
                 image=ImageHandler(transform=T.Compose([
@@ -30,7 +30,7 @@ def cfg_data():
                         T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
                     ]),
                 )
-            )),
+            ),
             bucket=FixedBucket(target_size=32),
         )
     )
@@ -175,7 +175,7 @@ source=dict(
 Data handlers are defined in the `handler` field of `Dataset`, used for preprocessing or augmenting the data. Below is an example of a commonly used image handler configuration:
 
 ```python
-handler=HandlerChain(handlers=dict(
+handler=HandlerChain(
     load=LoadImageHandler(), # Reads images.
     bucket=FixedBucket.handler, # Built-in bucket handler.
     # Image transformation and augmentation.
@@ -186,7 +186,7 @@ handler=HandlerChain(handlers=dict(
             T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
         ]),
     )
-))
+)
 ```
 
 ```{tip}
@@ -201,9 +201,9 @@ The `BaseDataset` supports adding batch handlers for operations like MixUP that 
 from rainbowneko.train.data.handler import MixUPHandler
 
 dataset1 = BaseDataset(
-    batch_handler=HandlerChain(handlers=dict(
+    batch_handler=HandlerChain(
         mixup=MixUPHandler(num_classes=num_classes)
-    ))
+    )
 )
 ```
 
@@ -282,7 +282,7 @@ def cfg_data():
             source=dict(
                 data_source1=ImageFolderClassSource(img_root='./imagenet'),
             ),
-            handler=HandlerChain(handlers=dict(
+            handler=HandlerChain(
                 load=LoadImageHandler(),
                 image=ImageHandler(transform=T.Compose([
                         T.Resize(224),
@@ -292,7 +292,7 @@ def cfg_data():
                         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
                     ]),
                 )
-            )),
+            ),
             bucket=FixedBucket(target_size=224),
         )
     )

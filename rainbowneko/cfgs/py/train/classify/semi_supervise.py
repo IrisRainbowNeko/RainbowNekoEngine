@@ -56,10 +56,10 @@ def make_cfg():
             ),
 
             metrics=dict(_replace_=True,
-                dataset_S=MetricGroup(metric_dict=dict(
+                dataset_S=MetricGroup(
                     acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes), key_map=('pred.pred_student -> 0', 'inputs.label -> 1')),
                     f1=MetricContainer(MulticlassF1Score(num_classes=num_classes), key_map=('pred.pred_student -> 0', 'inputs.label -> 1')),
-                )),
+                ),
                 dataset_U=None,
             ),
         ),
@@ -89,7 +89,7 @@ def make_cfg():
                         data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=True, download=True)
                     ),
                 ),
-                handler=HandlerChain(handlers=dict(
+                handler=HandlerChain(
                     load=LoadImageHandler(),
                     bucket=FixedBucket.handler, # bucket 会自带一些处理模块
                     image=ImageHandler(transform=create_transform(
@@ -105,7 +105,7 @@ def make_cfg():
                             std=IMAGENET_DEFAULT_STD,
                         )
                     )
-                )),
+                ),
                 bucket=FixedBucket(target_size=224),
             ),
             dataset_U=partial(BaseDataset, batch_size=16, loss_weight=1.0,
@@ -115,7 +115,7 @@ def make_cfg():
                     ),
                 ),
                 handler=HandlerGroup(handlers=dict(
-                    strong=HandlerChain(handlers=dict(
+                    strong=HandlerChain(
                         load=LoadImageHandler(),
                         image=ImageHandler(transform=create_transform(
                                 input_size=224,
@@ -129,9 +129,8 @@ def make_cfg():
                                 mean=IMAGENET_DEFAULT_MEAN,
                                 std=IMAGENET_DEFAULT_STD,
                             )
-                        )
-                    ), key_map_out=('image -> image_strong',)),
-                    weak=HandlerChain(handlers=dict(
+                        ), key_map_out=('image -> image_strong',)),
+                    weak=HandlerChain(
                         load=LoadImageHandler(),
                         image=ImageHandler(transform=T.Compose([
                             T.Resize(256, interpolation=InterpolationMode.BICUBIC),
@@ -139,8 +138,7 @@ def make_cfg():
                             T.ToTensor(),
                             T.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD)
                         ])
-                        )
-                    ), key_map_out=('image -> image_weak',)),
+                        ), key_map_out=('image -> image_weak',)),
                 )),
                 bucket=FixedBucket(target_size=224),
             )

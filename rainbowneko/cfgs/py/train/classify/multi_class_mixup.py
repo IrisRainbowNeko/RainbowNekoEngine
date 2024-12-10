@@ -18,9 +18,9 @@ def make_cfg():
 
         data_train=dict(
             dataset1=BaseDataset(
-                batch_handler=HandlerChain(handlers=dict(
+                batch_handler=HandlerChain(
                     mixup=MixUPHandler(num_classes=num_classes)
-                ))
+                )
             )
         ),
     )

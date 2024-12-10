@@ -20,7 +20,7 @@ def cfg_data():
                     data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=True, download=True)
                 ),
             ),
-            handler=HandlerChain(handlers=dict(
+            handler=HandlerChain(
                 load=LoadImageHandler(),
                 bucket=FixedBucket.handler,
                 image=ImageHandler(transform=T.Compose([
@@ -30,7 +30,7 @@ def cfg_data():
                         T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
                     ]),
                 )
-            )),
+            ),
             bucket=FixedBucket(target_size=32),
         )
     )
@@ -174,7 +174,7 @@ source=dict(
 数据处理器通过`Dataset`的`handler`字段定义，用于对数据进行预处理或增强。以下是一个常用的图片处理器配置：
 
 ```python
-handler=HandlerChain(handlers=dict(
+handler=HandlerChain(
     load=LoadImageHandler(), # 读取图像
     bucket=FixedBucket.handler, # Bucket内置处理器
     # 图像变换与增强
@@ -185,7 +185,7 @@ handler=HandlerChain(handlers=dict(
             T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
         ]),
     )
-))
+)
 ```
 
 ```{tip}
@@ -199,9 +199,9 @@ handler=HandlerChain(handlers=dict(
 from rainbowneko.train.data.handler import MixUPHandler
 
 dataset1=BaseDataset(
-    batch_handler=HandlerChain(handlers=dict(
+    batch_handler=HandlerChain(
         mixup=MixUPHandler(num_classes=num_classes)
-    ))
+    )
 )
 ```
 
@@ -286,7 +286,7 @@ def cfg_data():
             source=dict(
                 data_source1=ImageFolderClassSource(img_root='./imagenet'),
             ),
-            handler=HandlerChain(handlers=dict(
+            handler=HandlerChain(
                 load=LoadImageHandler(),
                 image=ImageHandler(transform=T.Compose([
                         T.Resize(224),
@@ -296,7 +296,7 @@ def cfg_data():
                         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
                     ]),
                 )
-            )),
+            ),
             bucket=FixedBucket(target_size=224),
         )
     )

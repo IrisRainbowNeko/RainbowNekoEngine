@@ -21,14 +21,14 @@ def load_resnet():
 def infer_one(path):
     Actions([
         FeedAction(image=path),
-        HandlerAction(handler=HandlerChain(handlers=dict(
+        HandlerAction(handler=HandlerChain(
             load=LoadImageHandler(),
             image=ImageHandler(transform=T.Compose([
                 T.CenterCrop(size=32),
                 T.ToTensor(),
                 T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
             ]))
-        )), key_map_in=('image -> image',)),
+        ), key_map_in=('image -> image',)),
         LambdaAction(f_act=lambda image, **kwargs: {'image': image.unsqueeze(0)}),
         ForwardAction(key_map_in=('image -> input.image', 'model -> model')),
         VisClassAction(
@@ -45,14 +45,14 @@ def infer_all(path):
             data=torchvision.datasets.cifar.CIFAR10(root=path, train=False, download=True)
         ),
         actions=[
-            HandlerAction(handler=HandlerChain(handlers=dict(
+            HandlerAction(handler=HandlerChain(
                 load=LoadImageHandler(),
                 image=ImageHandler(transform=T.Compose([
                     T.CenterCrop(size=32),
                     T.ToTensor(),
                     T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
                 ]))
-            ))),
+            )),
             LambdaAction(f_act=lambda image, **kwargs: {'image': image.unsqueeze(0)}),
             ForwardAction(key_map_in=('image -> input.image', 'model -> model')),
             VisClassAction(

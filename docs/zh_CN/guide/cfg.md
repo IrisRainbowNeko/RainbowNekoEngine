@@ -32,9 +32,9 @@ def make_cfg():
 
         data_train=dict(
             dataset1=BaseDataset(
-                batch_handler=HandlerChain(handlers=dict(
+                batch_handler=HandlerChain(
                     mixup=MixUPHandler(num_classes=num_classes)
-                ))
+                )
             )
         ),
     )
@@ -96,10 +96,9 @@ data_train:
     _target_: rainbowneko.train.data.BaseDataset
     batch_handler:
       _target_: rainbowneko.train.data.handler.HandlerChain
-      handlers:
-        mixup:
-          _target_: rainbowneko.train.data.handler.MixUPHandler
-          num_classes: ${num_classes} # 引用配置
+      mixup:
+        _target_: rainbowneko.train.data.handler.MixUPHandler
+        num_classes: ${num_classes} # 引用配置
 ```
 
 ## 继承
@@ -125,7 +124,7 @@ dict(
                 data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=True, download=True)
             ),
         ),
-        handler=HandlerChain(handlers=dict(
+        handler=HandlerChain(
             load=LoadImageHandler(),
             bucket=FixedBucket.handler, # bucket 会自带一些处理模块
             image=ImageHandler(transform=T.Compose([
@@ -135,7 +134,7 @@ dict(
                     T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
                 ]),
             )
-        )),
+        ),
         bucket=FixedBucket(target_size=32),
     )
 )

@@ -14,7 +14,7 @@
 ```python
 from rainbowneko.train.data.handler import HandlerChain, ImageHandler, LoadImageHandler
 
-handler=HandlerChain(handlers=dict(
+handler=HandlerChain(
     load=LoadImageHandler(),
     bucket=FixedBucket.handler, # bucket 会自带一些处理模块
     image=ImageHandler(transform=T.Compose([
@@ -24,7 +24,7 @@ handler=HandlerChain(handlers=dict(
             T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
         ]),
     )
-)),
+),
 ```
 
 ## 处理组
@@ -41,13 +41,13 @@ handler=HandlerChain(handlers=dict(
 ```python
 from rainbowneko.train.data.handler import HandlerGroup, HandlerChain, ImageHandler, LoadImageHandler
 
-handler=HandlerChain(handlers=dict(
+handler=HandlerChain(
     load=LoadImageHandler(),
-    image=HandlerGroup(handlers=dict(
+    image=HandlerGroup(
         weak=ImageHandler(..., key_map_out=('image -> image_weak',)),
         strong=ImageHandler(..., key_map_out=('image -> image_strong',)),
-    ))
-)),
+    )
+),
 ```
 
 ## 随机种子同步处理
@@ -55,10 +55,10 @@ handler=HandlerChain(handlers=dict(
 ```python
 from rainbowneko.train.data.handler import SyncHandler, ImageHandler
 
-SyncHandler(handlers=dict(
+SyncHandler(
     LR=ImageHandler(...),
     HR=ImageHandler(...),
-))
+)
 ```
 
 ## 数据流控制

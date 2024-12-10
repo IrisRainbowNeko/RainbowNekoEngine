@@ -14,7 +14,7 @@ For example, common image processing:
 ```python
 from rainbowneko.train.data.handler import HandlerChain, ImageHandler, LoadImageHandler
 
-handler = HandlerChain(handlers=dict(
+handler = HandlerChain(
     load=LoadImageHandler(),
     bucket=FixedBucket.handler,  # The bucket includes some built-in processing modules
     image=ImageHandler(transform=T.Compose([
@@ -24,7 +24,7 @@ handler = HandlerChain(handlers=dict(
             T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
         ]),
     )
-)),
+),
 ```
 
 ## Processing Group
@@ -41,13 +41,13 @@ For instance, reading an image and applying different processing steps to store 
 ```python
 from rainbowneko.train.data.handler import HandlerGroup, HandlerChain, ImageHandler, LoadImageHandler
 
-handler = HandlerChain(handlers=dict(
+handler = HandlerChain(
     load=LoadImageHandler(),
-    image=HandlerGroup(handlers=dict(
+    image=HandlerGroup(
         weak=ImageHandler(..., key_map_out=('image -> image_weak',)),
         strong=ImageHandler(..., key_map_out=('image -> image_strong',)),
-    ))
-)),
+    )
+),
 ```
 
 ## Synchronizing Random Seeds for Processing
@@ -57,10 +57,10 @@ In certain scenarios, multiple processing modules may need to use the same rando
 ```python
 from rainbowneko.train.data.handler import SyncHandler, ImageHandler
 
-SyncHandler(handlers=dict(
+SyncHandler(
     LR=ImageHandler(...),
     HR=ImageHandler(...),
-))
+)
 ```
 
 ## Data Flow Control

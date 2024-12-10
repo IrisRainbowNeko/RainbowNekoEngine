@@ -14,7 +14,7 @@ class DataHandler:
         return self.key_mapper_out.map_data(data_proc)[1]
 
 class HandlerGroup(DataHandler):
-    def __init__(self, handlers: Dict[str, DataHandler], key_map_in=None, key_map_out=None):
+    def __init__(self, key_map_in=None, key_map_out=None, **handlers: DataHandler):
         self.handlers = handlers
         self.key_mapper_in = KeyMapper(key_map=key_map_in) if key_map_in else None
         self.key_mapper_out = KeyMapper(key_map=key_map_out) if key_map_out else None
@@ -31,7 +31,7 @@ class HandlerGroup(DataHandler):
         return data
 
 class HandlerChain(DataHandler):
-    def __init__(self, handlers: Dict[str, DataHandler], key_map_in=None, key_map_out=None):
+    def __init__(self, key_map_in=None, key_map_out=None, **handlers: DataHandler):
         self.handlers = handlers
         self.key_mapper_in = KeyMapper(key_map=key_map_in) if key_map_in else None
         self.key_mapper_out = KeyMapper(key_map=key_map_out) if key_map_out else None
@@ -48,7 +48,7 @@ class HandlerChain(DataHandler):
         return data
 
 class SyncHandler(DataHandler):
-    def __init__(self, handlers: Dict[str, DataHandler]):
+    def __init__(self, **handlers: DataHandler):
         self.handlers = handlers
 
     def __call__(self, data) -> Dict[str, Any]:

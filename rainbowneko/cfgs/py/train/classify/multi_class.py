@@ -57,10 +57,10 @@ def make_cfg():
                 _partial_=True,
                 warmup_steps=100,
             ),
-            metrics=MetricGroup(metric_dict=dict(
+            metrics=MetricGroup(
                 acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
                 f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
-            )),
+            ),
         ),
 
         model=dict(
@@ -82,7 +82,7 @@ def cfg_data():
                     data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=True, download=True)
                 ),
             ),
-            handler=HandlerChain(handlers=dict(
+            handler=HandlerChain(
                 load=LoadImageHandler(),
                 bucket=FixedBucket.handler, # bucket 会自带一些处理模块
                 image=ImageHandler(transform=T.Compose([
@@ -92,7 +92,7 @@ def cfg_data():
                         T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
                     ]),
                 )
-            )),
+            ),
             bucket=FixedBucket(target_size=32),
         )
     )
@@ -101,10 +101,10 @@ def cfg_data():
 def cfg_evaluator():
     partial(Evaluator,
         interval=500,
-        metric=MetricGroup(metric_dict=dict(
+        metric=MetricGroup(
             acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
             f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
-        )),
+        ),
         dataset=dict(
             dataset1=partial(BaseDataset, batch_size=128, loss_weight=1.0,
                 source=dict(
@@ -112,7 +112,7 @@ def cfg_evaluator():
                         data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=False, download=True)
                     ),
                 ),
-                handler=HandlerChain(handlers=dict(
+                handler=HandlerChain(
                     load=LoadImageHandler(),
                     bucket=FixedBucket.handler,
                     image=ImageHandler(transform=T.Compose([
@@ -120,7 +120,7 @@ def cfg_evaluator():
                             T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
                         ]),
                     )
-                )),
+                ),
                 bucket=FixedBucket(target_size=32),
             )
         )

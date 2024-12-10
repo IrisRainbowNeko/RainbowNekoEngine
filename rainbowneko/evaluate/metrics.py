@@ -89,7 +89,7 @@ class FullMetricContainer(MetricContainer):
 
 
 class MetricGroup(BaseMetric):
-    def __init__(self, metric_dict: Dict[str, BaseMetric]):
+    def __init__(self, **metric_dict: BaseMetric):
         self.metric_dict = {k: (v() if isinstance(v, partial) else v) for k, v in metric_dict.items()}
 
     def reset(self):
