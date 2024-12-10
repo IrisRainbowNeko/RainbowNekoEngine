@@ -35,17 +35,16 @@ train:
     warmup_steps: 10
   metrics:
     _target_: rainbowneko.evaluate.metrics.MetricGroup
-    metric_dict:
-      acc:
-        _target_: rainbowneko.evaluate.metrics.MetricContainer
-        _args_:
-          - _target_: torchmetrics.classification.accuracy.MulticlassAccuracy
-            num_classes: 10
-      f1:
-        _target_: rainbowneko.evaluate.metrics.MetricContainer
-        _args_:
-          - _target_: torchmetrics.classification.f_beta.MulticlassF1Score
-            num_classes: 10
+    acc:
+      _target_: rainbowneko.evaluate.metrics.MetricContainer
+      _args_:
+        - _target_: torchmetrics.classification.accuracy.MulticlassAccuracy
+          num_classes: 10
+    f1:
+      _target_: rainbowneko.evaluate.metrics.MetricContainer
+      _args_:
+        - _target_: torchmetrics.classification.f_beta.MulticlassF1Score
+          num_classes: 10
 
 model:
   name: cifar-resnet18
@@ -72,23 +71,22 @@ data_train:
           download: true
     handler:
       _target_: rainbowneko.train.data.handler.base.HandlerChain
-      handlers:
-        load:
-          _target_: rainbowneko.train.data.handler.image.LoadImageHandler
-        bucket: ${neko.get:rainbowneko.train.data.bucket.fixed.FixedBucket.handler}
-        image:
-          _target_: rainbowneko.train.data.handler.image.ImageHandler
-          transform:
-            _target_: torchvision.transforms.transforms.Compose
-            _args_:
-              - - _target_: torchvision.transforms.transforms.RandomCrop
-                  size: 32
-                  padding: 4
-                - _target_: torchvision.transforms.transforms.RandomHorizontalFlip
-                - _target_: torchvision.transforms.transforms.ToTensor
-                - _target_: torchvision.transforms.transforms.Normalize
-                  mean: [ 0.4914, 0.4822, 0.4465 ]
-                  std: [ 0.2023, 0.1994, 0.201 ]
+      load:
+        _target_: rainbowneko.train.data.handler.image.LoadImageHandler
+      bucket: ${neko.get:rainbowneko.train.data.bucket.fixed.FixedBucket.handler}
+      image:
+        _target_: rainbowneko.train.data.handler.image.ImageHandler
+        transform:
+          _target_: torchvision.transforms.transforms.Compose
+          _args_:
+            - - _target_: torchvision.transforms.transforms.RandomCrop
+                size: 32
+                padding: 4
+              - _target_: torchvision.transforms.transforms.RandomHorizontalFlip
+              - _target_: torchvision.transforms.transforms.ToTensor
+              - _target_: torchvision.transforms.transforms.Normalize
+                mean: [ 0.4914, 0.4822, 0.4465 ]
+                std: [ 0.2023, 0.1994, 0.201 ]
     bucket:
       _target_: rainbowneko.train.data.bucket.fixed.FixedBucket
       target_size: 32
@@ -99,17 +97,16 @@ evaluator:
   interval: 500
   metric:
     _target_: rainbowneko.evaluate.metrics.MetricGroup
-    metric_dict:
-      acc:
-        _target_: rainbowneko.evaluate.metrics.MetricContainer
-        _args_:
-          - _target_: torchmetrics.classification.accuracy.MulticlassAccuracy
-            num_classes: 10
-      f1:
-        _target_: rainbowneko.evaluate.metrics.MetricContainer
-        _args_:
-          - _target_: torchmetrics.classification.f_beta.MulticlassF1Score
-            num_classes: 10
+    acc:
+      _target_: rainbowneko.evaluate.metrics.MetricContainer
+      _args_:
+        - _target_: torchmetrics.classification.accuracy.MulticlassAccuracy
+          num_classes: 10
+    f1:
+      _target_: rainbowneko.evaluate.metrics.MetricContainer
+      _args_:
+        - _target_: torchmetrics.classification.f_beta.MulticlassF1Score
+          num_classes: 10
   dataset:
     dataset1:
       _target_: rainbowneko.train.data.dataset.BaseDataset
@@ -126,19 +123,18 @@ evaluator:
             download: true
       handler:
         _target_: rainbowneko.train.data.handler.base.HandlerChain
-        handlers:
-          load:
-            _target_: rainbowneko.train.data.handler.image.LoadImageHandler
-          bucket: ${neko.get:rainbowneko.train.data.bucket.fixed.FixedBucket.handler}
-          image:
-            _target_: rainbowneko.train.data.handler.image.ImageHandler
-            transform:
-              _target_: torchvision.transforms.transforms.Compose
-              _args_:
-                - - _target_: torchvision.transforms.transforms.ToTensor
-                  - _target_: torchvision.transforms.transforms.Normalize
-                    mean: [ 0.4914, 0.4822, 0.4465 ]
-                    std: [ 0.2023, 0.1994, 0.201 ]
+        load:
+          _target_: rainbowneko.train.data.handler.image.LoadImageHandler
+        bucket: ${neko.get:rainbowneko.train.data.bucket.fixed.FixedBucket.handler}
+        image:
+          _target_: rainbowneko.train.data.handler.image.ImageHandler
+          transform:
+            _target_: torchvision.transforms.transforms.Compose
+            _args_:
+              - - _target_: torchvision.transforms.transforms.ToTensor
+                - _target_: torchvision.transforms.transforms.Normalize
+                  mean: [ 0.4914, 0.4822, 0.4465 ]
+                  std: [ 0.2023, 0.1994, 0.201 ]
       bucket:
         _target_: rainbowneko.train.data.bucket.fixed.FixedBucket
         target_size: 32
