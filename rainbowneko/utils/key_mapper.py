@@ -86,7 +86,7 @@ class KeyMapper:
 
     def map_data(self, src):
         if self.key_map is None:
-            return None, src
+            return [], src
 
         data = ADict({'args':{}, 'kwargs':{}})
         for k_dst, k_src in self.key_map.items():
