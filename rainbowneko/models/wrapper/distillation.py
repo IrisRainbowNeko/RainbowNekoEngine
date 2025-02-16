@@ -8,8 +8,9 @@ from rainbowneko.utils import KeyMapper
 
 
 class DistillationWrapper(BaseWrapper):
-    def __init__(self, model_teacher, model_student, ema=None, key_map_in_student=None, key_map_in_teacher=None, key_map_out=None):
-        super().__init__()
+    def __init__(self, model_teacher, model_student, ema=None, key_map_in_student=None, key_map_in_teacher=None, key_map_out=None,
+                 device='cuda'):
+        super().__init__(device)
         self.model_teacher = model_teacher
         self.model_student = model_student
 

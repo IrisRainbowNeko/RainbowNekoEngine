@@ -1,58 +1,38 @@
-import os
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, Union
 
-from addict import Dict as ADict
-from rainbowneko.utils.img_size_tool import types_support
-from rainbowneko.utils.utils import get_file_ext
+from rainbowneko.train.data.label_loader import BaseLabelLoader
+from rainbowneko.utils import Path_Like
 
-from .base import VisionDataSource
+from .img_label import ImageLabelSource
 
 
-class ImageFolderClassSource(VisionDataSource):
-    def __init__(self, img_root, repeat=1, use_cls_index=True, **kwargs):
-        super(ImageFolderClassSource, self).__init__(img_root, repeat=repeat, **kwargs)
-
-        self.use_cls_index = use_cls_index
-        self.img_paths, self.label_dict = self._load_img_label(img_root)
-
-    def __len__(self):
-        return len(self.img_paths)
+class ImageFolderClassSource(ImageLabelSource):
+    def __init__(self, img_root, repeat=1, **kwargs):
+        super().__init__(img_root, img_root, repeat=repeat, **kwargs)
 
     def __getitem__(self, index) -> Dict[str, Any]:
-        path = self.img_paths[index]
+        img_id = self.img_ids[index]
+        path = self.img_root / img_id
         return {
+            'id': img_id,
             'image': path,
-            'label': self.load_label(path)
+            'label': self.cls_id_dict[self.label_dict[self.img_ids[index]]]
         }
 
-    def _load_img_label(self, img_root):
-        sub_folders = [os.path.join(img_root, x) for x in os.listdir(img_root)]
-        class_imgs = []
-        label_dict = ADict()
-        cls_id_dict = {}
-        for class_folder in sub_folders:
-            class_name = os.path.basename(class_folder)
-            imgs = []
-            for x in os.listdir(class_folder):
-                if get_file_ext(x) in types_support:
-                    imgs.append(os.path.join(class_folder, x))
-                    if self.use_cls_index:
-                        if class_name not in cls_id_dict:
-                            cls_id_dict[class_name] = len(cls_id_dict)
-                        label_dict[class_name][x] = cls_id_dict[class_name]
-                    else:
-                        label_dict[class_name][x] = class_name
-            if isinstance(self.repeat, int):
-                class_imgs.extend(imgs * self.repeat)
-            else:
-                class_imgs.extend(imgs * self.repeat[class_name])
-        if self.use_cls_index:  # record class name to index map
-            self.cls_id_dict = cls_id_dict
-        return class_imgs, label_dict
+    def _load_label_data(self, img_root: Union[Path_Like, BaseLabelLoader]):
+        ''' {class_name/image.ext: label} '''
+        if img_root is None:
+            label_dict = {}
+        elif isinstance(img_root, Path_Like):
+            label_dict = {}
+            img_root = Path(img_root)
+            for class_folder in img_root.iterdir():
+                cls_name = class_folder.name
+                for img_path in class_folder.iterdir():
+                    label_dict[f'{cls_name}/{img_path.name}'] = cls_name
+        else:
+            label_dict = img_root.load()
 
-    def load_label(self, path: str) -> Dict[str, Any]:
-        img_root, img_name = os.path.split(path)
-        img_root, class_name = os.path.split(img_root)
-
-        label = self.label_dict[class_name].get(img_name, None)
-        return label
+        # label to cls_id
+        self.cls_id_dict = {cls_name: cls_id for cls_id, cls_name in enumerate(set(label_dict.values()))}

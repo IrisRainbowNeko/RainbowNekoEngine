@@ -16,6 +16,7 @@ class IndexSource(VisionDataSource):
     def __getitem__(self, index) -> Dict[str, Any]:
         image, label = self.data[index]
         return {
+            'id': index,
             'image': image,
             'label': label
         }

@@ -27,12 +27,10 @@ class LongEdgeBucket(RatioBucket):
             return round(w * scale), round(h * scale)
 
         size_list = []
-        self.source.return_source = True
-        with ThreadPoolExecutor() as executor:
+        with self.source.return_source(), ThreadPoolExecutor() as executor:
             for w, h in tqdm(executor.map(get_size, self.source), desc='get image info', total=len(self.source)):
                 size_list.append([w, h])
         size_list = np.array(size_list)
-        self.source.return_source = False
 
         # 聚类，选出指定个数的bucket
         kmeans = KMeans(n_clusters=self.num_bucket, random_state=114514, verbose=True).fit(size_list)

@@ -7,7 +7,7 @@ class DataHandler:
         self.key_mapper_out = KeyMapper(key_map=key_map_out)
 
     def handle(self, *args, **kwargs):
-        raise NotImplementedError
+        return kwargs
 
     def __call__(self, data) -> Dict[str, Any]:
         data_proc = self.handle(**self.key_mapper_in.map_data(data)[1])

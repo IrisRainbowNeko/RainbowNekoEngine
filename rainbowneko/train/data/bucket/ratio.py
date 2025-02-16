@@ -18,7 +18,7 @@ class RatioBucket(BaseBucket):
     can_shuffle = False
     handler = AutoSizeHandler()
 
-    def __init__(self, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
+    def __init__(self, target_area: int = 640 * 640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None):
         self.target_area = target_area
         self.step_size = step_size
         self.num_bucket = num_bucket
@@ -35,29 +35,29 @@ class RatioBucket(BaseBucket):
     def save_bucket(self, path):
         with open(path, 'wb') as f:
             pickle.dump({
-                'buckets':self.buckets,
-                'size_buckets':self.size_buckets,
-                'idx_bucket_map':self.idx_bucket_map,
-                'data_len':self.data_len,
+                'buckets': self.buckets,
+                'size_buckets': self.size_buckets,
+                'idx_bucket_map': self.idx_bucket_map,
+                'data_len': self.data_len,
             }, f)
 
     def build_buckets_from_ratios(self):
         logger.info('build buckets from ratios')
-        size_low = int(math.sqrt(self.target_area/self.ratio_max))
-        size_high = int(self.ratio_max*size_low)
+        size_low = int(math.sqrt(self.target_area / self.ratio_max))
+        size_high = int(self.ratio_max * size_low)
 
         # SD需要边长是8的倍数
-        size_low = (size_low//self.step_size)*self.step_size
-        size_high = (size_high//self.step_size)*self.step_size
+        size_low = (size_low // self.step_size) * self.step_size
+        size_high = (size_high // self.step_size) * self.step_size
 
         data = []
-        for w in range(size_low, size_high+1, self.step_size):
-            for h in range(size_low, size_high+1, self.step_size):
-                data.append([w*h, np.log2(w/h), w, h])  # 对比例取对数，更符合人感知，宽高相反的可以对称分布。
+        for w in range(size_low, size_high + 1, self.step_size):
+            for h in range(size_low, size_high + 1, self.step_size):
+                data.append([w * h, np.log2(w / h), w, h])  # 对比例取对数，更符合人感知，宽高相反的可以对称分布。
         data = np.array(data)
 
-        error_area = np.abs(data[:, 0]-self.target_area)
-        data_use = data[np.argsort(error_area)[:self.num_bucket*3], :]  # 取最小的num_bucket*3个
+        error_area = np.abs(data[:, 0] - self.target_area)
+        data_use = data[np.argsort(error_area)[:self.num_bucket * 3], :]  # 取最小的num_bucket*3个
 
         # 聚类，选出指定个数的bucket
         kmeans = KMeans(n_clusters=self.num_bucket, random_state=114514).fit(data_use[:, 1].reshape(-1, 1))
@@ -67,7 +67,7 @@ class RatioBucket(BaseBucket):
         self.size_buckets = []
         for i in range(self.num_bucket):
             map_idx = np.where(labels == i)[0]
-            m_idx = map_idx[np.argmin(np.abs(data_use[labels == i, 1]-np.median(data_use[labels == i, 1])))]
+            m_idx = map_idx[np.argmin(np.abs(data_use[labels == i, 1] - np.median(data_use[labels == i, 1])))]
             # self.buckets[wh_hash(*data_use[m_idx, 2:])]=[]
             self.buckets.append([])
             ratios_log.append(data_use[m_idx, 1])
@@ -79,23 +79,22 @@ class RatioBucket(BaseBucket):
         def get_ratio(info):
             data, source = info
             w, h = source.get_image_size(data)
-            ratio = np.log2(w/h)
+            ratio = np.log2(w / h)
             return ratio
 
         ratio_list = []
-        self.source.return_source = True
-        with ThreadPoolExecutor() as executor:
+        with self.source.return_source(), ThreadPoolExecutor() as executor:
             for ratio in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
                 ratio_list.append(ratio)
         ratio_list = np.array(ratio_list)
-        self.source.return_source = False
 
         # fill buckets with images w,h
-        bucket_id = np.abs(ratio_list[:,None] - ratios_log[None,:]).argmin(axis=-1)
+        bucket_id = np.abs(ratio_list[:, None] - ratios_log[None, :]).argmin(axis=-1)
         self.idx_bucket_map = bucket_id
         for bidx in range(self.num_bucket):
             self.buckets.append(np.where(bucket_id == bidx)[0].tolist())
-        logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        logger.info(
+            'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
     def build_buckets_from_images(self):
         logger.info('build buckets from images')
@@ -103,28 +102,26 @@ class RatioBucket(BaseBucket):
         def get_ratio(info):
             data, source = info
             w, h = source.get_image_size(data)
-            ratio = np.log2(w/h)
+            ratio = np.log2(w / h)
             return ratio
 
         ratio_list = []
-        self.source.return_source = True
-        with ThreadPoolExecutor() as executor:
+        with self.source.return_source(), ThreadPoolExecutor() as executor:
             for ratio in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
                 ratio_list.append(ratio)
         ratio_list = np.array(ratio_list)
-        self.source.return_source = False
 
         # 聚类，选出指定个数的bucket
         kmeans = KMeans(n_clusters=self.num_bucket, random_state=114514, verbose=True, tol=1e-3).fit(ratio_list.reshape(-1, 1))
         labels = kmeans.labels_
-        ratios = 2**kmeans.cluster_centers_.reshape(-1)
+        ratios = 2 ** kmeans.cluster_centers_.reshape(-1)
 
-        h_all = np.sqrt(self.target_area/ratios)
-        w_all = h_all*ratios
+        h_all = np.sqrt(self.target_area / ratios)
+        w_all = h_all * ratios
 
         # SD需要边长是8的倍数
-        h_all = (np.round(h_all/self.step_size)*self.step_size).astype(int)
-        w_all = (np.round(w_all/self.step_size)*self.step_size).astype(int)
+        h_all = (np.round(h_all / self.step_size) * self.step_size).astype(int)
+        w_all = (np.round(w_all / self.step_size) * self.step_size).astype(int)
         self.size_buckets = list(zip(w_all, h_all))
         self.size_buckets = np.array(self.size_buckets)
 
@@ -132,7 +129,8 @@ class RatioBucket(BaseBucket):
         self.idx_bucket_map = labels
         for bidx in range(self.num_bucket):
             self.buckets.append(np.where(labels == bidx)[0].tolist())
-        logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        logger.info(
+            'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
     def build(self, bs: int, world_size: int, source: 'ComposeDataSource'):
         '''
@@ -140,7 +138,7 @@ class RatioBucket(BaseBucket):
         :param img_root_list:
         '''
         self.source = source
-        self.bs = bs*world_size
+        self.bs = bs * world_size
         if self.pre_build_bucket and os.path.exists(self.pre_build_bucket):
             self.load_bucket(self.pre_build_bucket)
             return
@@ -151,9 +149,9 @@ class RatioBucket(BaseBucket):
         # make len(bucket)%bs==0
         self.data_len = 0
         for bidx, bucket in enumerate(self.buckets):
-            rest = len(bucket)%self.bs
-            if rest>0:
-                bucket.extend(rs.choice(bucket, self.bs-rest))
+            rest = len(bucket) % self.bs
+            if rest > 0:
+                bucket.extend(rs.choice(bucket, self.bs - rest))
             self.data_len += len(bucket)
             self.buckets[bidx] = np.array(bucket)
 
@@ -161,7 +159,7 @@ class RatioBucket(BaseBucket):
             self.save_bucket(self.pre_build_bucket)
 
     def rest(self, epoch):
-        rs = np.random.RandomState(42+epoch)
+        rs = np.random.RandomState(42 + epoch)
         bucket_list = [x.copy() for x in self.buckets]
         # shuffle inter bucket
         for x in bucket_list:
@@ -184,7 +182,7 @@ class RatioBucket(BaseBucket):
         return self.data_len
 
     @classmethod
-    def from_ratios(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, ratio_max: float = 4,
+    def from_ratios(cls, target_area: int = 640 * 640, step_size: int = 8, num_bucket: int = 10, ratio_max: float = 4,
                     pre_build_bucket: str = None, **kwargs):
         arb = cls(target_area, step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb.ratio_max = ratio_max
@@ -192,10 +190,12 @@ class RatioBucket(BaseBucket):
         return arb
 
     @classmethod
-    def from_files(cls, target_area: int = 640*640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None, **kwargs):
+    def from_files(cls, target_area: int = 640 * 640, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None,
+                   **kwargs):
         arb = cls(target_area, step_size, num_bucket, pre_build_bucket=pre_build_bucket)
         arb._build = arb.build_buckets_from_images
         return arb
+
 
 class SizeBucket(RatioBucket):
     handler = AutoSizeHandler(mode='pad')
@@ -215,12 +215,10 @@ class SizeBucket(RatioBucket):
             return w, h
 
         size_list = []
-        self.source.return_source = True
-        with ThreadPoolExecutor() as executor:
+        with self.source.return_source(), ThreadPoolExecutor() as executor:
             for w, h in tqdm(executor.map(get_size, self.source), desc='get image info', total=len(self.source)):
                 size_list.append([w, h])
         size_list = np.array(size_list)
-        self.source.return_source = False
 
         # 聚类，选出指定个数的bucket
         kmeans = KMeans(n_clusters=self.num_bucket, random_state=114514).fit(size_list)
@@ -228,13 +226,14 @@ class SizeBucket(RatioBucket):
         size_buckets = kmeans.cluster_centers_
 
         # SD需要边长是8的倍数
-        self.size_buckets = (np.round(size_buckets/self.step_size)*self.step_size).astype(int)
+        self.size_buckets = (np.round(size_buckets / self.step_size) * self.step_size).astype(int)
 
         self.buckets = []  # [bucket_id:[file_idx,...]]
         self.idx_bucket_map = labels
         for bidx in range(self.num_bucket):
-            self.buckets.append(np.where(labels==bidx)[0].tolist())
-        logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+            self.buckets.append(np.where(labels == bidx)[0].tolist())
+        logger.info(
+            'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
     @classmethod
     def from_files(cls, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None, **kwargs):
@@ -242,8 +241,9 @@ class SizeBucket(RatioBucket):
         arb._build = arb.build_buckets_from_images
         return arb
 
+
 class RatioSizeBucket(RatioBucket):
-    def __init__(self, step_size: int = 8, num_bucket: int = 10, max_area:int=640*640, pre_build_bucket: str = None):
+    def __init__(self, step_size: int = 8, num_bucket: int = 10, max_area: int = 640 * 640, pre_build_bucket: str = None):
         super().__init__(step_size=step_size, num_bucket=num_bucket, pre_build_bucket=pre_build_bucket)
         self.max_area = max_area
 
@@ -256,41 +256,41 @@ class RatioSizeBucket(RatioBucket):
         def get_ratio(info):
             data, source = info
             w, h = source.get_image_size(data)
-            ratio = np.log2(w/h)
+            ratio = np.log2(w / h)
             log_area = np.log2(min(w * h, self.max_area))
             return ratio, log_area
 
         ratio_list = []
-        self.source.return_source = True
-        with ThreadPoolExecutor() as executor:
+        with self.source.return_source(), ThreadPoolExecutor() as executor:
             for ratio, log_area in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
                 ratio_list.append([ratio, log_area])
         ratio_list = np.array(ratio_list)
-        self.source.return_source = False
 
         # 聚类，选出指定个数的bucket
         kmeans = KMeans(n_clusters=self.num_bucket, random_state=114514).fit(ratio_list)
         labels = kmeans.labels_
-        ratios = 2**kmeans.cluster_centers_[:, 0]
-        sizes = 2**kmeans.cluster_centers_[:, 1]
+        ratios = 2 ** kmeans.cluster_centers_[:, 0]
+        sizes = 2 ** kmeans.cluster_centers_[:, 1]
 
-        h_all = np.sqrt(sizes/ratios)
-        w_all = h_all*ratios
+        h_all = np.sqrt(sizes / ratios)
+        w_all = h_all * ratios
 
         # SD需要边长是8的倍数
-        h_all = (np.round(h_all/self.step_size)*self.step_size).astype(int)
-        w_all = (np.round(w_all/self.step_size)*self.step_size).astype(int)
+        h_all = (np.round(h_all / self.step_size) * self.step_size).astype(int)
+        w_all = (np.round(w_all / self.step_size) * self.step_size).astype(int)
         self.size_buckets = list(zip(w_all, h_all))
         self.size_buckets = np.array(self.size_buckets)
 
         self.buckets = []  # [bucket_id:[file_idx,...]]
         self.idx_bucket_map = labels
         for bidx in range(self.num_bucket):
-            self.buckets.append(np.where(labels==bidx)[0].tolist())
-        logger.info('buckets info: '+', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+            self.buckets.append(np.where(labels == bidx)[0].tolist())
+        logger.info(
+            'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
 
     @classmethod
-    def from_files(cls, step_size: int = 8, num_bucket: int = 10, max_area:int=640*640, pre_build_bucket: str = None, **kwargs):
+    def from_files(cls, step_size: int = 8, num_bucket: int = 10, max_area: int = 640 * 640, pre_build_bucket: str = None,
+                   **kwargs):
         arb = cls(step_size, num_bucket, max_area=max_area, pre_build_bucket=pre_build_bucket)
         arb._build = arb.build_buckets_from_images
         return arb

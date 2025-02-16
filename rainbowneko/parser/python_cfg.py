@@ -2,6 +2,7 @@ import ast
 import importlib
 import inspect
 import os
+import re
 import shutil
 from typing import Union
 from types import ModuleType
@@ -34,6 +35,19 @@ class CallTransformer(ast.NodeTransformer):
         self.parent_stack.pop()
         return result
 
+    def find_call(self, node: ast.Attribute):
+        ''' A().b.c() => [A(), b, c()] '''
+        node_list = []
+        while isinstance(node, ast.Attribute):
+            node_list.append(node)
+            node = node.value
+
+        if isinstance(node, ast.Call):
+            node_list.append(node)
+            return node_list[::-1]
+        else:
+            return None
+
     def visit_Call(self, node):
         # 创建一个新的Call节点，调用dict函数并传递关键字参数
         call_node = ast.Call(
@@ -49,9 +63,26 @@ class CallTransformer(ast.NodeTransformer):
         if not isinstance(parent_node, self.transform_parent):
             return node
 
-        if isinstance(node.func, ast.Attribute):
-            call_node.keywords.append(
-                ast.keyword(arg='_target_', value=ast.Attribute(attr=node.func.attr, value=node.func.value)))
+        if isinstance(node.func, (ast.Attribute, ast.Call)):
+            node_list = self.find_call(node.func)
+            if node_list is None:
+                call_node.keywords.append(
+                    ast.keyword(arg='_target_', value=ast.Attribute(attr=node.func.attr, value=node.func.value)))
+            else:
+                prev_node = self.visit_Call(node_list[0])
+                for node_attr in node_list[1:]:
+                    prev_node = ast.Call(
+                        func=ast.Name(id='dict', ctx=ast.Load()),
+                        args=[],
+                        keywords=[
+                            ast.keyword(arg='_target_', value=ast.Name(id='getattr', ctx=ast.Load())),
+                            ast.keyword(arg='_args_', value=ast.List(elts=[prev_node, ast.Constant(value=node_attr.attr)], ctx=ast.Load())),
+                        ]
+                    )
+                call_node.keywords.append(
+                    ast.keyword(arg='_target_', value=prev_node)
+                )
+
         else:
             if node.func.id == 'partial':
                 partial_flag = True
@@ -93,9 +124,13 @@ class PythonCfgParser(YamlCfgParser):
         source_code = inspect.getsource(func)
 
         # 分离函数定义和函数体
-        start_index = source_code.find(':\n') + 2  # 找到第一个换行符后的索引
+        start_index = re.search(r':\s*\n', source_code).end()  # 找到第一个换行符后的索引
         function_body = source_code[start_index:].strip()
         return function_body
+
+    def get_default_kwargs(self, func):
+        sig = inspect.signature(func)
+        return {k: v.default for k, v in sig.parameters.items() if v.default is not inspect.Parameter.empty}
 
     def transform_code(self, code):
         # 解析代码为AST
@@ -122,8 +157,9 @@ class PythonCfgParser(YamlCfgParser):
             if '_target_' in cfg and getattr(cfg['_target_'], '_neko_cfg_', False):
                 code = self.get_code(cfg['_target_'])
                 code_format = self.transform_code(code)
+                kwargs = self.get_default_kwargs(cfg['_target_'])
                 del cfg['_target_']
-                cfg = eval(code_format, vars(module), cfg)
+                cfg = eval(code_format, vars(module), {**kwargs, **cfg})
                 return cfg
 
             for key, value in cfg.items():

@@ -1,7 +1,10 @@
 import bisect
+from pathlib import Path
 from typing import Dict, List, Tuple, Any
 
+from rainbowneko.utils import Path_Like
 from rainbowneko.utils.img_size_tool import get_image_size
+from contextlib import contextmanager
 
 
 class DataSource:
@@ -24,7 +27,13 @@ class ComposeDataSource(DataSource):
             offsets.append(offsets[-1] + len(source))
         self._offsets = offsets
 
-        self.return_source=False
+        self._return_source = False
+
+    @contextmanager
+    def return_source(self):
+        self._return_source = True
+        yield
+        self._return_source = False
 
     def get_source_by_index(self, index) -> DataSource:
         if index < 0 or index >= len(self):
@@ -42,7 +51,7 @@ class ComposeDataSource(DataSource):
         seq_index = bisect.bisect_right(self._offsets, index) - 1
         index_within_seq = index - self._offsets[seq_index]
         source = self.source_list[seq_index]
-        if self.return_source:
+        if self._return_source:
             return source[index_within_seq], source
         else:
             return source[index_within_seq]
@@ -52,9 +61,9 @@ class ComposeDataSource(DataSource):
 
 
 class VisionDataSource(DataSource):
-    def __init__(self, img_root, repeat=1, **kwargs):
-        super(VisionDataSource, self).__init__(repeat=repeat)
-        self.img_root = img_root
+    def __init__(self, img_root: Path_Like, repeat=1, **kwargs):
+        super().__init__(repeat=repeat)
+        self.img_root = Path(img_root)
 
     def get_image_size(self, data: Dict[str, Any]) -> Tuple[int, int]:
         return get_image_size(data['image'])

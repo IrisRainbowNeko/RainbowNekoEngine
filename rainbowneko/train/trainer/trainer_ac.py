@@ -26,18 +26,12 @@ from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
 from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.models.ema import ModelEMA
 from rainbowneko.parser import load_config_with_cli
-from rainbowneko.train.data import DataGroup, get_sampler
+from rainbowneko.train.data import DataGroup, get_sampler, CacheableDataset
 from rainbowneko.train.loggers import LoggerGroup
-from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict
+from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict, xformers_available
 from rainbowneko.parser.model import NekoLoader
 from rainbowneko.ckpt_manager import CkptManagerBase
-
-try:
-    import xformers
-
-    xformers_available = True
-except:
-    xformers_available = False
+from rainbowneko import _share
 
 
 class Trainer:
@@ -55,8 +49,11 @@ class Trainer:
 
         self.build_ckpt_manager()
         self.build_model()
-        self.make_hooks()
+        self.model_wrapper.post_init()
         self.config_model()
+
+        for callback in _share.model_callbacks:
+            callback(self.model_wrapper)
 
         # build dataset
         self.batch_size_list = []
@@ -119,6 +116,9 @@ class Trainer:
 
         self.local_rank = int(os.environ.get("LOCAL_RANK", -1))
         self.world_size = self.accelerator.num_processes
+        _share.local_rank = self.local_rank
+        _share.world_size = self.world_size
+        _share.device = self.device
 
         set_seed(self.cfgs.seed + self.local_rank)
 
@@ -131,6 +131,7 @@ class Trainer:
         else:
             self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.logger])
 
+        _share.loggers = self.loggers
         self.min_log_step = mgcd(*([item.log_step for item in self.loggers.logger_list]))
 
         self.loggers.info(f"world size (num GPUs): {self.world_size}")
@@ -246,9 +247,6 @@ class Trainer:
             if hasattr(self, "ema_model"):
                 NekoLoader.load_all(self.ema_model.model, self.cfgs.train.resume)
 
-    def make_hooks(self):
-        pass
-
     def to_dev(self, x):
         if isinstance(x, torch.Tensor):
             if torch.is_floating_point(x):
@@ -264,6 +262,8 @@ class Trainer:
 
         dataset = data_builder()
         dataset.build_bucket(bs=batch_size, world_size=self.world_size)
+        if isinstance(dataset, CacheableDataset):
+            dataset.build_cache(self.model_wrapper)
         self.loggers.info(f"len(dataset): {len(dataset)}")
 
         return dataset, batch_size
@@ -490,7 +490,7 @@ def neko_train():
                     "rainbowneko.train.trainer.trainer_ac"] + train_args, check=True)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Stable Diffusion Training")
+    parser = argparse.ArgumentParser(description="RainbowNeko Trainer")
     parser.add_argument("--cfg", type=str, default=None, required=True)
     args, cfg_args = parser.parse_known_args()
 

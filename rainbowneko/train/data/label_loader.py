@@ -1,20 +1,23 @@
 import glob
 import json
 import os
+from pathlib import Path
 from typing import Dict
 
 import yaml
-from rainbowneko.utils.img_size_tool import types_support
 from loguru import logger
+from rainbowneko.utils.img_size_tool import types_support
+
 
 class BaseLabelLoader:
-    def __init__(self, path):
-        self.path = path
+    def __init__(self, path: str):
+        self.path = Path(path)
 
     def _load(self):
         raise NotImplementedError
 
     def load(self):
+        ''' {image.ext: label} '''
         retval = self._load()
         logger.info(f'{len(retval)} record(s) loaded with {self.__class__.__name__}, from path {self.path!r}')
         return retval
@@ -25,30 +28,45 @@ class BaseLabelLoader:
 
         def rm_ext(path):
             name, ext = os.path.splitext(path)
-            if len(ext)>0 and ext[1:] in types_support:
+            if len(ext) > 0 and ext[1:] in types_support:
                 return name
             return path
 
-        return {rm_ext(k):v for k, v in captions.items()}
+        return {rm_ext(k): v for k, v in captions.items()}
+
 
 class JsonLabelLoader(BaseLabelLoader):
     def _load(self):
         with open(self.path, 'r', encoding='utf-8') as f:
             return json.loads(f.read())
 
+
 class YamlLabelLoader(BaseLabelLoader):
     def _load(self):
         with open(self.path, 'r', encoding='utf-8') as f:
             return yaml.load(f.read(), Loader=yaml.FullLoader)
 
+
 class TXTLabelLoader(BaseLabelLoader):
     def _load(self):
-        txt_files = glob.glob(os.path.join(self.path, '*.txt'))
+        # get all txt files and their related images
+        img_map = {}
+        txt_list = []
+        for file in self.path.iterdir():
+            file: Path
+            if file.is_file():
+                if file.suffix == '.txt':
+                    txt_list.append(file)
+                else:
+                    img_map[file.stem] = file.name
+
+        # load captions
         captions = {}
-        for file in txt_files:
-            with open(file, 'r', encoding='utf-8') as f:
-                captions[os.path.basename(file)] = f.read().strip()
+        for txt in txt_list:
+            with open(txt, 'r', encoding='utf-8') as f:
+                captions[img_map[txt.stem]] = f.read().strip()
         return captions
+
 
 def auto_label_loader(path):
     if os.path.isdir(path):

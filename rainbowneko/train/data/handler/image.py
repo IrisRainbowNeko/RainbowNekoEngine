@@ -1,26 +1,30 @@
-from .base import DataHandler
-from typing import Dict, Any
 import os
-from PIL import Image
-import numpy as np
-import cv2
+from typing import Dict, Any
+
 import albumentations as A
+import cv2
+import numpy as np
+import torch
+from PIL import Image
+
+from .base import DataHandler
 from ..utils import resize_crop_fix, pad_crop_fix
 
+
 class LoadImageHandler(DataHandler):
-    def __init__(self, bg_color=(255, 255, 255), key_map_in=('image -> image',), key_map_out=('image -> image',)):
+    def __init__(self, bg_color=(255, 255, 255), mode='RGB', key_map_in=('image -> image',), key_map_out=('image -> image',)):
         super().__init__(key_map_in, key_map_out)
         self.bg_color = bg_color
+        self.mode = mode
 
-    def load_image(self, path) -> Dict[str, Any]:
-        path = os.path.join(path)
+    def load_image(self, path) -> Image.Image:
         image = Image.open(path)
         if image.mode == 'RGBA':
             x, y = image.size
             canvas = Image.new('RGBA', image.size, self.bg_color)
             canvas.paste(image, (0, 0, x, y), image)
             image = canvas
-        return image.convert("RGB")
+        return image.convert(self.mode)
 
     def handle(self, image):
         if isinstance(image, str):
@@ -95,6 +99,7 @@ class AutoSizeHandler(DataHandler):
             image = image['image']
         else:
             raise NotImplementedError(f'mode {self.mode} not supported')
+        coord = torch.tensor(coord, dtype=torch.float)
         return {'image': image, 'coord': coord}
 
 

@@ -7,6 +7,13 @@ from torch.optim import lr_scheduler
 
 from .lr_scheduler import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 
+try:
+    import xformers
+
+    xformers_available = True
+except:
+    xformers_available = False
+
 
 def get_scheduler(cfg, optimizer, num_training_steps):
     if cfg is None:

@@ -5,6 +5,8 @@ from rainbowneko.utils import KeyMapper, is_dict, is_list
 
 
 class BaseWrapper(nn.Module):
+    def post_init(self):
+        pass
 
     @property
     def trainable_models(self) -> Dict[str, nn.Module]:

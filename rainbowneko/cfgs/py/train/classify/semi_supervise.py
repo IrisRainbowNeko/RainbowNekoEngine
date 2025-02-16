@@ -114,7 +114,7 @@ def make_cfg():
                         img_root=r'E:\dataset\k40\k40'
                     ),
                 ),
-                handler=HandlerGroup(handlers=dict(
+                handler=HandlerGroup(
                     strong=HandlerChain(
                         load=LoadImageHandler(),
                         image=ImageHandler(transform=create_transform(
@@ -139,7 +139,7 @@ def make_cfg():
                             T.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD)
                         ])
                         ), key_map_out=('image -> image_weak',)),
-                )),
+                ),
                 bucket=FixedBucket(target_size=224),
             )
         ),

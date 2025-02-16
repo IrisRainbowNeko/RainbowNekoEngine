@@ -3,7 +3,9 @@ import math
 import os
 import random
 import re
-from typing import Tuple, List, Any, Dict
+from typing import Tuple, List, Any, Dict, Union
+from pathlib import Path
+from .img_size_tool import types_support
 
 import torch
 from omegaconf import OmegaConf
@@ -66,17 +68,8 @@ def make_mask(start, end, length):
     mask[int(length * start):int(length * end)] = 1
     return mask.bool()
 
-
-def get_file_name(file: str):
-    return file.rsplit('.', 1)[0]
-
-
-def get_file_ext(file: str):
-    try:
-        return file.rsplit('.', 1)[1].lower()
-    except:
-        return ''
-
+def is_image_file(file: Union[str, Path]):
+    return Path(file).suffix[1:].lower() in types_support
 
 def factorization(dimension: int, factor: int = -1) -> Tuple[int, int]:
     find_one = lambda x: len(x) - (x.rfind('1') + 1)
