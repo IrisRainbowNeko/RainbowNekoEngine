@@ -22,6 +22,12 @@ class TrainerSingleCard(Trainer):
     def model_raw(self):
         return self.model_wrapper
 
+    def boardcast_main(self, data):
+        return data
+
+    def all_gather(self, data):
+        return [data]
+
 def neko_train():
     import subprocess
     parser = argparse.ArgumentParser(description='RainbowNeko Launcher')
