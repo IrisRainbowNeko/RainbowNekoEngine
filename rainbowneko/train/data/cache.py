@@ -1,4 +1,4 @@
-from typing import Dict, Union, List
+from typing import Dict, Union, List, Callable
 
 import torch
 from rainbowneko.utils import Path_Like
@@ -28,7 +28,7 @@ class DataCache:
     def on_batch(self, batch):
         return batch
 
-    def build(self, dataset, model):
+    def build(self, dataset, model, all_gather: Callable):
         self.cache.clear()
 
     def load(self, path):
@@ -84,6 +84,6 @@ class CacheableDataset(BaseDataset):
     def build_bucket(self, bs, world_size):
         self.bucket.build(bs=bs, world_size=world_size, source=self.source)
 
-    def build_cache(self, model):
+    def build_cache(self, model, all_gather: Callable):
         if self.cache is not None:
-            self.cache.build(self, model)
+            self.cache.build(self, model, all_gather)

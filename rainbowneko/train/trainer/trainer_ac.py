@@ -21,6 +21,7 @@ import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 from typing import List
+import torch.distributed as dist
 
 from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
 from rainbowneko.models.wrapper import BaseWrapper
@@ -257,6 +258,16 @@ class Trainer:
         else:
             return x
 
+    def boardcast_main(self, data):
+        obj = [data]
+        dist.broadcast_object_list(obj, src=0)
+        return obj[0]
+
+    def all_gather(self, data):
+        gathered_objects = [None for _ in range(self.world_size)]
+        dist.all_gather_object(gathered_objects, data)
+        return gathered_objects
+
     def build_dataset(self, data_builder: partial):
         batch_size = data_builder.keywords.pop("batch_size")
         self.batch_size_list.append(batch_size)
@@ -264,7 +275,7 @@ class Trainer:
         dataset = data_builder()
         dataset.build_bucket(bs=batch_size, world_size=self.world_size)
         if isinstance(dataset, CacheableDataset):
-            dataset.build_cache(self.model_wrapper)
+            dataset.build_cache(self.model_wrapper, self.all_gather)
         self.loggers.info(f"len(dataset): {len(dataset)}")
 
         return dataset, batch_size
