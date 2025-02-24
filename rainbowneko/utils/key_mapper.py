@@ -8,7 +8,9 @@ class KeyMapper:
     cls_map = {0: 'pred.pred', 1: 'inputs.label'} # 'pred.pred -> 0', 'inputs.label -> 1'
     image_map = {0: 'pred.pred', 1: 'inputs.target_image'}
 
-    def __init__(self, host=None, key_map: Union[Iterable[str], Dict[Any, str]] = None):
+    def __init__(self, host=None, key_map: Union[Iterable[str], Dict[Any, str], "KeyMapper"] = None, skip_missing=True):
+        self.skip_missing = skip_missing
+
         if key_map is None:
             if host is None:
                 self.key_map = None
@@ -17,6 +19,9 @@ class KeyMapper:
                     self.key_map = self.parse_key_map(host._key_map)
                 else:
                     self.key_map = self.cls_map
+        elif isinstance(key_map, KeyMapper):
+            self.key_map = key_map.key_map
+            self.skip_missing = key_map.skip_missing
         else:
             self.key_map = self.parse_key_map(key_map)
 
@@ -90,8 +95,17 @@ class KeyMapper:
 
         data = ADict({'args':{}, 'kwargs':{}})
         for k_dst, k_src in self.key_map.items():
-            v = self.get_value(src, k_src)
-            self.set_value(v, k_dst, data)
+            if self.skip_missing:
+                try:
+                    v = self.get_value(src, k_src)
+                    self.set_value(v, k_dst, data)
+                except KeyError:
+                    pass
+                except IndexError:
+                    pass
+            else:
+                v = self.get_value(src, k_src)
+                self.set_value(v, k_dst, data)
         data = dict_parse_list(data.to_dict())
         args, kwargs = data['args'], data['kwargs']
 
@@ -101,11 +115,14 @@ class KeyMapper:
         return self.map_data(src)
 
 if __name__ == '__main__':
-    # mapper = KeyMapper(key_map=['image -> input', 'target.label -> 0'])
-    # data = {'image': 'image_data', 'target': {'label': 'label_data'}}
-
     mapper = KeyMapper(key_map=['0 -> input', '1 -> target.label'])
     data = ('t1', 't2')
+
+    args, kwargs = mapper.map_data(data)
+    print(args, kwargs)
+
+    mapper = KeyMapper(key_map=['image -> input', 'target.label -> 0', 'target.image -> 1'])
+    data = {'image': 'image_data', 'target': {'label': 'label_data'}}
 
     args, kwargs = mapper.map_data(data)
     print(args, kwargs)
