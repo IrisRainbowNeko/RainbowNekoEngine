@@ -199,8 +199,9 @@ class Trainer:
             self.criterion = criterion.to(self.device)
 
     def build_ckpt_manager(self):
-        self.ckpt_manager: List[CkptManagerBase] = self.cfgs.ckpt_manager
-        self.ckpt_dir = os.path.join(self.exp_dir, "ckpts")
+        if self.is_local_main_process:
+            self.ckpt_manager: List[CkptManagerBase] = self.cfgs.ckpt_manager
+            self.ckpt_dir = os.path.join(self.exp_dir, "ckpts")
 
     def build_evaluator(self, cfgs_eval):
         def build_one(cfgs_eval_one):
