@@ -52,7 +52,7 @@ def _resolve_target(
 _instantiate2._resolve_target = _resolve_target
 ####### patch hydra resolve target #######
 
-from .model import CfgModelParser, CustomModelParser, CfgWDModelParser
+from .model import CfgModelParser, CustomModelParser, CfgWDModelParser, CfgPluginParser, CfgWDPluginParser
 from .python_cfg import PythonCfgParser
 from .yaml_cfg import YamlCfgParser
 
