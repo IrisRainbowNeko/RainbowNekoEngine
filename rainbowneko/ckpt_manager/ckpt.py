@@ -32,21 +32,22 @@ class CkptManager(CkptManagerBase):
                 BasePluginBlock.extract_state_without_plugin(block, trainable=item['trainable']), exclude_key
             ))
 
-        sd_model = {"base": sd_base}
-        if model_ema is not None:
-            sd_ema = model_ema.state_dict()
-            sd_ema = {k: sd_ema[k] for k in sd_model["base"].keys()}
-            sd_model["base_ema"] = self.exclude_state(sd_ema, exclude_key)
-        self.source.put(f"{name}.{self.format.EXT}", sd_model, self.format, prefix=prefix)
+        if len(sd_base)>0:
+            sd_model = {"base": sd_base}
+            if model_ema is not None:
+                sd_ema = model_ema.state_dict()
+                sd_ema = {k: sd_ema[k] for k in sd_model["base"].keys()}
+                sd_model["base_ema"] = self.exclude_state(sd_ema, exclude_key)
+            self.source.put(f"{name}.{self.format.EXT}", sd_model, self.format, prefix=prefix)
 
-    def save_plugins(self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, step: int, model_ema=None):
+    def save_plugins(self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, prefix=None, model_ema=None):
         if len(plugins) > 0:
             sd_plugin = {}
             for plugin_name, plugin in plugins.items():
                 sd_plugin["plugin"] = plugin.state_dict(host_model if self.plugin_from_raw else None)
                 if model_ema is not None:
                     sd_plugin["plugin_ema"] = plugin.state_dict(model_ema)
-                self.source.put(f"{name}-{plugin_name}-{step}.{self.format.EXT}", sd_plugin, self.format)
+                self.source.put(f"{name}-{plugin_name}.{self.format.EXT}", sd_plugin, self.format, prefix=prefix)
 
     def load(self, name, ext=None, **kwargs):
         return self.source.get(name, self.format, **kwargs)

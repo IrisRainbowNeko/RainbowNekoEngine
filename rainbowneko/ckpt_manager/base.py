@@ -25,8 +25,11 @@ class CkptManagerBase:
     def load(cls, model_f, **kwargs):
         raise NotImplementedError
 
-    def save_plugins(self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, step: int, model_ema=None):
+    def save_plugins(self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, prefix=None, model_ema=None):
         raise NotImplementedError
+    
+    def save_plugins_step(self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, step: int, prefix=None, model_ema=None):
+        self.save_plugins(host_model, plugins, f"{name}-{step}", prefix, model_ema)
 
     def __repr__(self):
         return f"{self.__class__.__name__}(format={self.format}, source={self.source})"

@@ -131,7 +131,6 @@ class CfgPluginParser:
 
         for plugin_name, builder in self.cfg_plugin.items():
             builder: functools.partial
-            all_plugin_blocks = {}
 
             lr = builder.keywords.pop("lr") if "lr" in builder.keywords else self.lr
             train_plugin = builder.keywords.pop("train") if "train" in builder.keywords else True
@@ -150,7 +149,7 @@ class CfgPluginParser:
 
             if train_plugin:
                 train_params.append({"params": params_list, "lr": lr})
-            all_plugin_group[plugin_name] = PluginGroup(all_plugin_blocks)
+            all_plugin_group[plugin_name] = PluginGroup(blocks)
         return train_params, all_plugin_group
 
 class CfgWDPluginParser(CfgPluginParser):
@@ -165,7 +164,6 @@ class CfgWDPluginParser(CfgPluginParser):
 
         for plugin_name, builder in self.cfg_plugin.items():
             builder: functools.partial
-            all_plugin_blocks = {}
 
             lr = builder.keywords.pop("lr") if "lr" in builder.keywords else self.lr
             weight_decay = builder.keywords.pop("weight_decay") if "weight_decay" in builder.keywords else self.weight_decay
@@ -189,7 +187,7 @@ class CfgWDPluginParser(CfgPluginParser):
                     train_params.append({"params": params_nowd, "lr": lr, "weight_decay": 0})
                 if len(params_wd) > 0:
                     train_params.append({"params": params_wd, "lr": lr, "weight_decay": weight_decay})
-            all_plugin_group[plugin_name] = PluginGroup(all_plugin_blocks)
+            all_plugin_group[plugin_name] = PluginGroup(blocks)
         return train_params, all_plugin_group
 
     def get_wd(self, blocks: Dict[str, nn.Module], params_list: List[nn.Parameter]):

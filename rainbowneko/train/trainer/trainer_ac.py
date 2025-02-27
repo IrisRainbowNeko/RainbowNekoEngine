@@ -264,8 +264,10 @@ class Trainer:
         return obj[0]
 
     def all_gather(self, data):
+        if not hasattr(self, 'gloo_group'): # Transfer data on cpu
+            self.gloo_group = dist.new_group(backend='gloo')
         gathered_objects = [None for _ in range(self.world_size)]
-        dist.all_gather_object(gathered_objects, data)
+        dist.all_gather_object(gathered_objects, data, group=self.gloo_group)
         return gathered_objects
 
     def build_dataset(self, data_builder: partial):
@@ -473,11 +475,12 @@ class Trainer:
                 model_ema=getattr(self, "ema_model", None),
             )
             try:
-                manager.save_plugins(
+                manager.save_plugins_step(
                     self.model_raw,
                     self.all_plugin,
                     name=self.cfgs.model.name,
                     step=self.real_step,
+                    prefix=self.ckpt_dir,
                     model_ema=getattr(self, "ema_model", None),
                 )
             except:
