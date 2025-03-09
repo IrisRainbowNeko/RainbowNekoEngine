@@ -6,11 +6,11 @@ class LossContainer(nn.Module):
         super().__init__()
         self.key_mapper = KeyMapper(loss, key_map)
         self.loss = loss
-        self.alpha = weight
+        self.weight = weight
 
     def forward(self, pred, inputs):
         args, kwargs = self.key_mapper(pred=pred, inputs=inputs)
-        return self.loss(*args, **kwargs) * self.alpha
+        return self.loss(*args, **kwargs) * self.weight
 
 class LossGroup(nn.Module):
     def __init__(self, loss_list):

@@ -1,8 +1,9 @@
+from functools import partial
 from typing import List
 
+from omegaconf import OmegaConf
 from rainbowneko.utils import KeyMapper
 from tqdm.auto import tqdm
-from functools import partial
 
 
 class BasicAction:
@@ -17,14 +18,16 @@ class BasicAction:
         output = self.forward(**inputs)
         if output is not None:
             _, output = self.key_mapper_out.map_data(output)
+            output = OmegaConf.create(output)
             if self.feedback_input:
-                states.update(output)
+                states = OmegaConf.merge(states, output)
             else:
                 return output
-        return states
+        return OmegaConf.create(states)
 
     def forward(self, **states):
         raise NotImplementedError()
+
 
 class FromMemory:
     def __init__(self, action: partial[BasicAction], key_map_in=None):
@@ -37,8 +40,10 @@ class FromMemory:
 
         return action(**states)
 
+
 class Actions(BasicAction):
     feedback_input = False
+
     def __init__(self, actions: List[BasicAction], key_map_in=None, key_map_out=None):
         super().__init__(key_map_in=key_map_in, key_map_out=key_map_out)
         self.actions = actions
@@ -49,8 +54,9 @@ class Actions(BasicAction):
         for step, act in enumerate(pbar):
             pbar.set_description(f'[{step + 1}/{N_steps}] action: {type(act).__name__}')
             states = act(**states)
-            #print(f'states: {", ".join(states.keys())}')
+            # print(f'states: {", ".join(states.keys())}')
         return states
+
 
 class LoopAction(BasicAction):
     feedback_input = False
@@ -90,6 +96,7 @@ class IterAction(BasicAction):
                 pbar.set_description(f'[{step + 1}/{N_steps}] action: {type(act).__name__}')
                 states = act(**states)
         return states
+
 
 class LambdaAction(BasicAction):
     def __init__(self, f_act, key_map_in=None, key_map_out=None):

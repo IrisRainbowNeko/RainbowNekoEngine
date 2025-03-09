@@ -44,5 +44,5 @@ class ModelManager(CkptManagerBase):
                     sd_plugin["plugin_ema"] = plugin.from_model(model_ema.model)
                 self.source.put(f"{name}-{plugin_name}-{step}.{self.format.EXT}", sd_plugin, self.format)
 
-    def load(self, name, ext=None, **kwargs):
+    def load(self, name, ext=None, **kwargs) -> nn.Module:
         return self.source.get(name, self.format, **kwargs)

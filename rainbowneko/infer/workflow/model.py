@@ -1,6 +1,7 @@
 from typing import Dict, Any, Callable
 
 import torch
+from rainbowneko.parser.model import CfgPluginParser
 
 from .base import BasicAction
 
@@ -24,6 +25,17 @@ class BuildModelAction(BasicAction):
         model = self.model_builder().to(device)
         model.eval()
         return {'model': model}
+
+
+class BuildPluginAction(BasicAction):
+    def __init__(self, parser: CfgPluginParser, key_map_in=None, key_map_out=None):
+        super().__init__(key_map_in=key_map_in, key_map_out=key_map_out)
+        self.parser = parser
+
+    def forward(self, model, device, **states):
+        train_params, all_plugin_group = self.parser.get_params_group(model)
+        model.eval()
+        return {'all_plugin_group': all_plugin_group}
 
 
 class ForwardAction(BasicAction):

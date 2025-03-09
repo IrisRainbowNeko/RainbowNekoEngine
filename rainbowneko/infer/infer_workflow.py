@@ -2,8 +2,11 @@ import argparse
 
 import hydra
 import torch
+from omegaconf import OmegaConf
 from rainbowneko.parser import load_config_with_cli
+
 from .workflow import BasicAction
+
 
 class WorkflowRunner:
     def __init__(self, parser, cfgs):
@@ -16,9 +19,10 @@ class WorkflowRunner:
     @torch.inference_mode()
     def run(self, states=None):
         if states is None:
-            states = dict()
+            states = OmegaConf.create()
         states = self.actions(**states)
         return states
+
 
 def run_workflow():
     parser = argparse.ArgumentParser(description='RainbowNeko Workflow Launcher')
