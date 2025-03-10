@@ -2,7 +2,7 @@ import argparse
 
 import hydra
 import torch
-from omegaconf import OmegaConf
+from addict import Dict as ADict
 from rainbowneko.parser import load_config_with_cli
 
 from .workflow import BasicAction
@@ -19,7 +19,7 @@ class WorkflowRunner:
     @torch.inference_mode()
     def run(self, states=None):
         if states is None:
-            states = OmegaConf.create()
+            states = ADict()
         states = self.actions(**states)
         return states
 

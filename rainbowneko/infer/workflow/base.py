@@ -1,7 +1,7 @@
 from functools import partial
 from typing import List
 
-from omegaconf import OmegaConf
+from addict import Dict as ADict
 from rainbowneko.utils import KeyMapper
 from tqdm.auto import tqdm
 
@@ -14,16 +14,17 @@ class BasicAction:
         self.key_mapper_out = KeyMapper(key_map=key_map_out)
 
     def __call__(self, **states):
+        states = ADict(states)
         _, inputs = self.key_mapper_in.map_data(states)
         output = self.forward(**inputs)
         if output is not None:
             _, output = self.key_mapper_out.map_data(output)
-            output = OmegaConf.create(output)
+            output = ADict(output)
             if self.feedback_input:
-                states = OmegaConf.merge(states, output)
+                states.update(output)
             else:
                 return output
-        return OmegaConf.create(states)
+        return states
 
     def forward(self, **states):
         raise NotImplementedError()
