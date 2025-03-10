@@ -18,13 +18,14 @@ class NekoLoader:
 
 
 class NekoModelLoader(NekoLoader):
-    def __init__(self, path: str, ckpt_manager: CkptManagerBase = None, layers='all', module_to_load='', resolver=None,
-                 base_model_alpha=0.0, alpha=1.0, load_ema=False):
+    def __init__(self, path: str, ckpt_manager: CkptManagerBase = None, layers='all', module_to_load='', state_prefix=None,
+                 resolver=None, base_model_alpha=0.0, alpha=1.0, load_ema=False):
         self.path = path
         self.resolver = resolver
         self.ckpt_manager = ckpt_manager or auto_manager(path)
         self.layers = layers
         self.module_to_load = module_to_load
+        self.state_prefix = state_prefix
         self.base_model_alpha = base_model_alpha
         self.alpha = alpha
         self.load_ema = load_ema
@@ -40,6 +41,10 @@ class NekoModelLoader(NekoLoader):
         else:
             part_state = self.resolver(model, self.path, self.ckpt_manager)
 
+        if self.state_prefix:
+            state_prefix_len = len(self.state_prefix)
+            part_state = {k[state_prefix_len:]: v for k, v in part_state.items() if k.startswith(self.state_prefix)}
+
         if self.layers == 'all':
             for k, v in part_state.items():
                 named_params[k].data = self.base_model_alpha * named_params[k].data + self.alpha * v
@@ -50,13 +55,14 @@ class NekoModelLoader(NekoLoader):
                 named_params[k].data = self.base_model_alpha * named_params[k].data + self.alpha * v
 
 class NekoPluginLoader(NekoLoader):
-    def __init__(self, path: str, ckpt_manager: CkptManagerBase = None, layers='all', module_to_load='', resolver=None,
-                 base_model_alpha=0.0, load_ema=False, **plugin_kwargs):
+    def __init__(self, path: str, ckpt_manager: CkptManagerBase = None, layers='all', module_to_load='', state_prefix=None,
+                 resolver=None, base_model_alpha=0.0, load_ema=False, **plugin_kwargs):
         self.path = path
         self.resolver = resolver
         self.ckpt_manager = ckpt_manager or auto_manager(path)
         self.layers = layers
         self.module_to_load = module_to_load
+        self.state_prefix = state_prefix
         self.base_model_alpha = base_model_alpha
         self.load_ema = load_ema
 
@@ -71,6 +77,10 @@ class NekoPluginLoader(NekoLoader):
             plugin_state = self.ckpt_manager.load(self.path, map_location='cpu')['plugin_ema' if self.load_ema else 'plugin']
         else:
             plugin_state = self.resolver(model, self.path, self.ckpt_manager)
+
+        if self.state_prefix:
+            state_prefix_len = len(self.state_prefix)
+            plugin_state = {k[state_prefix_len:]: v for k, v in plugin_state.items() if k.startswith(self.state_prefix)}
 
         # filter layers to load
         if self.layers != 'all':
