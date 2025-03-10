@@ -93,16 +93,16 @@ class NekoPluginLoader(NekoLoader):
             prefix, block_name = pname.split('.___.', 1)
             plugin_block_state.setdefault(f'{prefix}.{name}', {})[block_name] = p
 
-        # set plugin hyper params or build plugin
-        if hasattr(model, name):  # MultiPluginBlock
-            getattr(model, name).set_hyper_params(**self.plugin_kwargs)
-        else:
-            for plugin_key in plugin_block_state.keys():
-                named_modules[plugin_key].set_hyper_params(**self.plugin_kwargs)
-
         # Load state to plugin
         plugin_state = {k.replace('___', name): v for k, v in
                         plugin_state.items()}  # replace placeholder to target plugin name
         load_info = model.load_state_dict(plugin_state, strict=False)
         if len(load_info.unexpected_keys) > 0:
             print(name, 'unexpected_keys', load_info.unexpected_keys)
+
+        # set plugin hyper params or build plugin
+        if hasattr(model, name):  # MultiPluginBlock
+            getattr(model, name).set_hyper_params(**self.plugin_kwargs)
+        else:
+            for plugin_key in plugin_block_state.keys():
+                named_modules[plugin_key].set_hyper_params(**self.plugin_kwargs)
