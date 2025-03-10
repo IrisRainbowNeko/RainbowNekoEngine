@@ -10,6 +10,7 @@ from .workflow import BasicAction
 
 class WorkflowRunner:
     def __init__(self, parser, cfgs):
+        self.cfgs_raw = cfgs
         cfgs = hydra.utils.instantiate(cfgs)
         self.cfgs = cfgs
         self.parser = parser
@@ -19,7 +20,7 @@ class WorkflowRunner:
     @torch.inference_mode()
     def run(self, states=None):
         if states is None:
-            states = ADict(cfgs=self.cfgs)
+            states = ADict(cfgs=self.cfgs_raw, parser=self.parser)
         states = self.actions(**states)
         return states
 
