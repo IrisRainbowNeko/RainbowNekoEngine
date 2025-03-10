@@ -19,7 +19,7 @@ class WorkflowRunner:
     @torch.inference_mode()
     def run(self, states=None):
         if states is None:
-            states = ADict()
+            states = ADict(cfgs=self.cfgs)
         states = self.actions(**states)
         return states
 
