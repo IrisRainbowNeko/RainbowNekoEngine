@@ -8,9 +8,9 @@ from copy import deepcopy
 class ModelEMA:
     def __init__(self, model: nn.Module, decay_max=0.997, decay_factor=(1, 5),
                  optimization_step=0, interval=1):
-        self.train_params = {name: p.clone().detach() for name, p in model.state_dict().items()}
-        self.model = deepcopy(model)
-        model.load_state_dict(self.train_params)
+        with torch.no_grad():
+            self.model = deepcopy(model)
+            self.train_params = {name: p for name, p in model.state_dict().items()}
 
         self.decay_max = decay_max
         self.decay_factor = decay_factor
