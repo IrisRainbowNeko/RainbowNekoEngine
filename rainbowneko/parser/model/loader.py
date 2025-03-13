@@ -19,9 +19,8 @@ class NekoLoader:
 
 class NekoModelLoader(NekoLoader):
     def __init__(self, path: str, ckpt_manager: CkptManagerBase = None, layers='all', module_to_load='', state_prefix=None,
-                 resolver=None, base_model_alpha=0.0, alpha=1.0, load_ema=False):
+                 base_model_alpha=0.0, alpha=1.0, load_ema=False):
         self.path = path
-        self.resolver = resolver
         self.ckpt_manager = ckpt_manager or auto_manager(path)
         self.layers = layers
         self.module_to_load = module_to_load
@@ -36,10 +35,7 @@ class NekoModelLoader(NekoLoader):
         named_params = {k: v for k, v in model.named_parameters()}
         named_params.update({k: v for k, v in model.named_buffers()})
 
-        if self.resolver is None:
-            part_state = self.ckpt_manager.load(self.path, map_location='cpu')['base_ema' if self.load_ema else 'base']
-        else:
-            part_state = self.resolver(model, self.path, self.ckpt_manager, self.load_ema)
+        part_state = self.ckpt_manager.load(self.path, map_location='cpu')['base_ema' if self.load_ema else 'base']
 
         if self.state_prefix:
             state_prefix_len = len(self.state_prefix)
@@ -56,9 +52,8 @@ class NekoModelLoader(NekoLoader):
 
 class NekoPluginLoader(NekoLoader):
     def __init__(self, path: str, ckpt_manager: CkptManagerBase = None, layers='all', module_to_load='', state_prefix=None,
-                 resolver=None, base_model_alpha=0.0, load_ema=False, **plugin_kwargs):
+                 base_model_alpha=0.0, load_ema=False, **plugin_kwargs):
         self.path = path
-        self.resolver = resolver
         self.ckpt_manager = ckpt_manager or auto_manager(path)
         self.layers = layers
         self.module_to_load = module_to_load
@@ -71,12 +66,9 @@ class NekoPluginLoader(NekoLoader):
     def load_to(self, name, model):
         # get model to load plugin and its named_modules
         model = model if self.module_to_load == '' else eval(f"model.{self.module_to_load}")
-
-        if self.resolver is None:
-            plugin_state = self.ckpt_manager.load(self.path, map_location='cpu')['plugin_ema' if self.load_ema else 'plugin']
-        else:
-            plugin_state = self.resolver(name, model, self.path, self.ckpt_manager, self.load_ema)
         named_modules = {k: v for k, v in model.named_modules()}
+
+        plugin_state = self.ckpt_manager.load(self.path, map_location='cpu')['plugin_ema' if self.load_ema else 'plugin']
 
         if self.state_prefix:
             state_prefix_len = len(self.state_prefix)
