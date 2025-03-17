@@ -11,18 +11,19 @@
 ```
 
 比如常见的图像处理:
-```python
-from rainbowneko.train.data.handler import HandlerChain, ImageHandler, LoadImageHandler
 
-handler=HandlerChain(
+```python
+from rainbowneko.data.handler import HandlerChain, ImageHandler, LoadImageHandler
+
+handler = HandlerChain(
     load=LoadImageHandler(),
-    bucket=FixedBucket.handler, # bucket 会自带一些处理模块
+    bucket=FixedBucket.handler,  # bucket 会自带一些处理模块
     image=ImageHandler(transform=T.Compose([
-            T.RandomCrop(size=32, padding=4),
-            T.RandomHorizontalFlip(),
-            T.ToTensor(),
-            T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
-        ]),
+        T.RandomCrop(size=32, padding=4),
+        T.RandomHorizontalFlip(),
+        T.ToTensor(),
+        T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
+    ]),
     )
 ),
 ```
@@ -38,10 +39,11 @@ handler=HandlerChain(
 ```
 
 比如读取图像进行不同的处理，放入不同的变量中:
-```python
-from rainbowneko.train.data.handler import HandlerGroup, HandlerChain, ImageHandler, LoadImageHandler
 
-handler=HandlerChain(
+```python
+from rainbowneko.data.handler import HandlerGroup, HandlerChain, ImageHandler, LoadImageHandler
+
+handler = HandlerChain(
     load=LoadImageHandler(),
     image=HandlerGroup(
         weak=ImageHandler(..., key_map_out=('image -> image_weak',)),
@@ -52,8 +54,9 @@ handler=HandlerChain(
 
 ## 随机种子同步处理
 在某些场景中，会需要多个处理模块使用相同的随机种子。比如图像超分任务，LR和HR图像要经过相同的随机剪裁。这种时候可以使用`SyncHandler`:
+
 ```python
-from rainbowneko.train.data.handler import SyncHandler, ImageHandler
+from rainbowneko.data.handler import SyncHandler, ImageHandler
 
 SyncHandler(
     LR=ImageHandler(...),

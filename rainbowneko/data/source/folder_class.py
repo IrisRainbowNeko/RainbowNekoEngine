@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Dict, Union
 
-from rainbowneko.train.data.label_loader import BaseLabelLoader
+from rainbowneko.data.label_loader import BaseLabelLoader
 from rainbowneko.utils import Path_Like
 
 from .img_label import ImageLabelSource

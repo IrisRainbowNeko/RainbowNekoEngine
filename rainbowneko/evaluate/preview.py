@@ -4,7 +4,7 @@ import torch
 from tqdm.auto import tqdm
 
 from rainbowneko.models.wrapper import BaseWrapper
-from rainbowneko.train.data import DataGroup
+from rainbowneko.data import DataGroup
 from .evaluator import Evaluator
 from .renderer import Renderer
 

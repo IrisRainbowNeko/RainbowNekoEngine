@@ -4,9 +4,9 @@ from typing import Union
 import torch
 from tqdm import tqdm
 
-from rainbowneko.train.data import CacheableDataset, BaseDataset
-from rainbowneko.train.data import get_sampler
-from rainbowneko.train.data.handler import DataHandler
+from rainbowneko.data import CacheableDataset, BaseDataset
+from rainbowneko.data import get_sampler
+from rainbowneko.data.handler import DataHandler
 from .base import BasicAction
 
 

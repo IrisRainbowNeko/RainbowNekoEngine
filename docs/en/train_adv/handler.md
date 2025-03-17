@@ -11,18 +11,19 @@ The `HandlerChain` allows you to sequentially combine multiple data processing m
 ```
 
 For example, common image processing:
+
 ```python
-from rainbowneko.train.data.handler import HandlerChain, ImageHandler, LoadImageHandler
+from rainbowneko.data.handler import HandlerChain, ImageHandler, LoadImageHandler
 
 handler = HandlerChain(
     load=LoadImageHandler(),
     bucket=FixedBucket.handler,  # The bucket includes some built-in processing modules
     image=ImageHandler(transform=T.Compose([
-            T.RandomCrop(size=32, padding=4),
-            T.RandomHorizontalFlip(),
-            T.ToTensor(),
-            T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
-        ]),
+        T.RandomCrop(size=32, padding=4),
+        T.RandomHorizontalFlip(),
+        T.ToTensor(),
+        T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
+    ]),
     )
 ),
 ```
@@ -38,8 +39,9 @@ The `HandlerChain` also allows for parallel combination of multiple data process
 ```
 
 For instance, reading an image and applying different processing steps to store results in separate variables:
+
 ```python
-from rainbowneko.train.data.handler import HandlerGroup, HandlerChain, ImageHandler, LoadImageHandler
+from rainbowneko.data.handler import HandlerGroup, HandlerChain, ImageHandler, LoadImageHandler
 
 handler = HandlerChain(
     load=LoadImageHandler(),
@@ -55,7 +57,7 @@ handler = HandlerChain(
 In certain scenarios, multiple processing modules may need to use the same random seed. For example, in super-resolution tasks where both low-resolution (LR) and high-resolution (HR) images require identical random cropping. In such cases, you can use `SyncHandler`:
 
 ```python
-from rainbowneko.train.data.handler import SyncHandler, ImageHandler
+from rainbowneko.data.handler import SyncHandler, ImageHandler
 
 SyncHandler(
     LR=ImageHandler(...),

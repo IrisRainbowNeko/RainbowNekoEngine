@@ -1,5 +1,4 @@
 from .base import BasicAction
-from rainbowneko.train.data.handler import DataHandler
 import torch
 from typing import List
 

@@ -198,7 +198,7 @@ In most common scenarios, you only need to modify the transform section within I
 The `BaseDataset` supports adding batch handlers for operations like MixUP that require processing at the batch level. For instance:
 
 ```python
-from rainbowneko.train.data.handler import MixUPHandler
+from rainbowneko.data.handler import MixUPHandler
 
 dataset1 = BaseDataset(
     batch_handler=HandlerChain(
@@ -214,31 +214,31 @@ dataset1 = BaseDataset(
 Buckets are defined via the `bucket` field and are used for grouping datasets so that all images in a batch have consistent sizes.
 
 + If all your training images have identical sizes or cropping is not critical: use `FixedBucket`. It scales all images by their shorter side and crops them to a fixed size.
-  
+
 ```python
-from rainbowneko.train.data import FixedBucket
-  
-bucket = FixedBucket(target_size=32) # Resizes to dimensions of size (32x32).
+from rainbowneko.data import FixedBucket
+
+bucket = FixedBucket(target_size=32)  # Resizes to dimensions of size (32x32).
 ```
 
 + For tasks sensitive to cropping but not scaling: use `RatioBucket`. It clusters images into buckets based on aspect ratios while minimizing cropping.
 
 ```python
-from rainbowneko.train.data import RatioBucket
-  
+from rainbowneko.data import RatioBucket
+
 bucket = RatioBucket.from_files(
-      target_area =512*512,
-      step_size =8,
-      num_bucket =10,
+    target_area=512 * 512,
+    step_size=8,
+    num_bucket=10,
 )
 ```
 
 + For tasks sensitive to both scaling and cropping: use `SizeBucket`. It clusters based on resolution similarity instead of aspect ratio.
 
 ```python
-from rainbowneko.train.data import SizeBucket
-  
-bucket = SizeBucket.from_files(step_size =8,num_bucket =10,)
+from rainbowneko.data import SizeBucket
+
+bucket = SizeBucket.from_files(step_size=8, num_bucket=10, )
 ```
 
 ---

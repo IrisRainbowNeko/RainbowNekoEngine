@@ -195,10 +195,11 @@ handler=HandlerChain(
 #### batch处理器
 
 `BaseDataset`支持添加batch处理器，针对如MixUP等需要以batch为单位进行处理的操作。比如添加MixUP操作，对图片和标签在batch内进行混合：
-```python
-from rainbowneko.train.data.handler import MixUPHandler
 
-dataset1=BaseDataset(
+```python
+from rainbowneko.data.handler import MixUPHandler
+
+dataset1 = BaseDataset(
     batch_handler=HandlerChain(
         mixup=MixUPHandler(num_classes=num_classes)
     )
@@ -213,14 +214,14 @@ dataset1=BaseDataset(
 
 + 如果你的训练任务图像大小都一样，或无所谓剪裁，可以使用`FixedBucket`。它会将所有图像按短边缩放并剪裁到指定大小。
   ```python
-  from rainbowneko.train.data import FixedBucket
+  from rainbowneko.data import FixedBucket
   
   bucket=FixedBucket(target_size=32) # 32x32
   ```
 
 + 如果你的训练任务对图片剪裁很敏感，你希望图片尽可能不被剪裁，可以使用`RatioBucket`。它会设置几个不同宽高比的bucket，将图片放入宽高比最接近的bucket，缩放并剪裁至bucket的分辨率，这样可以尽可能减少剪裁。
   ```python
-  from rainbowneko.train.data import RatioBucket
+  from rainbowneko.data import RatioBucket
   
   # from_files会读取数据集所有图片的分辨率，并根据它们的宽高比进行聚类，找到最合适的分桶方式
   bucket=RatioBucket.from_files(
@@ -240,7 +241,7 @@ dataset1=BaseDataset(
 
 + 如果你的任务对图像缩放和剪裁都很敏感，可以使用`SizeBucket`。它会设置几个不同分辨率的bucket，将图片放入分辨率最接近的bucket，剪裁图像至bucket的分辨率。使用这一bucket时，数据集最好数量足够多。
   ```python
-  from rainbowneko.train.data import SizeBucket
+  from rainbowneko.data import SizeBucket
   
   # from_files会读取数据集所有图片的分辨率，并根据它们的宽和高进行聚类，找到最合适的分桶方式
   bucket=SizeBucket.from_files(

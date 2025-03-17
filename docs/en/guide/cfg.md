@@ -14,8 +14,8 @@ Configuration files in Python format support full Python syntax, allowing for fu
 from functools import partial
 
 from cfgs.py.train.classify import multi_class
-from rainbowneko.train.data import BaseDataset
-from rainbowneko.train.data.handler import MixUPHandler, HandlerChain
+from rainbowneko.data import BaseDataset
+from rainbowneko.data.handler import MixUPHandler, HandlerChain
 from rainbowneko.train.loss import LossContainer, SoftCELoss
 
 num_classes = 10

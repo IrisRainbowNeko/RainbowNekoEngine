@@ -1,6 +1,6 @@
 from typing import Union, Dict, Any
 
-from rainbowneko.train.data.label_loader import BaseLabelLoader, auto_label_loader
+from rainbowneko.data.label_loader import BaseLabelLoader, auto_label_loader
 from rainbowneko.utils import is_image_file, Path_Like
 
 from .base import VisionDataSource

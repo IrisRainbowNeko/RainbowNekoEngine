@@ -27,7 +27,7 @@ from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
 from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.models.ema import ModelEMA
 from rainbowneko.parser import load_config_with_cli
-from rainbowneko.train.data import DataGroup, get_sampler, CacheableDataset
+from rainbowneko.data import DataGroup, get_sampler, CacheableDataset
 from rainbowneko.train.loggers import LoggerGroup
 from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict, xformers_available
 from rainbowneko.parser.model import NekoLoader

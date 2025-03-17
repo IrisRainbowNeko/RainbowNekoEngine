@@ -10,7 +10,7 @@ from rainbowneko.infer.workflow import (Actions, BuildModelAction, PrepareAction
                                         LoadModelAction)
 from rainbowneko.models.wrapper import SingleWrapper
 from rainbowneko.parser.model import NekoModelLoader
-from rainbowneko.train.data import IndexSource, HandlerChain, LoadImageHandler, ImageHandler, BaseDataset, BaseBucket
+from rainbowneko.data import IndexSource, HandlerChain, LoadImageHandler, ImageHandler, BaseDataset, BaseBucket
 from rainbowneko.utils import neko_cfg
 
 num_classes = 10

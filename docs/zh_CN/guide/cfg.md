@@ -9,12 +9,13 @@ RainbowNeko Engine的配置文件有**python**和**yaml**两种格式。推荐�
 ### python格式
 
 python格式的配置文件支持完整的python语法，可以在配置中进行函数和类的调用。比如下面的例子:
+
 ```python
 from functools import partial
 
 from cfgs.py.train.classify import multi_class
-from rainbowneko.train.data import BaseDataset
-from rainbowneko.train.data.handler import MixUPHandler, HandlerChain
+from rainbowneko.data import BaseDataset
+from rainbowneko.data.handler import MixUPHandler, HandlerChain
 from rainbowneko.train.loss import LossContainer, SoftCELoss
 
 num_classes = 10
