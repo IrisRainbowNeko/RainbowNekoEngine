@@ -1,5 +1,6 @@
 from functools import partial
 from typing import Union, Callable, Any
+from types import ModuleType
 
 from hydra._internal.instantiate import _instantiate2
 
@@ -53,12 +54,14 @@ _instantiate2._resolve_target = _resolve_target
 ####### patch hydra resolve target #######
 
 from .model import CfgModelParser, CustomModelParser, CfgWDModelParser, CfgPluginParser, CfgWDPluginParser
-from .python_cfg import PythonCfgParser
+from .python_cfg import PythonCfgParser, get_rel_path
 from .yaml_cfg import YamlCfgParser
 
 
-def load_config(path: str, remove_undefined=True):
-    if path.lower().endswith('.yaml'):
+def load_config(path: Union[str, ModuleType], remove_undefined=True):
+    if isinstance(path, ModuleType):
+        parser = PythonCfgParser()
+    elif path.lower().endswith('.yaml'):
         parser = YamlCfgParser()
     elif path.lower().endswith('.py'):
         parser = PythonCfgParser()
@@ -67,11 +70,24 @@ def load_config(path: str, remove_undefined=True):
     return parser, parser.load_config(path, remove_undefined)
 
 
-def load_config_with_cli(path: str, args_list=None, remove_undefined=True):
-    if path.lower().endswith('.yaml'):
+def load_config_with_cli(path: Union[str, ModuleType], args_list=None, remove_undefined=True):
+    if isinstance(path, ModuleType):
+        parser = PythonCfgParser()
+    elif path.lower().endswith('.yaml'):
         parser = YamlCfgParser()
     elif path.lower().endswith('.py'):
         parser = PythonCfgParser()
     else:
         raise ValueError('Unsupported config file format: {}'.format(path))
     return parser, parser.load_config_with_cli(path, args_list, remove_undefined)
+
+def load_config_instant(path: str, remove_undefined=True):
+    import hydra
+    if path.lower().endswith('.yaml'):
+        parser = YamlCfgParser()
+    elif path.lower().endswith('.py'):
+        parser = PythonCfgParser()
+    else:
+        raise ValueError('Unsupported config file format: {}'.format(path))
+    cfg = parser.load_config(path, remove_undefined)
+    return hydra.utils.instantiate(cfg)

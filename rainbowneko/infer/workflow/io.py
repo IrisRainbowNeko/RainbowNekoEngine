@@ -29,8 +29,9 @@ class LoadModelAction(BasicAction):
         super().__init__(key_map_in=key_map_in, key_map_out=key_map_out)
         self.cfg=cfg
 
-    def forward(self, model, **states):
-        NekoLoader.load_all(model, self.cfg)
+    def forward(self, model, in_preview=False, **states):
+        if not in_preview:
+            NekoLoader.load_all(model, self.cfg)
 
 class FeedAction(BasicAction):
     def __init__(self, key_map_in=None, key_map_out=None, **datas):

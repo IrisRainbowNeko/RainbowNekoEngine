@@ -50,7 +50,6 @@ class Trainer:
 
         self.build_ckpt_manager()
         self.build_model()
-        self.model_wrapper.post_init()
         self.config_model()
 
         for callback in _share.model_callbacks:
@@ -72,6 +71,7 @@ class Trainer:
             self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.gradient_accumulation_steps * self.cfgs.train.train_steps / self.steps_per_epoch)
 
         self.build_optimizer_scheduler()
+        self.model_wrapper.post_init()
         self.build_loss()
 
         with torch.no_grad():
@@ -207,12 +207,11 @@ class Trainer:
     def build_evaluator(self, cfgs_eval):
         def build_one(cfgs_eval_one):
             dataset_cfg = cfgs_eval_one.keywords.pop('dataset', None)
-            val_loader_group = DataGroup(
-                {name:self.build_data(dataset, train=False) for name, dataset in dataset_cfg.items()}, None,
-                cycle=False
-            )
-
-            evaluator = cfgs_eval_one(trainer=self, data_loader_group=val_loader_group)
+            if dataset_cfg is None:
+                evaluator = cfgs_eval_one(trainer=self)
+            else:
+                val_loader = self.build_data(dataset_cfg, train=False)
+                evaluator = cfgs_eval_one(trainer=self, data_loader=val_loader)
             return evaluator
 
         if cfgs_eval is not None:

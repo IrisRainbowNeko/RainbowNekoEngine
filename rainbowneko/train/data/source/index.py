@@ -7,7 +7,7 @@ from .base import VisionDataSource
 
 class IndexSource(VisionDataSource):
     def __init__(self, data, repeat=1, **kwargs):
-        super(IndexSource, self).__init__(None, repeat=repeat)
+        super().__init__('', repeat=repeat)
         self.data = data
 
     def __len__(self):

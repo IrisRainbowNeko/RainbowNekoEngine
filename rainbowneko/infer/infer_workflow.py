@@ -2,25 +2,25 @@ import argparse
 
 import hydra
 import torch
-from addict import Dict as ADict
-from rainbowneko.parser import load_config_with_cli
 
+from rainbowneko.parser import load_config_with_cli, YamlCfgParser
 from .workflow import BasicAction
 
 
 class WorkflowRunner:
-    def __init__(self, parser, cfgs):
+    def __init__(self, parser: YamlCfgParser, cfgs):
         self.cfgs_raw = cfgs
         cfgs = hydra.utils.instantiate(cfgs)
         self.cfgs = cfgs
         self.parser = parser
 
-        self.actions: BasicAction = cfgs
+        self.actions: BasicAction = cfgs.workflow
 
     @torch.inference_mode()
-    def run(self, states=None):
-        if states is None:
-            states = ADict(cfgs=self.cfgs_raw, parser=self.parser)
+    def run(self, **states_in):
+        states = dict(cfgs=self.cfgs_raw, parser=self.parser, world_size=1, local_rank=0)
+        if states_in is not None:
+            states.update(states_in)
         states = self.actions(**states)
         return states
 

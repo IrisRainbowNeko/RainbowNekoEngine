@@ -2,10 +2,12 @@ import torch
 import torchvision
 import torchvision.transforms as T
 from torch import nn
+from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
 
-from rainbowneko.infer import HandlerAction, DataLoaderAction
-from rainbowneko.infer.workflow import (Actions, BuildModelAction, PrepareAction, FeedAction, ForwardAction,
-                                        LambdaAction, VisClassAction, LoadModelAction)
+from rainbowneko.evaluate import MetricGroup, MetricContainer
+from rainbowneko.infer import DataLoaderAction, MetricAction
+from rainbowneko.infer.workflow import (Actions, BuildModelAction, PrepareAction, ForwardAction,
+                                        LoadModelAction)
 from rainbowneko.models.wrapper import SingleWrapper
 from rainbowneko.parser.model import NekoModelLoader
 from rainbowneko.train.data import IndexSource, HandlerChain, LoadImageHandler, ImageHandler, BaseDataset, BaseBucket
@@ -18,30 +20,11 @@ def load_resnet():
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     return model
 
-@neko_cfg
-def infer_one(path):
-    Actions([
-        FeedAction(image=path),
-        HandlerAction(handler=HandlerChain(
-            load=LoadImageHandler(),
-            image=ImageHandler(transform=T.Compose([
-                T.CenterCrop(size=32),
-                T.ToTensor(),
-                T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
-            ]))
-        ), key_map_in=('image -> image',)),
-        LambdaAction(f_act=lambda image, **kwargs: {'image': image.unsqueeze(0)}),
-        ForwardAction(key_map_in=('image -> input.image', 'model -> model')),
-        VisClassAction(
-            class_map=['airplanes', 'cars', 'birds', 'cats', 'deer', 'dogs', 'frogs', 'horses', 'ships', 'trucks'],
-            key_map_in=('output.pred -> pred',)
-        )
-    ])
 
 @neko_cfg
 def infer_all(path):
     DataLoaderAction(
-        dataset=BaseDataset(_partial_=True, batch_size=1, loss_weight=1.0,
+        dataset=BaseDataset(_partial_=True, batch_size=32, loss_weight=1.0,
             source=dict(
                 data_source1=IndexSource(
                     data=torchvision.datasets.cifar.CIFAR10(root=path, train=False, download=True)
@@ -60,10 +43,10 @@ def infer_all(path):
         ),
         actions=Actions([
             ForwardAction(key_map_in=('image -> input.image', 'model -> model', 'device -> device', 'dtype -> dtype')),
-            VisClassAction(
-                class_map=['airplanes', 'cars', 'birds', 'cats', 'deer', 'dogs', 'frogs', 'horses', 'ships', 'trucks'],
-                key_map_in=('output.pred -> pred',)
-            )
+            MetricAction(metric=MetricGroup(
+                acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
+                f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
+            ), key_map_in=('output -> pred', 'label -> target.label', 'device -> device'))
         ])
     )
 

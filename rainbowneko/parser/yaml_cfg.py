@@ -66,5 +66,5 @@ class YamlCfgParser:
             cfg = self.remove_config_undefined(cfg)
         return cfg
 
-    def save_configs(self, cfg, path):
-        OmegaConf.save(cfg, os.path.join(path, 'cfg.yaml'))
+    def save_configs(self, cfg, path, name='cfg'):
+        OmegaConf.save(cfg, os.path.join(path, f'{name}.yaml'))

@@ -1,9 +1,9 @@
 from functools import partial
 from typing import List
 
-from addict import Dict as ADict
-from rainbowneko.utils import KeyMapper
 from tqdm.auto import tqdm
+
+from rainbowneko.utils import KeyMapper, dict_merge
 
 
 class BasicAction:
@@ -14,14 +14,12 @@ class BasicAction:
         self.key_mapper_out = KeyMapper(key_map=key_map_out)
 
     def __call__(self, **states):
-        states = ADict(states)
         _, inputs = self.key_mapper_in.map_data(states)
         output = self.forward(**inputs)
         if output is not None:
             _, output = self.key_mapper_out.map_data(output)
-            output = ADict(output)
             if self.feedback_input:
-                states.update(output)
+                states = dict_merge(states, output)
             else:
                 return output
         return states
@@ -50,7 +48,7 @@ class Actions(BasicAction):
         self.actions = actions
 
     def forward(self, **states):
-        pbar = tqdm(self.actions)
+        pbar = tqdm(self.actions, leave=False)
         N_steps = len(self.actions)
         for step, act in enumerate(pbar):
             pbar.set_description(f'[{step + 1}/{N_steps}] action: {type(act).__name__}')

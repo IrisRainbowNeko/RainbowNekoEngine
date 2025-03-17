@@ -9,11 +9,12 @@ from .base import BasicAction
 class PrepareAction(BasicAction):
     def __init__(self, device='cuda', dtype=torch.float32, key_map_in=None, key_map_out=None):
         super().__init__(key_map_in=key_map_in, key_map_out=key_map_out)
-        self.device = device
+        self.device = torch.device(device)
         self.dtype = dtype
 
-    def forward(self, **states):
-        return {'device': self.device, 'dtype': self.dtype}
+    def forward(self, in_preview=False, **states):
+        if not in_preview:
+            return {'device': self.device, 'dtype': self.dtype}
 
 
 class BuildModelAction(BasicAction):
@@ -21,10 +22,11 @@ class BuildModelAction(BasicAction):
         super().__init__(key_map_in=key_map_in, key_map_out=key_map_out)
         self.model_builder = model_builder
 
-    def forward(self, device, **states):
-        model = self.model_builder().to(device)
-        model.eval()
-        return {'model': model}
+    def forward(self, device, in_preview=False, **states):
+        if not in_preview:
+            model = self.model_builder().to(device)
+            model.eval()
+            return {'model': model}
 
 
 class BuildPluginAction(BasicAction):
@@ -32,16 +34,17 @@ class BuildPluginAction(BasicAction):
         super().__init__(key_map_in=key_map_in, key_map_out=key_map_out)
         self.parser = parser
 
-    def forward(self, model, device, **states):
-        train_params, all_plugin_group = self.parser.get_params_group(model)
-        model.eval()
-        return {'all_plugin_group': all_plugin_group}
+    def forward(self, model, device, in_preview=False, **states):
+        if not in_preview:
+            train_params, all_plugin_group = self.parser.get_params_group(model)
+            model.eval()
+            return {'all_plugin_group': all_plugin_group}
 
 
 class ForwardAction(BasicAction):
 
-    def forward(self, input: Dict[str, Any], model, **states):
-        with torch.inference_mode():
+    def forward(self, input: Dict[str, Any], model, device, dtype, **states):
+        with torch.inference_mode(), torch.amp.autocast(device.type, dtype=dtype):
             output: Dict[str, Any] = model(**input)
         return {'output': output}
 

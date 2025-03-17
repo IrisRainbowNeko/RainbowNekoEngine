@@ -156,3 +156,18 @@ def dict_parse_list(data: Dict[str, Any]):
             return {k: dict_parse_list(v) for k, v in data.items()}
     else:
         return data
+
+def dict_merge(dict_base, dict_override):
+    """
+    recursive merge dicts
+    """
+    merged = dict_base.copy()
+    for key, value in dict_override.items():
+        if key in merged:
+            if isinstance(merged[key], dict) and isinstance(value, dict):
+                merged[key] = dict_merge(merged[key], value)
+            else:
+                merged[key] = value
+        else:
+            merged[key] = value
+    return merged

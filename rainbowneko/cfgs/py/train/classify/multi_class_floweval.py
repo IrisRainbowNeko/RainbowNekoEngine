@@ -7,9 +7,10 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
 
+from cfgs.py.eval import multi_class_flow
 from cfgs.py.train import train_base, tuning_base
 from rainbowneko.ckpt_manager import ckpt_manager
-from rainbowneko.evaluate import MetricGroup, MetricContainer, Evaluator
+from rainbowneko.evaluate import MetricGroup, MetricContainer, WorkflowEvaluator
 from rainbowneko.models.wrapper import SingleWrapper
 from rainbowneko.parser import CfgWDModelParser
 from rainbowneko.train.data import BaseDataset
@@ -70,7 +71,10 @@ def make_cfg():
 
         data_train=cfg_data(), # config can be split into another function with @neko_cfg
 
-        evaluator=cfg_evaluator(),
+        evaluator=WorkflowEvaluator(_partial_=True,
+            interval=50,
+            workflow=multi_class_flow,
+        ),
     )
 
 @neko_cfg
@@ -88,33 +92,6 @@ def cfg_data():
                 image=ImageHandler(transform=T.Compose([
                         T.RandomCrop(size=32, padding=4),
                         T.RandomHorizontalFlip(),
-                        T.ToTensor(),
-                        T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
-                    ]),
-                )
-            ),
-            bucket=FixedBucket(target_size=32),
-        )
-    )
-
-@neko_cfg
-def cfg_evaluator():
-    partial(Evaluator,
-        interval=50,
-        metric=MetricGroup(
-            acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
-            f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
-        ),
-        dataset=partial(BaseDataset, batch_size=16, loss_weight=1.0,
-            source=dict(
-                data_source1=IndexSource(
-                    data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=False, download=True)
-                ),
-            ),
-            handler=HandlerChain(
-                load=LoadImageHandler(),
-                bucket=FixedBucket.handler,
-                image=ImageHandler(transform=T.Compose([
                         T.ToTensor(),
                         T.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
                     ]),

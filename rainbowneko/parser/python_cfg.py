@@ -213,8 +213,11 @@ class PythonCfgParser(YamlCfgParser):
 
         return OmegaConf.create(cfg, flags={"allow_objects": True})
 
-    def save_configs(self, cfg, path):
+    def save_configs(self, cfg, path, name='cfg'):
         for dst, src in self.cfg_dict.items():
-            path_dst = os.path.join(path, dst)
+            if dst == 'cfg.py':
+                path_dst = os.path.join(path, f'{name}.py')
+            else:
+                path_dst = os.path.join(path, dst)
             os.makedirs(os.path.dirname(path_dst), exist_ok=True)
             shutil.copy2(src, path_dst)
