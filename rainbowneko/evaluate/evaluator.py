@@ -12,7 +12,7 @@ from .metrics import BaseMetric, MetricGroup
 
 
 class Evaluator:
-    def __init__(self, trainer: "Trainer", data_loader: DataLoader, metric: BaseMetric, ds_name=None, interval=100, dataset=None):
+    def __init__(self, trainer: "Trainer", data_loader: DataLoader, metric: BaseMetric, ds_name=None, interval=100, dataset:None=None):
         assert dataset is None, '"dataset" is a placeholder for cfg, should always be None.'
         self.data_loader = data_loader
         self.trainer = trainer
