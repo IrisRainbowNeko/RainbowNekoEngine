@@ -57,25 +57,25 @@ model:
 
 data_train:
   dataset1:
-    _target_: rainbowneko.train.data.dataset.BaseDataset
+    _target_: rainbowneko.data.dataset.BaseDataset
     _partial_: true
     batch_size: 128
     loss_weight: 1.0
     source:
       data_source1:
-        _target_: rainbowneko.train.data.source.index.IndexSource
+        _target_: rainbowneko.data.source.index.IndexSource
         data:
           _target_: torchvision.datasets.cifar.CIFAR10
           root: D:\others\dataset\cifar
           train: true
           download: true
     handler:
-      _target_: rainbowneko.train.data.handler.base.HandlerChain
+      _target_: rainbowneko.data.handler.base.HandlerChain
       load:
-        _target_: rainbowneko.train.data.handler.image.LoadImageHandler
-      bucket: ${neko.get:rainbowneko.train.data.bucket.fixed.FixedBucket.handler}
+        _target_: rainbowneko.data.handler.image.LoadImageHandler
+      bucket: ${neko.get:rainbowneko.data.bucket.fixed.FixedBucket.handler}
       image:
-        _target_: rainbowneko.train.data.handler.image.ImageHandler
+        _target_: rainbowneko.data.handler.image.ImageHandler
         transform:
           _target_: torchvision.transforms.transforms.Compose
           _args_:
@@ -88,7 +88,7 @@ data_train:
                 mean: [ 0.4914, 0.4822, 0.4465 ]
                 std: [ 0.2023, 0.1994, 0.201 ]
     bucket:
-      _target_: rainbowneko.train.data.bucket.fixed.FixedBucket
+      _target_: rainbowneko.data.bucket.fixed.FixedBucket
       target_size: 32
 
 evaluator:
@@ -108,33 +108,32 @@ evaluator:
         - _target_: torchmetrics.classification.f_beta.MulticlassF1Score
           num_classes: 10
   dataset:
-    dataset1:
-      _target_: rainbowneko.train.data.dataset.BaseDataset
-      _partial_: true
-      batch_size: 128
-      loss_weight: 1.0
-      source:
-        data_source1:
-          _target_: rainbowneko.train.data.source.index.IndexSource
-          data:
-            _target_: torchvision.datasets.cifar.CIFAR10
-            root: D:\others\dataset\cifar
-            train: false
-            download: true
-      handler:
-        _target_: rainbowneko.train.data.handler.base.HandlerChain
-        load:
-          _target_: rainbowneko.train.data.handler.image.LoadImageHandler
-        bucket: ${neko.get:rainbowneko.train.data.bucket.fixed.FixedBucket.handler}
-        image:
-          _target_: rainbowneko.train.data.handler.image.ImageHandler
-          transform:
-            _target_: torchvision.transforms.transforms.Compose
-            _args_:
-              - - _target_: torchvision.transforms.transforms.ToTensor
-                - _target_: torchvision.transforms.transforms.Normalize
-                  mean: [ 0.4914, 0.4822, 0.4465 ]
-                  std: [ 0.2023, 0.1994, 0.201 ]
-      bucket:
-        _target_: rainbowneko.train.data.bucket.fixed.FixedBucket
-        target_size: 32
+    _target_: rainbowneko.data.dataset.BaseDataset
+    _partial_: true
+    batch_size: 128
+    loss_weight: 1.0
+    source:
+      data_source1:
+        _target_: rainbowneko.data.source.index.IndexSource
+        data:
+          _target_: torchvision.datasets.cifar.CIFAR10
+          root: D:\others\dataset\cifar
+          train: false
+          download: true
+    handler:
+      _target_: rainbowneko.data.handler.base.HandlerChain
+      load:
+        _target_: rainbowneko.data.handler.image.LoadImageHandler
+      bucket: ${neko.get:rainbowneko.data.bucket.fixed.FixedBucket.handler}
+      image:
+        _target_: rainbowneko.data.handler.image.ImageHandler
+        transform:
+          _target_: torchvision.transforms.transforms.Compose
+          _args_:
+            - - _target_: torchvision.transforms.transforms.ToTensor
+              - _target_: torchvision.transforms.transforms.Normalize
+                mean: [ 0.4914, 0.4822, 0.4465 ]
+                std: [ 0.2023, 0.1994, 0.201 ]
+    bucket:
+      _target_: rainbowneko.data.bucket.fixed.FixedBucket
+      target_size: 32
