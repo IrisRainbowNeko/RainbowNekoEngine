@@ -26,7 +26,7 @@ class Previewer(Evaluator):
             img.save(os.path.join(img_dir, f"{step}-{self.img_count}.png"))
             self.img_count += 1
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def evaluate(self, step: int, model: BaseWrapper):
         if step % self.interval != 0:
             return
@@ -51,7 +51,7 @@ class Previewer(Evaluator):
 
 
 class WorkflowPreviewer(WorkflowEvaluator):
-    @torch.inference_mode()
+    @torch.no_grad()
     def evaluate(self, step: int, model: BaseWrapper, prefix='eval/'):
         if step % self.interval != 0:
             return

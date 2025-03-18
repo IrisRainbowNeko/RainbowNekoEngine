@@ -39,7 +39,7 @@ class Evaluator:
 
         return model_pred, input_datas
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def evaluate(self, step: int, model: BaseWrapper, prefix='eval/'):
         if step % self.interval != 0:
             return
@@ -105,7 +105,7 @@ class WorkflowEvaluator(Evaluator):
         else:
             self.workflow_runner = WorkflowRunner(None, workflow)
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def evaluate(self, step: int, model: BaseWrapper, prefix='eval/'):
         if step % self.interval != 0:
             return
