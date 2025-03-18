@@ -44,7 +44,7 @@ class BuildPluginAction(BasicAction):
 class ForwardAction(BasicAction):
 
     def forward(self, input: Dict[str, Any], model, device, dtype, **states):
-        with torch.inference_mode(), torch.amp.autocast(device.type, dtype=dtype):
+        with torch.no_grad(), torch.amp.autocast(device.type, dtype=dtype):
             output: Dict[str, Any] = model(**input)
         return {'output': output}
 

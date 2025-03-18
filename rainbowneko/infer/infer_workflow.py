@@ -16,7 +16,7 @@ class WorkflowRunner:
 
         self.actions: BasicAction = cfgs.workflow
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def run(self, **states_in):
         states = dict(cfgs=self.cfgs_raw, parser=self.parser, world_size=1, local_rank=0)
         if states_in is not None:
