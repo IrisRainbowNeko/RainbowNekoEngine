@@ -31,6 +31,9 @@ class Previewer(Evaluator):
         if step % self.interval != 0:
             return
 
+        # record training layers
+        training_layers = [layer for layer in model.modules() if layer.training]
+
         model.eval()
 
         img_dir = os.path.join(self.trainer.exp_dir, self.img_dir)
@@ -39,6 +42,9 @@ class Previewer(Evaluator):
         for data in tqdm(self.data_loader, disable=not self.trainer.is_local_main_process):
             pred, input_datas = self.forward_one_step(model, data)
             self.save_images(pred, input_datas, img_dir=img_dir, step=step)
+
+        for layer in training_layers:
+            layer.train()
 
     def to(self, device):
         self.renderer.to(device)
@@ -50,9 +56,15 @@ class WorkflowPreviewer(WorkflowEvaluator):
         if step % self.interval != 0:
             return
 
+        # record training layers
+        training_layers = [layer for layer in model.modules() if layer.training]
+
         model.eval()
         self.trainer.loggers.info(f'Preview')
 
         states = self.workflow_runner.run(model=model, in_preview=True, device=self.device, dtype=self.dtype,
                                           preview_root=Path(self.trainer.exp_dir)/'imgs',
                                           world_size=self.trainer.world_size, local_rank=self.trainer.local_rank)
+
+        for layer in training_layers:
+            layer.train()

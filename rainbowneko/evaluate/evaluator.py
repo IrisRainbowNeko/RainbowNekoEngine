@@ -44,6 +44,9 @@ class Evaluator:
         if step % self.interval != 0:
             return
 
+        # record training layers
+        training_layers = [layer for layer in model.modules() if layer.training]
+
         # reset metric
         model.eval()
         self.metric.reset()
@@ -67,6 +70,9 @@ class Evaluator:
         }
         log_data.update(MetricGroup.format(v_metric, prefix=prefix))
         self.trainer.loggers.log(log_data, step)
+
+        for layer in training_layers:
+            layer.train()
 
     def to(self, device):
         self.metric.to(device)
@@ -104,6 +110,9 @@ class WorkflowEvaluator(Evaluator):
         if step % self.interval != 0:
             return
 
+        # record training layers
+        training_layers = [layer for layer in model.modules() if layer.training]
+
         model.eval()
 
         states = self.workflow_runner.run(model=model, in_preview=True, device=self.device, dtype=self.dtype,
@@ -122,6 +131,9 @@ class WorkflowEvaluator(Evaluator):
         }
         log_data.update(MetricGroup.format(v_metric, prefix=prefix))
         self.trainer.loggers.log(log_data, step)
+
+        for layer in training_layers:
+            layer.train()
 
     def to(self, device):
         pass
