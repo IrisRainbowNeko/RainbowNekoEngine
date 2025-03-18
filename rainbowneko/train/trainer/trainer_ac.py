@@ -50,7 +50,6 @@ class Trainer:
 
         self.build_ckpt_manager()
         self.build_model()
-        self.config_model()
 
         for callback in _share.model_callbacks:
             callback(self.model_wrapper)
@@ -72,6 +71,7 @@ class Trainer:
 
         self.build_optimizer_scheduler()
         self.model_wrapper.post_init()
+        self.config_model()
         self.build_loss()
 
         with torch.no_grad():
@@ -188,6 +188,10 @@ class Trainer:
     def build_model(self):
         self.model_wrapper = self.cfgs.model.wrapper()
 
+        self.model_wrapper.requires_grad_(False)
+        self.model_wrapper.eval()
+        self.weight_dtype = self.weight_dtype_map.get(self.cfgs.mixed_precision, torch.float32)
+
     def build_ema(self):
         if self.cfgs.model.ema is not None:
             self.ema_model: ModelEMA = self.cfgs.model.ema(self.model_wrapper)
@@ -233,10 +237,6 @@ class Trainer:
                 self.model_wrapper.enable_xformers()
             else:
                 warnings.warn("xformers is not available. Make sure it is installed correctly")
-
-        self.model_wrapper.requires_grad_(False)
-        self.model_wrapper.eval()
-        self.weight_dtype = self.weight_dtype_map.get(self.cfgs.mixed_precision, torch.float32)
 
         if self.cfgs.model.gradient_checkpointing:
             self.model_wrapper.enable_gradient_checkpointing()
