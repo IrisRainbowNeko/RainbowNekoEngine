@@ -21,6 +21,7 @@ from rainbowneko.data import FixedBucket
 from rainbowneko.data.handler import HandlerChain, ImageHandler, LoadImageHandler, HandlerGroup
 from rainbowneko.data.source import IndexSource, UnLabelSource
 from rainbowneko.train.loss import LossContainer, PseudoLabelLoss
+from rainbowneko.utils.lr_scheduler import fractional_warmup_schedule
 
 num_classes = 10
 
@@ -78,7 +79,9 @@ def make_cfg():
                 key_map_out=('pred_student -> pred_student', 'pred_teacher -> pred_teacher'),
                 model_teacher=load_resnet(torchvision.models.resnet18()),
                 model_student=load_resnet(torchvision.models.resnet18()),
-                ema=ModelEMA
+                ema=ModelEMA(_partial_=True,
+                    scheduler=fractional_warmup_schedule()
+                )
             )
         ),
 

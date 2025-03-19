@@ -1,7 +1,7 @@
 from typing import Union, Iterable, Dict, Any, List
 
 from addict import Dict as ADict
-from rainbowneko.utils import is_dict, dict_parse_list
+from .utils import is_dict, dict_parse_list
 
 
 class KeyMapper:

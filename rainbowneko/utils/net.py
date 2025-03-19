@@ -1,11 +1,5 @@
-from functools import partial
-from typing import Optional, Union
-
 import torch
 from torch import nn
-from torch.optim import lr_scheduler
-
-from .lr_scheduler import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION, Optimizer
 
 try:
     import xformers
@@ -13,81 +7,6 @@ try:
     xformers_available = True
 except:
     xformers_available = False
-
-
-def get_scheduler(cfg, optimizer, num_training_steps):
-    if cfg is None:
-        return None
-    elif isinstance(cfg, partial):
-        return cfg(optimizer=optimizer, training_steps=num_training_steps)
-    else:
-        return get_scheduler_with_name(optimizer=optimizer, training_steps=num_training_steps, **cfg)
-
-def get_scheduler_with_name(
-    name: Union[str, SchedulerType],
-    optimizer: Optimizer,
-    warmup_steps: Optional[int] = None,
-    training_steps: Optional[int] = None,
-    **kwargs
-):
-    """
-    Unified API to get any scheduler from its name.
-
-    Args:
-        name (`str` or `SchedulerType`):
-            The name of the scheduler to use.
-        optimizer (`torch.optim.Optimizer`):
-            The optimizer that will be used during training.
-        warmup_steps (`int`, *optional*):
-            The number of warmup steps to do. This is not required by all schedulers (hence the argument being
-            optional), the function will raise an error if it's unset and the scheduler type requires it.
-        training_steps (`int``, *optional*):
-            The number of training steps to do. This is not required by all schedulers (hence the argument being
-            optional), the function will raise an error if it's unset and the scheduler type requires it.
-        num_cycles (`int`, *optional*):
-            The number of hard restarts used in `COSINE_WITH_RESTARTS` scheduler.
-        power (`float`, *optional*, defaults to 1.0):
-            Power factor. See `POLYNOMIAL` scheduler
-        last_epoch (`int`, *optional*, defaults to -1):
-            The index of the last epoch when resuming training.
-    """
-    # All other schedulers require `num_training_steps`
-    if training_steps is None:
-        raise ValueError(f"{name} requires `num_training_steps`, please provide that argument.")
-
-    # All other schedulers require `num_warmup_steps`
-    if warmup_steps is None:
-        raise ValueError(f"{name} requires `num_warmup_steps`, please provide that argument.")
-
-    if isinstance(warmup_steps, float): # warmup ratio
-        warmup_steps = int(warmup_steps * training_steps)
-
-    # One Cycle for super convergence
-    if name == 'one_cycle':
-        scheduler = lr_scheduler.OneCycleLR(optimizer, max_lr=[x['lr'] for x in optimizer.state_dict()['param_groups']],
-                                            steps_per_epoch=training_steps, epochs=1,
-                                            pct_start=warmup_steps / training_steps, **kwargs)
-        return scheduler
-
-    name = SchedulerType(name)
-    schedule_func = TYPE_TO_SCHEDULER_FUNCTION[name]
-    if name == SchedulerType.CONSTANT:
-        return schedule_func(optimizer, **kwargs)
-
-    if name == SchedulerType.CONSTANT_WITH_WARMUP:
-        return schedule_func(optimizer, num_warmup_steps=warmup_steps, **kwargs)
-
-    if name == SchedulerType.COSINE_WITH_RESTARTS:
-        return schedule_func(
-            optimizer, num_warmup_steps=warmup_steps, num_training_steps=training_steps, **kwargs
-        )
-
-    if name == SchedulerType.POLYNOMIAL:
-        return schedule_func(
-            optimizer, num_warmup_steps=warmup_steps, num_training_steps=training_steps, **kwargs
-        )
-
-    return schedule_func(optimizer, num_warmup_steps=warmup_steps, num_training_steps=training_steps, **kwargs)
 
 def remove_all_hooks(model: nn.Module) -> None:
     for name, child in model.named_modules():
