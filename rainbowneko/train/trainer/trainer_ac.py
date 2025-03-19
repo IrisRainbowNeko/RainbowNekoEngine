@@ -408,8 +408,7 @@ class Trainer:
                     )
 
             if self.evaluator is not None and acc_step==acc_steps-1:
-                self.evaluator.evaluate(self.real_step, self.model_wrapper)
-                self.model_wrapper.train()
+                self.evaluator.evaluate(self.real_step, self.model_raw)
 
             if self.real_step >= self.cfgs.train.train_steps and acc_step==acc_steps-1:
                 break
