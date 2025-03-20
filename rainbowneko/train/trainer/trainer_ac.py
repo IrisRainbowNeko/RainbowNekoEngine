@@ -30,7 +30,7 @@ from rainbowneko.parser import load_config_with_cli
 from rainbowneko.data import DataGroup, get_sampler, CacheableDataset
 from rainbowneko.train.loggers import LoggerGroup
 from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict, xformers_available
-from rainbowneko.parser.model import NekoLoader
+from rainbowneko.parser.model import NekoResumer
 from rainbowneko.ckpt_manager import CkptManagerBase
 from rainbowneko import _share
 
@@ -77,7 +77,7 @@ class Trainer:
         with torch.no_grad():
             self.build_ema()
 
-        self.load_resume()
+        self.load_resume(self.cfgs.train.resume)
 
         torch.backends.cuda.matmul.allow_tf32 = cfgs.allow_tf32
 
@@ -242,11 +242,9 @@ class Trainer:
             self.model_wrapper.enable_gradient_checkpointing()
 
     @torch.no_grad()
-    def load_resume(self):
-        if self.cfgs.train.resume is not None:
-            NekoLoader.load_all(self.model_wrapper, self.cfgs.train.resume)
-            if hasattr(self, "ema_model"):
-                NekoLoader.load_all(self.ema_model.model, self.cfgs.train.resume)
+    def load_resume(self, resumer: NekoResumer):
+        if resumer is not None:
+            resumer.load_to(self.model_wrapper, getattr(self, "ema_model", None))
 
     def to_dev(self, x):
         if isinstance(x, torch.Tensor):
