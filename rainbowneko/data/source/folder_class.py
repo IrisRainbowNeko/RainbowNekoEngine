@@ -36,3 +36,4 @@ class ImageFolderClassSource(ImageLabelSource):
 
         # label to cls_id
         self.cls_id_dict = {cls_name: cls_id for cls_id, cls_name in enumerate(set(label_dict.values()))}
+        return label_dict

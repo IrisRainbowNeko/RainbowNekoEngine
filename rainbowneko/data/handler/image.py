@@ -9,6 +9,7 @@ from PIL import Image
 
 from .base import DataHandler
 from ..utils import resize_crop_fix, pad_crop_fix
+from rainbowneko.utils import Path_Like
 
 
 class LoadImageHandler(DataHandler):
@@ -27,7 +28,7 @@ class LoadImageHandler(DataHandler):
         return image.convert(self.mode)
 
     def handle(self, image):
-        if isinstance(image, str):
+        if isinstance(image, Path_Like):
             image = self.load_image(image)
         elif isinstance(image, Image.Image):
             image = image

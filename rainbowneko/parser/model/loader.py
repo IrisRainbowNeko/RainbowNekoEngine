@@ -35,7 +35,12 @@ class NekoModelLoader(NekoLoader):
         named_params = {k: v for k, v in model.named_parameters()}
         named_params.update({k: v for k, v in model.named_buffers()})
 
-        part_state = self.ckpt_manager.load(self.path, map_location='cpu')['base_ema' if self.load_ema else 'base']
+        part_state = self.ckpt_manager.load(self.path, map_location='cpu')
+        if self.load_ema:
+            part_state = part_state['base_ema']
+        else:
+            if 'base' in part_state:
+                part_state = part_state['base']
 
         if self.state_prefix:
             state_prefix_len = len(self.state_prefix)
