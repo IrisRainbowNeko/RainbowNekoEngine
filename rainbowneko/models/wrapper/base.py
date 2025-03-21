@@ -84,7 +84,7 @@ class SingleWrapper(BaseWrapper):
         model_args, model_kwargs = self.get_inputs_feed(self.key_mapper_in, self.model, kwargs, plugin_input, ds_name=ds_name)
 
         out = self.model(*model_args, **model_kwargs)
-        if not isinstance(out, tuple):
+        if not isinstance(out, (tuple, dict)):
             out = (out,)
         return self.get_map_data(self.key_mapper_out, out, ds_name=ds_name)[1]
 
