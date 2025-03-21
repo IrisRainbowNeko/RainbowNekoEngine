@@ -48,12 +48,12 @@ class NekoModelLoader(NekoLoader):
 
         if self.layers == 'all':
             for k, v in part_state.items():
-                named_params[k].data = self.base_model_alpha * named_params[k].data + self.alpha * v
+                named_params[k].data = self.base_model_alpha * named_params[k].data + self.alpha * v.to(named_params[k].data.device)
         else:
             match_blocks = get_match_layers(self.layers, named_modules)
             state_add = {k: v for blk in match_blocks for k, v in part_state.items() if k.startswith(blk)}
             for k, v in state_add.items():
-                named_params[k].data = self.base_model_alpha * named_params[k].data + self.alpha * v
+                named_params[k].data = self.base_model_alpha * named_params[k].data + self.alpha * v.to(named_params[k].data.device)
 
 class NekoPluginLoader(NekoLoader):
     def __init__(self, path: str, ckpt_manager: CkptManagerBase = None, layers='all', module_to_load='', state_prefix=None,

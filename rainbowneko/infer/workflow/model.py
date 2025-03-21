@@ -42,9 +42,18 @@ class BuildPluginAction(BasicAction):
 
 
 class ForwardAction(BasicAction):
+    def to_dev(self, x, device, dtype):
+        if isinstance(x, torch.Tensor):
+            if torch.is_floating_point(x):
+                return x.to(device, dtype=dtype)
+            else:
+                return x.to(device)
+        else:
+            return x
 
     def forward(self, input: Dict[str, Any], model, device, dtype, **states):
         with torch.no_grad(), torch.amp.autocast(device.type, dtype=dtype):
+            input = {k:self.to_dev(v, device, dtype) for k,v in input.items()}
             output: Dict[str, Any] = model(**input)
         return {'output': output}
 
