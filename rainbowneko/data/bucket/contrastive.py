@@ -41,7 +41,7 @@ class PosNegBucket(BaseBucket):
                 group = np.hstack([group, self.rs.choice(group, pos_len - rest)])
 
             group = group.reshape(-1, pos_len)
-            neg = np.hstack([g_neg for name_neg, g_neg in self.cls_group.values() if name_neg != name])
+            neg = np.hstack([g_neg for name_neg, g_neg in self.cls_group.items() if name_neg != name])
             group_neg = self.rs.choice(neg, (group.shape[0], neg_len), replace=False)
             group = np.hstack([group, group_neg])
             bucket.append(group)
@@ -81,7 +81,7 @@ class TripletBucket(PosNegBucket):
                 group = np.hstack([group, self.rs.choice(group, pos_len - rest)])
 
             group = group.reshape(-1, pos_len)
-            neg = np.hstack([g_neg for name_neg, g_neg in self.cls_group.values() if name_neg != name])
+            neg = np.hstack([g_neg for name_neg, g_neg in self.cls_group.items() if name_neg != name])
             group_neg = self.rs.choice(neg, (group.shape[0], neg_len), replace=False)
             group = np.hstack([group, group_neg])
             bucket.append(group)
