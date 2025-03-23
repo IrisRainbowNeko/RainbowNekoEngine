@@ -229,7 +229,7 @@ class Trainer:
 
     @property
     def model_raw(self):
-        return self.model_wrapper.module
+        return self.model_wrapper
 
     def config_model(self):
         if self.cfgs.model.enable_xformers:
