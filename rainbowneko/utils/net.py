@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 try:
     import xformers
@@ -76,3 +77,9 @@ def split_module_name(layer_name):
     else:
         parent_name, host_name = name_split
     return parent_name, host_name
+
+def maybe_DDP(model):
+    if isinstance(model, DDP):
+        return model.module
+    else:
+        return model

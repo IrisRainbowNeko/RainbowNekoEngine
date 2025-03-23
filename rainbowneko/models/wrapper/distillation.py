@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 from .base import BaseWrapper
-from rainbowneko.utils import KeyMapper
+from rainbowneko.utils import maybe_DDP
 
 
 class DistillationWrapper(BaseWrapper):
@@ -23,7 +23,7 @@ class DistillationWrapper(BaseWrapper):
     def forward(self, ds_name, plugin_input={}, **kwargs):
         inputs_T_args, inputs_T_kwargs = self.get_inputs_feed(self.key_map_in_teacher, self.model_teacher, kwargs, plugin_input,
                                                               ds_name=ds_name)
-        inputs_S_args, inputs_S_kwargs = self.get_inputs_feed(self.key_map_in_student, self.model_student, kwargs, plugin_input,
+        inputs_S_args, inputs_S_kwargs = self.get_inputs_feed(self.key_map_in_student, maybe_DDP(self.model_student), kwargs, plugin_input,
                                                               ds_name=ds_name)
 
         res = {}
@@ -41,7 +41,7 @@ class DistillationWrapper(BaseWrapper):
 
     def update_model(self, step:int):
         if hasattr(self, 'ema_teacher'):
-            self.ema_teacher.step(self.model_student)
+            self.ema_teacher.step(maybe_DDP(self.model_student))
 
     @property
     def trainable_models(self) -> Dict[str, nn.Module]:

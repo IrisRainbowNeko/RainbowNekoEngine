@@ -29,7 +29,7 @@ from rainbowneko.models.ema import ModelEMA
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.data import DataGroup, get_sampler, CacheableDataset
 from rainbowneko.train.loggers import LoggerGroup
-from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict, xformers_available
+from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict, xformers_available, maybe_DDP
 from rainbowneko.parser.model import NekoResumer
 from rainbowneko.ckpt_manager import CkptManagerBase
 from rainbowneko import _share
@@ -229,7 +229,7 @@ class Trainer:
 
     @property
     def model_raw(self):
-        return self.model_wrapper.module
+        return maybe_DDP(self.model_wrapper)
 
     def config_model(self):
         if self.cfgs.model.enable_xformers:
