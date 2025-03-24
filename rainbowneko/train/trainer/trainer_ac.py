@@ -392,13 +392,13 @@ class Trainer:
                                 if self.metric_train[ds_name] is not None:
                                     self.metric_train[ds_name].reset()
                                     self.metric_train[ds_name].update(pred_dict[ds_name], inputs_dict[ds_name])
-                                    metrics_dict = self.metric_train[ds_name].finish(None, self.is_local_main_process)
+                                    metrics_dict = self.metric_train[ds_name].finish(lambda x:x, self.is_local_main_process)
                                     log_data.update(MetricGroup.format(metrics_dict, prefix=f'{ds_name}/'))
                         else:
                             self.metric_train.reset()
                             for ds_name in pred_dict.keys():
                                 self.metric_train.update(pred_dict[ds_name], inputs_dict[ds_name])
-                            metrics_dict = self.metric_train.finish(None, self.is_local_main_process)
+                            metrics_dict = self.metric_train.finish(lambda x:x, self.is_local_main_process)
                             log_data.update(MetricGroup.format(metrics_dict))
                     self.loggers.log(
                         datas=log_data,

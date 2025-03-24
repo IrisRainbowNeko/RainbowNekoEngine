@@ -2,6 +2,7 @@ from types import ModuleType
 from typing import Dict, Union
 
 import torch
+import torch.distributed as dist
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
@@ -19,6 +20,8 @@ class Evaluator:
         self.metric = metric
         self.interval = interval
         self.ds_name = ds_name
+
+        self.data_loader.dataset.bucket.rest(0)
 
         self.metric.to(self.device)
 
@@ -38,6 +41,15 @@ class Evaluator:
         model_pred = model(self.ds_name, **input_datas)
 
         return model_pred, input_datas
+    
+    def cpu_gather(self, tensor):
+        if not hasattr(self, 'gloo_group'): # Transfer data on cpu
+            self.gloo_group = dist.new_group(backend='gloo')
+
+        world_size = dist.get_world_size()
+        gathered_tensors = [torch.empty_like(tensor) for _ in range(world_size)]
+        dist.all_gather(gathered_tensors, tensor, group=self.gloo_group)
+        return torch.cat(gathered_tensors, dim=0)
 
     @torch.no_grad()
     def evaluate(self, step: int, model: BaseWrapper, prefix='eval/'):
@@ -56,7 +68,7 @@ class Evaluator:
             # update data to metric
             self.metric.update(pred, input_datas)
 
-        v_metric = self.metric.finish(self.trainer.accelerator.gather, self.trainer.is_local_main_process)
+        v_metric = self.metric.finish(self.cpu_gather, self.trainer.is_local_main_process)
         if not isinstance(v_metric, dict):
             v_metric = {'metric': v_metric}
 
