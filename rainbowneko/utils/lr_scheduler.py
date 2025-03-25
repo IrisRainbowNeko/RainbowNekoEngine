@@ -322,7 +322,10 @@ def get_scheduler(cfg, optimizer, num_training_steps):
     if cfg is None:
         return None
     elif isinstance(cfg, partial):
-        return cfg(optimizer=optimizer, training_steps=num_training_steps)
+        try:
+            return cfg(optimizer=optimizer, training_steps=num_training_steps)
+        except:
+            return cfg(optimizer=optimizer)
     else:
         return get_scheduler_with_name(optimizer=optimizer, training_steps=num_training_steps, **cfg)
 
