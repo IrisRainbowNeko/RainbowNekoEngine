@@ -5,6 +5,7 @@ import torch
 
 from rainbowneko.parser import load_config_with_cli, YamlCfgParser
 from .workflow import BasicAction
+from rainbowneko import _share
 
 
 class WorkflowRunner:
@@ -13,6 +14,10 @@ class WorkflowRunner:
         cfgs = hydra.utils.instantiate(cfgs)
         self.cfgs = cfgs
         self.parser = parser
+
+        if _share.loggers is None:
+            from rainbowneko.train.loggers import CLILogger
+            _share.loggers = CLILogger('exps/', None, log_step=1)
 
         self.actions: BasicAction = cfgs.workflow
 
