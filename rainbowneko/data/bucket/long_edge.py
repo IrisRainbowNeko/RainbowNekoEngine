@@ -40,12 +40,28 @@ class LongEdgeBucket(RatioBucket):
         # SD需要边长是8的倍数
         self.size_buckets = (np.round(size_buckets / self.step_size) * self.step_size).astype(int)
 
-        self.buckets = []  # [bucket_id:[file_idx,...]]
-        self.idx_bucket_map = labels
-        for bidx in range(self.num_bucket):
-            self.buckets.append(np.where(labels == bidx)[0].tolist())
-        logger.info('buckets info: ' + ', '.join(
-            f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        if self.source_indexable:
+            self.buckets = []  # [bucket_id:[file_idx,...]]
+            self.idx_bucket_map = labels
+            for bidx in range(self.num_bucket):
+                self.buckets.append(np.where(labels == bidx)[0].tolist())
+            logger.info('buckets info: ' + ', '.join(
+                f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        else:
+            logger.info('buckets info: ' + ', '.join(f'size:{size}' for size in enumerate(self.size_buckets)))
+
+    def next_data(self, shuffle=True):
+        def assign_bucket(datas, source, buckets):
+            w, h = source.get_image_size(datas)
+            scale = self.target_edge / max(w, h)
+            w, h = round(w * scale), round(h * scale)
+            bucket_idx = np.linalg.norm(self.size_buckets-np.array([[w,h]]), axis=1).argmin()
+            datas['image_size'] = self.size_buckets[bucket_idx]
+            buckets[bucket_idx].append(datas)
+
+        if not hasattr(self, 'buffer_iter'):
+            self.buffer_iter = self._buffer(self.bs, assign_bucket, rs=self.rs if shuffle else None)
+        return next(self.buffer_iter)
 
     @classmethod
     def from_files(cls, target_edge, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None, **kwargs):

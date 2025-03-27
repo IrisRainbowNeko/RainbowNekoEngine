@@ -5,9 +5,9 @@ from .tqdm_logger import TQDMLogger
 try:
     from .tensorboard_logger import TBLogger
 except:
-    print('tensorboard is not available')
+    print('INFO: tensorboard is not available')
 
 try:
     from .wandb_logger import WanDBLogger
 except:
-    print('wandb is not available')
+    print('INFO: wandb is not available')

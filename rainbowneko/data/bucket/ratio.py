@@ -2,15 +2,15 @@ import math
 import os.path
 import pickle
 from concurrent.futures import ThreadPoolExecutor
+from typing import Callable
 
-import cv2
 import numpy as np
 from loguru import logger
 from sklearn.cluster import KMeans
 from tqdm import tqdm
+from rainbowneko.utils import repeat_list
 
 from .base import BaseBucket
-from ..utils import resize_crop_fix, pad_crop_fix
 from ..handler import AutoSizeHandler
 
 
@@ -75,26 +75,30 @@ class RatioBucket(BaseBucket):
         ratios_log = np.array(ratios_log)
         self.size_buckets = np.array(self.size_buckets)
 
-        # get images ratio
-        def get_ratio(info):
-            data, source = info
-            w, h = source.get_image_size(data)
-            ratio = np.log2(w / h)
-            return ratio
+        if self.source_indexable:
+            # get images ratio
+            def get_ratio(info):
+                data, source = info
+                w, h = source.get_image_size(data)
+                ratio = np.log2(w / h)
+                return ratio
 
-        ratio_list = []
-        with self.source.return_source(), ThreadPoolExecutor() as executor:
-            for ratio in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
-                ratio_list.append(ratio)
-        ratio_list = np.array(ratio_list)
+            ratio_list = []
+            with self.source.return_source(), ThreadPoolExecutor() as executor:
+                for ratio in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
+                    ratio_list.append(ratio)
+            ratio_list = np.array(ratio_list)
 
-        # fill buckets with images w,h
-        bucket_id = np.abs(ratio_list[:, None] - ratios_log[None, :]).argmin(axis=-1)
-        self.idx_bucket_map = bucket_id
-        for bidx in range(self.num_bucket):
-            self.buckets.append(np.where(bucket_id == bidx)[0].tolist())
-        logger.info(
-            'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+            # fill buckets with images w,h
+            bucket_id = np.abs(ratio_list[:, None] - ratios_log[None, :]).argmin(axis=-1)
+            self.idx_bucket_map = bucket_id
+            for bidx in range(self.num_bucket):
+                self.buckets.append(np.where(bucket_id == bidx)[0].tolist())
+            logger.info(
+                'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        else:
+            self.ratios_log = ratios_log
+            logger.info('buckets info: ' + ', '.join(f'size:{size}' for size in enumerate(self.size_buckets)))
 
     def build_buckets_from_images(self):
         logger.info('build buckets from images')
@@ -125,12 +129,16 @@ class RatioBucket(BaseBucket):
         self.size_buckets = list(zip(w_all, h_all))
         self.size_buckets = np.array(self.size_buckets)
 
-        self.buckets = []  # [bucket_id:[file_idx,...]]
-        self.idx_bucket_map = labels
-        for bidx in range(self.num_bucket):
-            self.buckets.append(np.where(labels == bidx)[0].tolist())
-        logger.info(
-            'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        if self.source_indexable:
+            self.buckets = []  # [bucket_id:[file_idx,...]]
+            self.idx_bucket_map = labels
+            for bidx in range(self.num_bucket):
+                self.buckets.append(np.where(labels == bidx)[0].tolist())
+            logger.info(
+                'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        else:
+            self.ratios_log = np.log2(ratios)
+            logger.info('buckets info: ' + ', '.join(f'size:{size}' for size in enumerate(self.size_buckets)))
 
     def build(self, bs: int, world_size: int, source: 'ComposeDataSource'):
         '''
@@ -142,6 +150,12 @@ class RatioBucket(BaseBucket):
         if self.pre_build_bucket and os.path.exists(self.pre_build_bucket):
             self.load_bucket(self.pre_build_bucket)
             return
+
+        try:
+            _ = self.source[0]
+            self.source_indexable = True
+        except NotImplementedError:
+            self.source_indexable = False
 
         self._build()
 
@@ -159,24 +173,117 @@ class RatioBucket(BaseBucket):
             self.save_bucket(self.pre_build_bucket)
 
     def rest(self, epoch):
-        rs = np.random.RandomState(42 + epoch)
-        bucket_list = [x.copy() for x in self.buckets]
-        # shuffle inter bucket
-        for x in bucket_list:
-            rs.shuffle(x)
+        if self.source_indexable:
+            rs = np.random.RandomState(42 + epoch)
+            bucket_list = [x.copy() for x in self.buckets]
+            # shuffle inter bucket
+            for x in bucket_list:
+                rs.shuffle(x)
 
-        # shuffle of batches
-        bucket_list = np.hstack(bucket_list).reshape(-1, self.bs).astype(int)
-        rs.shuffle(bucket_list)
+            # shuffle of batches
+            bucket_list = np.hstack(bucket_list).reshape(-1, self.bs).astype(int)
+            rs.shuffle(bucket_list)
 
-        self.idx_bucket = bucket_list.reshape(-1)
+            self.idx_bucket = bucket_list.reshape(-1)
+        else:
+            self.rs = np.random.RandomState(42 + epoch)
+
+    def _buffer(self, bs, assign_bucket:Callable, bufsize=1000, initial=100, rs:np.random.RandomState=None):
+        """Bucket and shuffle the data in the stream.
+
+        This uses a buffer of size `bufsize`. Bucketing and shuffling datas of non-indexable source.
+
+        bs: batch size
+        assign_bucket: function for assign data to bucket
+        bufsize: buffer size
+        returns: iterator
+        """
+        initial = min(initial, bufsize)
+        buckets = [[] for _ in self.size_buckets]
+        count = 0
+
+        source_iter = iter(self.source)
+
+        select_bucket = None
+        bs_count=bs
+
+        def pick():
+            nonlocal count
+            if rs is None:
+                k = 0
+            else:
+                k = rs.randint(0, len(select_bucket) - 1)
+            sample = select_bucket[k]
+            select_bucket[k] = select_bucket[-1]
+            select_bucket.pop()
+            count -= 1
+            return sample
+
+        with self.source.return_source():
+            for datas, source in source_iter:
+                assign_bucket(datas, source, buckets)
+                count += 1
+
+                if count < bufsize:
+                    try:
+                        assign_bucket(*next(source_iter), buckets)
+                        count += 1
+                    except StopIteration:
+                        pass
+
+                if count >= initial:
+                    if bs_count>=bs:
+                        candidate_bucket = [b for b in buckets if len(b) >= bs]
+                        if len(candidate_bucket) == 0:
+                            continue
+                        if rs is None:
+                            select_bucket = candidate_bucket[0]
+                        else:
+                            select_bucket = rs.choice(candidate_bucket)
+                        bs_count = 0
+
+                    yield pick()
+
+            while count > 0:
+                if bs_count >= bs:
+                    candidate_bucket = [b for b in buckets if len(b) >= bs]
+                    if len(candidate_bucket) == 0:
+                        for b in buckets:
+                            rest = bs - len(b)
+                            if rs is None:
+                                b.extend(repeat_list(b, rest))
+                            else:
+                                b.extend(rs.choice(b, rest))
+                            count += rest
+                    if rs is None:
+                        select_bucket = candidate_bucket[0]
+                    else:
+                        select_bucket = rs.choice(candidate_bucket)
+                    bs_count = 0
+
+                yield pick()
+
+    def next_data(self, shuffle=True):
+        def assign_bucket(datas, source, buckets):
+            w, h = source.get_image_size(datas)
+            ratio_log = np.log2(w / h)
+            bucket_idx = (self.ratios_log - ratio_log).abs().argmin()
+            datas['image_size'] = self.size_buckets[bucket_idx]
+            buckets[bucket_idx].append(datas)
+
+        if not hasattr(self, 'buffer_iter'):
+            self.buffer_iter = self._buffer(self.bs, assign_bucket, rs=self.rs if shuffle else None)
+        return next(self.buffer_iter)
 
     def __getitem__(self, idx):
-        file_idx = self.idx_bucket[idx]
-        bucket_idx = self.idx_bucket_map[file_idx]
-        datas = self.source[file_idx]
-        datas['image_size'] = self.size_buckets[bucket_idx]
-        return datas
+        if self.source_indexable:
+            file_idx = self.idx_bucket[idx]
+            bucket_idx = self.idx_bucket_map[file_idx]
+            datas = self.source[file_idx]
+            datas['image_size'] = self.size_buckets[bucket_idx]
+            return datas
+        else:
+            return self.next_data()
 
     def __len__(self):
         return self.data_len
@@ -228,12 +335,26 @@ class SizeBucket(RatioBucket):
         # SD需要边长是8的倍数
         self.size_buckets = (np.round(size_buckets / self.step_size) * self.step_size).astype(int)
 
-        self.buckets = []  # [bucket_id:[file_idx,...]]
-        self.idx_bucket_map = labels
-        for bidx in range(self.num_bucket):
-            self.buckets.append(np.where(labels == bidx)[0].tolist())
-        logger.info(
-            'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        if self.source_indexable:
+            self.buckets = []  # [bucket_id:[file_idx,...]]
+            self.idx_bucket_map = labels
+            for bidx in range(self.num_bucket):
+                self.buckets.append(np.where(labels == bidx)[0].tolist())
+            logger.info(
+                'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        else:
+            logger.info('buckets info: ' + ', '.join(f'size:{size}' for size in enumerate(self.size_buckets)))
+
+    def next_data(self, shuffle=True):
+        def assign_bucket(datas, source, buckets):
+            w, h = source.get_image_size(datas)
+            bucket_idx = np.linalg.norm(self.size_buckets-np.array([[w,h]]), axis=1).argmin()
+            datas['image_size'] = self.size_buckets[bucket_idx]
+            buckets[bucket_idx].append(datas)
+
+        if not hasattr(self, 'buffer_iter'):
+            self.buffer_iter = self._buffer(self.bs, assign_bucket, rs=self.rs if shuffle else None)
+        return next(self.buffer_iter)
 
     @classmethod
     def from_files(cls, step_size: int = 8, num_bucket: int = 10, pre_build_bucket: str = None, **kwargs):
@@ -257,7 +378,7 @@ class RatioSizeBucket(RatioBucket):
             data, source = info
             w, h = source.get_image_size(data)
             ratio = np.log2(w / h)
-            log_area = np.log2(min(w * h, self.max_area))
+            log_area = 2*np.log2(min(w * h, self.max_area)/(self.max_area/2))
             return ratio, log_area
 
         ratio_list = []
@@ -281,12 +402,29 @@ class RatioSizeBucket(RatioBucket):
         self.size_buckets = list(zip(w_all, h_all))
         self.size_buckets = np.array(self.size_buckets)
 
-        self.buckets = []  # [bucket_id:[file_idx,...]]
-        self.idx_bucket_map = labels
-        for bidx in range(self.num_bucket):
-            self.buckets.append(np.where(labels == bidx)[0].tolist())
-        logger.info(
-            'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        if self.source_indexable:
+            self.buckets = []  # [bucket_id:[file_idx,...]]
+            self.idx_bucket_map = labels
+            for bidx in range(self.num_bucket):
+                self.buckets.append(np.where(labels == bidx)[0].tolist())
+            logger.info(
+                'buckets info: ' + ', '.join(f'size:{self.size_buckets[i]}, num:{len(b)}' for i, b in enumerate(self.buckets)))
+        else:
+            logger.info('buckets info: ' + ', '.join(f'size:{size}' for size in enumerate(self.size_buckets)))
+            self.ratio_area_list = ratio_list
+
+    def next_data(self, shuffle=True):
+        def assign_bucket(datas, source, buckets):
+            w, h = source.get_image_size(datas)
+            log_ratio = np.log2(w / h)
+            log_area = 2 * np.log2(min(w * h, self.max_area) / (self.max_area / 2))
+            bucket_idx = np.linalg.norm(self.ratio_area_list-np.array([[log_ratio,log_area]]), axis=1).argmin()
+            datas['image_size'] = self.size_buckets[bucket_idx]
+            buckets[bucket_idx].append(datas)
+
+        if not hasattr(self, 'buffer_iter'):
+            self.buffer_iter = self._buffer(self.bs, assign_bucket, rs=self.rs if shuffle else None)
+        return next(self.buffer_iter)
 
     @classmethod
     def from_files(cls, step_size: int = 8, num_bucket: int = 10, max_area: int = 640 * 640, pre_build_bucket: str = None,

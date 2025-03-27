@@ -9,6 +9,10 @@ from .sampler import DistributedCycleSampler, get_sampler
 from .source import *
 from .utils import CycleData
 
+try:
+    from .webds import WebDataset
+except (ImportError, ModuleNotFoundError):
+    print('INFO: webdataset is not available')
 
 class DataGroup:
     def __init__(self, loader_dict: Dict[str, Any], loss_weights: Dict[str, float], cycle=True):

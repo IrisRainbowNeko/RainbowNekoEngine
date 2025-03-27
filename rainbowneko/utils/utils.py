@@ -1,14 +1,15 @@
 import hashlib
 import math
-import os
 import random
 import re
-from typing import Tuple, List, Any, Dict, Union
+from itertools import cycle, islice
 from pathlib import Path
-from .img_size_tool import types_support
+from typing import Tuple, List, Any, Dict, Union
 
 import torch
 from omegaconf import OmegaConf
+
+from .img_size_tool import types_support
 
 size_mul = {'K': 1 << 10, 'M': 1 << 20, 'G': 1 << 30, 'T': 1 << 40}
 size_key = 'TGMK'
@@ -68,8 +69,10 @@ def make_mask(start, end, length):
     mask[int(length * start):int(length * end)] = 1
     return mask.bool()
 
+
 def is_image_file(file: Union[str, Path]):
     return Path(file).suffix[1:].lower() in types_support
+
 
 def factorization(dimension: int, factor: int = -1) -> Tuple[int, int]:
     find_one = lambda x: len(x) - (x.rfind('1') + 1)
@@ -130,8 +133,10 @@ def format_number(num):
 def is_list(v):
     return OmegaConf.is_list(v) or isinstance(v, list)
 
+
 def is_dict(v):
     return OmegaConf.is_dict(v) or isinstance(v, dict)
+
 
 def addto_dictlist(dict_list: Dict[str, List], data: Dict[str, Any], v_proc=None):
     for k, v in data.items():
@@ -143,19 +148,22 @@ def addto_dictlist(dict_list: Dict[str, List], data: Dict[str, Any], v_proc=None
             dict_list[k].append(v)
     return dict_list
 
+
 def set_list_value(lst, index, value, default=None):
     if index >= len(lst):
         lst.extend([default] * (index - len(lst) + 1))
     lst[index] = value
 
+
 def dict_parse_list(data: Dict[str, Any]):
     if isinstance(data, dict):
-        if len(data)>0 and isinstance(next(iter(data)), int):
+        if len(data) > 0 and isinstance(next(iter(data)), int):
             return [dict_parse_list(data[i]) for i in range(len(data))]
         else:
             return {k: dict_parse_list(v) for k, v in data.items()}
     else:
         return data
+
 
 def dict_merge(dict_base, dict_override):
     """
@@ -171,3 +179,7 @@ def dict_merge(dict_base, dict_override):
         else:
             merged[key] = value
     return merged
+
+
+def repeat_list(lst, length):
+    return list(islice(cycle(lst), length))
