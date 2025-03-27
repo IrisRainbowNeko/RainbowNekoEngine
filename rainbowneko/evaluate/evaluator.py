@@ -43,13 +43,16 @@ class Evaluator:
         return model_pred, input_datas
     
     def cpu_gather(self, tensor):
-        if not hasattr(self, 'gloo_group'): # Transfer data on cpu
-            self.gloo_group = dist.new_group(backend='gloo')
+        if self.trainer.world_size>1:
+            if not hasattr(self, 'gloo_group'): # Transfer data on cpu
+                self.gloo_group = dist.new_group(backend='gloo')
 
-        world_size = dist.get_world_size()
-        gathered_tensors = [torch.empty_like(tensor) for _ in range(world_size)]
-        dist.all_gather(gathered_tensors, tensor, group=self.gloo_group)
-        return torch.cat(gathered_tensors, dim=0)
+            world_size = dist.get_world_size()
+            gathered_tensors = [torch.empty_like(tensor) for _ in range(world_size)]
+            dist.all_gather(gathered_tensors, tensor, group=self.gloo_group)
+            return torch.cat(gathered_tensors, dim=0)
+        else:
+            return tensor
 
     @torch.no_grad()
     def evaluate(self, step: int, model: BaseWrapper, prefix='eval/'):
