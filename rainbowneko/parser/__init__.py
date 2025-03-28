@@ -54,9 +54,12 @@ _instantiate2._resolve_target = _resolve_target
 ####### patch hydra resolve target #######
 
 from .model import CfgModelParser, CustomModelParser, CfgWDModelParser, CfgPluginParser, CfgWDPluginParser
-from .python_cfg import PythonCfgParser, get_rel_path
+from .python_cfg import PythonCfgParser, get_rel_path, disable_neko_cfg
 from .yaml_cfg import YamlCfgParser
 
+def neko_cfg(func):
+    parser = PythonCfgParser()
+    return parser.compile_cfg(func)
 
 def load_config(path: Union[str, ModuleType], remove_undefined=True):
     if isinstance(path, ModuleType):

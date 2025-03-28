@@ -8,7 +8,7 @@ from torch.nn import CrossEntropyLoss
 from cfgs.py.train.classify import multi_class
 from rainbowneko.ckpt_manager import ckpt_manager
 from rainbowneko.models.wrapper import DistillationWrapper
-from rainbowneko.parser import CfgModelParser
+from rainbowneko.parser import CfgModelParser, neko_cfg
 from rainbowneko.train.loss import LossContainer, LossGroup, DistillationLoss
 
 num_classes = 10
@@ -20,8 +20,9 @@ def load_resnet(model, path=None):
         model.load_state_dict(torch.load(path)['base'])
     return model
 
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         _base_=[multi_class],
 
         model_part=CfgModelParser([

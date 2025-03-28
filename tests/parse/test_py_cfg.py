@@ -1,16 +1,14 @@
 from unittest import TestCase
 from rainbowneko.parser import PythonCfgParser
-import importlib
+import inspect
 from omegaconf import OmegaConf
 
 class PyCFGTester(TestCase):
     def test_file_parse(self):
         parser = PythonCfgParser()
-        module = importlib.import_module('cfgs.py.train.classify.multi_class')
-
-        code = parser.get_code(module.make_cfg)
-        code_format = parser.transform_code(code)
-        parser.print_code(code_format)
+        from cfgs.py.train.classify import multi_class
+        source = inspect.getsource(multi_class.make_cfg)
+        parser.print_code(source)
 
     def test_cfg_load(self):
         parser = PythonCfgParser()

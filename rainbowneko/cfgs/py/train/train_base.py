@@ -5,13 +5,15 @@ import torch
 from torch.nn import MSELoss
 
 from rainbowneko.ckpt_manager import ckpt_manager
+from rainbowneko.parser import neko_cfg
 from rainbowneko.train.loggers import CLILogger
 from rainbowneko.utils import OneCycleLR
 
 time_format="%Y-%m-%d-%H-%M-%S"
 
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         exp_dir=f'exps/{time.strftime(time_format)}',
         mixed_precision=None,
         allow_tf32=False,

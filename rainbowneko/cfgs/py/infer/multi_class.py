@@ -3,13 +3,13 @@ import torchvision
 import torchvision.transforms as T
 from torch import nn
 
+from rainbowneko.data import IndexSource, HandlerChain, LoadImageHandler, ImageHandler, BaseDataset, BaseBucket
 from rainbowneko.infer import HandlerAction, DataLoaderAction
 from rainbowneko.infer.workflow import (Actions, BuildModelAction, PrepareAction, FeedAction, ForwardAction,
                                         LambdaAction, VisClassAction, LoadModelAction)
 from rainbowneko.models.wrapper import SingleWrapper
+from rainbowneko.parser import neko_cfg
 from rainbowneko.parser.model import NekoModelLoader
-from rainbowneko.data import IndexSource, HandlerChain, LoadImageHandler, ImageHandler, BaseDataset, BaseBucket
-from rainbowneko.utils import neko_cfg
 
 num_classes = 10
 
@@ -20,7 +20,7 @@ def load_resnet():
 
 @neko_cfg
 def infer_one(path):
-    Actions([
+    return Actions([
         FeedAction(image=path),
         HandlerAction(handler=HandlerChain(
             load=LoadImageHandler(),
@@ -40,7 +40,7 @@ def infer_one(path):
 
 @neko_cfg
 def infer_all(path):
-    DataLoaderAction(
+    return DataLoaderAction(
         dataset=BaseDataset(_partial_=True, batch_size=1, loss_weight=1.0,
             source=dict(
                 data_source1=IndexSource(
@@ -67,8 +67,9 @@ def infer_all(path):
         ])
     )
 
+@neko_cfg
 def make_cfg():
-    dict(workflow=Actions(actions=[
+    return dict(workflow=Actions(actions=[
         PrepareAction(device='cpu', dtype=torch.float16),
         BuildModelAction(SingleWrapper(_partial_=True, model=load_resnet())),
         LoadModelAction(dict(

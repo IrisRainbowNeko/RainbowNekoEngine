@@ -10,15 +10,15 @@ from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
 from cfgs.py.eval import multi_class_flow
 from cfgs.py.train import train_base, tuning_base
 from rainbowneko.ckpt_manager import ckpt_manager
-from rainbowneko.evaluate import MetricGroup, MetricContainer, WorkflowEvaluator
-from rainbowneko.models.wrapper import SingleWrapper
-from rainbowneko.parser import CfgWDModelParser
 from rainbowneko.data import BaseDataset
 from rainbowneko.data import FixedBucket
 from rainbowneko.data.handler import HandlerChain, ImageHandler, LoadImageHandler
 from rainbowneko.data.source import IndexSource
+from rainbowneko.evaluate import MetricGroup, MetricContainer, WorkflowEvaluator
+from rainbowneko.models.wrapper import SingleWrapper
+from rainbowneko.parser import CfgWDModelParser, neko_cfg
 from rainbowneko.train.loss import LossContainer
-from rainbowneko.utils import neko_cfg, CosineLR
+from rainbowneko.utils import CosineLR
 
 num_classes = 10
 
@@ -27,8 +27,9 @@ def load_resnet():
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     return model
 
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         _base_=[train_base, tuning_base],
 
         model_part=CfgWDModelParser([
@@ -79,7 +80,7 @@ def make_cfg():
 
 @neko_cfg
 def cfg_data():
-    dict(
+    return dict(
         dataset1=partial(BaseDataset, batch_size=16, loss_weight=1.0,
             source=dict(
                 data_source1=IndexSource(

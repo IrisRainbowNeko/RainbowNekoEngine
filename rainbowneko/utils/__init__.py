@@ -1,5 +1,5 @@
 from .cfg_resolvers import *
-from .cfg_tool import change_num_classes, neko_cfg
+from .cfg_tool import change_num_classes
 from .constant import Path_Like
 from .key_mapper import KeyMapper
 from .lr_scheduler import ConstantLR, CosineLR, CosineRestartLR, MultiStepLR, PolynomialLR, OneCycleLR, get_scheduler, \

@@ -1,15 +1,20 @@
 import ast
 import importlib
 import inspect
+import linecache
 import os
+import random
 import re
 import shutil
-from typing import Union
+import string
+from contextlib import nullcontext
 from types import ModuleType
+from typing import Union
 
 from omegaconf import OmegaConf
 
 from .yaml_cfg import YamlCfgParser
+
 
 def get_rel_path(path):
     if not isinstance(path, str):
@@ -17,8 +22,18 @@ def get_rel_path(path):
     current_dir = os.getcwd()
     return os.path.relpath(path, current_dir)
 
+
+def random_filename(length=8, suffix=".py"):
+    chars = string.ascii_letters + string.digits  # 字母 + 数字
+    random_part = ''.join(random.choices(chars, k=length))
+    return f"{random_part}{suffix}"
+
+
+disable_neko_cfg = nullcontext()
+
+
 class CallTransformer(ast.NodeTransformer):
-    transform_parent = (ast.Call, ast.Expr, ast.Dict, ast.List)
+    transform_parent = (ast.Call, ast.Expr, ast.Dict, ast.List, ast.Return, ast.Assign)
     node_skip = ast.Lambda
 
     def __init__(self):
@@ -67,7 +82,7 @@ class CallTransformer(ast.NodeTransformer):
             node_list = self.find_call(node.func)
             if node_list is None:
                 call_node.keywords.append(
-                    ast.keyword(arg='_target_', value=ast.Attribute(attr=node.func.attr, value=node.func.value)))
+                    ast.keyword(arg='_target_', value=ast.Attribute(attr=node.func.attr, value=node.func.value, ctx=ast.Load())))
             else:
                 prev_node = self.visit_Call(node_list[0])
                 for node_attr in node_list[1:]:
@@ -76,7 +91,8 @@ class CallTransformer(ast.NodeTransformer):
                         args=[],
                         keywords=[
                             ast.keyword(arg='_target_', value=ast.Name(id='getattr', ctx=ast.Load())),
-                            ast.keyword(arg='_args_', value=ast.List(elts=[prev_node, ast.Constant(value=node_attr.attr)], ctx=ast.Load())),
+                            ast.keyword(arg='_args_',
+                                        value=ast.List(elts=[prev_node, ast.Constant(value=node_attr.attr)], ctx=ast.Load())),
                         ]
                     )
                 call_node.keywords.append(
@@ -86,9 +102,8 @@ class CallTransformer(ast.NodeTransformer):
         else:
             if node.func.id == 'partial':
                 partial_flag = True
-            elif not node.func.id == 'dict':
-                call_node.keywords.append(ast.keyword(arg='_target_', value=ast.Name(id=node.func.id)))
-
+            elif node.func.id != 'dict':
+                call_node.keywords.append(ast.keyword(arg='_target_', value=ast.Name(id=node.func.id, ctx=ast.Load())))
 
         # 处理位置参数
         if node.args:
@@ -107,11 +122,21 @@ class CallTransformer(ast.NodeTransformer):
 
         # 处理关键字参数
         if node.keywords:
-            for keyword in node.keywords:
-                call_node.keywords.append(ast.keyword(arg=keyword.arg, value=self.visit(keyword.value)))
+            for i, keyword in enumerate(node.keywords):
+                if keyword.arg is None and isinstance(keyword.value, ast.Call):  # merge '**neko_cfg()' to dict
+                    call_node.keywords.append(ast.keyword(arg=f'_merge_{i}_', value=self.visit(keyword.value)))
+                else:
+                    call_node.keywords.append(ast.keyword(arg=keyword.arg, value=self.visit(keyword.value)))
 
         # 替换原始的Call节点
         return call_node
+
+    def visit_With(self, node):
+        for item in node.items:
+            if isinstance(item.context_expr, ast.Name) and item.context_expr.id == 'disable_neko_cfg':
+                return node
+        super().generic_visit(node)
+        return node
 
 
 class PythonCfgParser(YamlCfgParser):
@@ -119,66 +144,72 @@ class PythonCfgParser(YamlCfgParser):
         super().__init__()
         self.cfg_dict = {}
 
-    def get_code(self, func):
-        # 获取函数源代码
-        source_code = inspect.getsource(func)
-
-        # 分离函数定义和函数体
-        start_index = re.search(r':\s*\n', source_code).end()  # 找到第一个换行符后的索引
-        function_body = source_code[start_index:].strip()
-        return function_body
-
-    def get_default_kwargs(self, func):
-        sig = inspect.signature(func)
-        return {k: v.default for k, v in sig.parameters.items() if v.default is not inspect.Parameter.empty}
-
-    def transform_code(self, code):
-        # 解析代码为AST
-        tree = ast.parse(code)
-        # 应用转换器
-        transformer = CallTransformer()
-        new_tree = transformer.visit(tree)
-
-        # 将AST转换回代码字符串
-        new_code = ast.unparse(new_tree)
-
-        # self.print_code(new_code)
-
-        return new_code
-
     def print_code(self, code):
-        # 使用yapf格式化代码
+        # format code with yapf
         from yapf.yapflib.yapf_api import FormatCode
         new_code, _ = FormatCode(code, style_config='facebook')
         print(new_code)
 
-    def resolve_sub_cfgs(self, module, cfg):
+    def compile_cfg(self, func):
+        source = inspect.getsource(func)  # get source code
+        tree = ast.parse(source)  # AST tree
+        tree_func = tree.body[0]
+        tree_func.decorator_list = [x for x in tree_func.decorator_list if x.id != 'neko_cfg']
+
+        modified_tree = CallTransformer().visit(tree)
+        ast.fix_missing_locations(modified_tree)
+
+        # add source code for new function
+        filename = random_filename()
+        new_code = ast.unparse(modified_tree)
+        lines = [line + '\n' for line in new_code.splitlines()]
+        linecache.cache[filename] = (len(source), None, lines, filename)
+
+        # compile modified code
+        code = compile(modified_tree, filename=filename, mode="exec")
+        namespace = func.__globals__
+        exec(code, namespace)
+        f_new = namespace[func.__name__]
+        f_new._neko_cfg_ = True
+        return f_new
+
+    def resolve_sub_cfgs(self, cfg):
         if isinstance(cfg, dict):
             if '_target_' in cfg and getattr(cfg['_target_'], '_neko_cfg_', False):
-                code = self.get_code(cfg['_target_'])
-                code_format = self.transform_code(code)
-                kwargs = self.get_default_kwargs(cfg['_target_'])
-                del cfg['_target_']
-                cfg = eval(code_format, vars(module), {**kwargs, **cfg})
+                target = cfg.pop('_target_')
+                if '_args_' in cfg:
+                    args = cfg.pop('_args_')
+                    cfg = target(*args, **cfg)
+                else:
+                    cfg = target(**cfg)
+                self.resolve_sub_cfgs(cfg)
                 return cfg
 
+            cfg_new = {}
             for key, value in cfg.items():
                 if isinstance(value, dict):
-                    res = self.resolve_sub_cfgs(module, value)
-                    if res is not None:
-                        cfg[key] = res
-                if isinstance(value, list):
-                    self.resolve_sub_cfgs(module, value)
+                    if re.match(r'_merge_\d+_', key):
+                        res = self.resolve_sub_cfgs(value)
+                        cfg_new.update(**res)
+                    else:
+                        res = self.resolve_sub_cfgs(value)
+                        cfg_new[key] = res or value
+                elif isinstance(value, list):
+                    self.resolve_sub_cfgs(value)
+                    cfg_new[key] = value
+                else:
+                    cfg_new[key] = value
+            return cfg_new
         elif isinstance(cfg, list):
             for idx, value in enumerate(cfg):
                 if isinstance(value, dict):
-                    res = self.resolve_sub_cfgs(module, value)
+                    res = self.resolve_sub_cfgs(value)
                     if res is not None:
                         cfg[idx] = res
                 elif isinstance(value, list):
-                    self.resolve_sub_cfgs(module, value)
+                    self.resolve_sub_cfgs(value)
 
-    def load_cfg(self, path: Union[str, ModuleType], trans=True):
+    def load_cfg(self, path: Union[str, ModuleType]):
         if isinstance(path, str):
             # record for save
             if len(self.cfg_dict) == 0:
@@ -203,13 +234,12 @@ class PythonCfgParser(YamlCfgParser):
         else:
             raise ValueError(f'base must be str or module. But type of base is {type(path)}')
 
-        if trans:
-            code = self.get_code(module.make_cfg)
-            code_format = self.transform_code(code)
-            cfg = eval(code_format, vars(module))
+        if getattr(module.make_cfg, '_neko_cfg_', False):
+            cfg = module.make_cfg()
         else:
-            cfg = module.config
-        self.resolve_sub_cfgs(module, cfg)
+            f_cfg = self.compile_cfg(module.make_cfg)
+            cfg = f_cfg()
+        cfg = self.resolve_sub_cfgs(cfg) or cfg
 
         return OmegaConf.create(cfg, flags={"allow_objects": True})
 

@@ -1,6 +1,8 @@
-from rainbowneko.parser import CfgModelParser
+from rainbowneko.parser import CfgModelParser, neko_cfg
+
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         model_part=CfgModelParser([
             dict(
                 lr=1e-6,

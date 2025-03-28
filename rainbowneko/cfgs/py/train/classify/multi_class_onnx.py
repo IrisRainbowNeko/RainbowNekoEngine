@@ -1,10 +1,11 @@
 from cfgs.py.train.classify import multi_class
 from rainbowneko.ckpt_manager import ckpt_manager, LocalCkptSource, ModelManager
 from rainbowneko.ckpt_manager.format import ONNXFormat
+from rainbowneko.parser import neko_cfg
 
-
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         _base_=[multi_class],
 
         ckpt_manager=[

@@ -1,14 +1,15 @@
 from cfgs.py.train.classify import multi_class
 from rainbowneko.data import BaseDataset
 from rainbowneko.data.handler import MixUPHandler, HandlerChain
+from rainbowneko.parser import neko_cfg
 from rainbowneko.train.loss import LossContainer, SoftCELoss
 
 num_classes = 10
 multi_class.num_classes = num_classes
 
-
+@neko_cfg
 def make_cfg():
-    dict(
+    return dict(
         _base_=[multi_class],
 
         train=dict(
