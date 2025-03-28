@@ -23,7 +23,7 @@ multi_class.num_classes = num_classes
 
 
 def make_cfg():
-    dict(
+    return dict(
         _base_=[multi_class],
 
         train=dict(
@@ -107,10 +107,11 @@ data_train:
 ```python
 from cfgs.py.train.classify import multi_class
 
-dict(
-    _base_=[multi_class],
-    ...
-)
+def make_cfg():
+    return dict(
+        _base_=[multi_class],
+        ...
+    )
 ```
 比如这里继承`multi_class`这个配置文件，可以自动获取`multi_class`的内容并继承。
 

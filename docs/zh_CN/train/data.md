@@ -13,7 +13,7 @@
 ```python
 @neko_cfg
 def cfg_data():
-    dict(
+    return dict(
         dataset1=partial(BaseDataset, batch_size=128, loss_weight=1.0,
             source=dict(
                 data_source1=IndexSource(
@@ -282,7 +282,7 @@ dict(
 ```python
 @neko_cfg
 def cfg_data():
-    dict(
+    return dict(
         dataset1=partial(BaseDataset, batch_size=64, loss_weight=1.0,
             source=dict(
                 data_source1=ImageFolderClassSource(img_root='./imagenet'),

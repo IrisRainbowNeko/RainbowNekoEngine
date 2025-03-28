@@ -14,6 +14,8 @@
 
 ```python
 from rainbowneko.data.handler import HandlerChain, ImageHandler, LoadImageHandler
+from rainbowneko.data import FixedBucket
+from torchvision import transforms as T
 
 handler = HandlerChain(
     load=LoadImageHandler(),
