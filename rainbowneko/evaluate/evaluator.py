@@ -118,7 +118,7 @@ class WorkflowEvaluator(Evaluator):
             parser, conf = load_config(workflow)
             self.workflow_runner = WorkflowRunner(parser, conf)
         else:
-            self.workflow_runner = WorkflowRunner(None, workflow)
+            self.workflow_runner = WorkflowRunner(trainer.parser, workflow)
 
     @torch.no_grad()
     def evaluate(self, step: int, model: BaseWrapper, prefix='eval/'):
