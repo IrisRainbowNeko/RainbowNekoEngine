@@ -1,6 +1,7 @@
 import argparse
 
 from accelerate import Accelerator
+from rainbowneko import _share
 
 from .trainer_ac import Trainer, load_config_with_cli, set_seed
 
@@ -15,6 +16,9 @@ class TrainerSingleCard(Trainer):
 
         self.local_rank = 0
         self.world_size = self.accelerator.num_processes
+        _share.local_rank = self.local_rank
+        _share.world_size = self.world_size
+        _share.device = self.device
 
         set_seed(self.cfgs.seed + self.local_rank)
 

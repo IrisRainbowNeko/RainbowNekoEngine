@@ -182,8 +182,8 @@ class PythonCfgParser(YamlCfgParser):
                     cfg = target(*args, **cfg)
                 else:
                     cfg = target(**cfg)
-                self.resolve_sub_cfgs(cfg)
-                return cfg
+                res = self.resolve_sub_cfgs(cfg)
+                return res or cfg
 
             cfg_new = {}
             for key, value in cfg.items():
