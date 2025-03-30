@@ -10,12 +10,13 @@ plugin.py
 
 import weakref
 import re
-from typing import Tuple, List, Dict, Any, Iterable
+from typing import Tuple, List, Dict, Any, Iterable, Callable, Optional
 
 import torch
 from torch import nn
 
 from rainbowneko.utils import split_module_name
+
 
 class BasePluginBlock(nn.Module):
     def __init__(self, name: str):
@@ -24,6 +25,20 @@ class BasePluginBlock(nn.Module):
 
     def forward(self, host: nn.Module, fea_in: Tuple[torch.Tensor], fea_out: torch.Tensor):
         return fea_out
+
+    def register_forward_hook_to(self, host: nn.Module,
+                                 hook: Callable[[nn.Module, Tuple[Any, ...], Dict[str, Any], Any], Optional[Any]]):
+        try:
+            return host.register_forward_hook(hook, with_kwargs=True)
+        except TypeError:  # torch < 2.0
+            return host.register_forward_hook(lambda host, args, output: hook(host, args, {}, output))
+
+    def register_forward_pre_hook_to(self, host: nn.Module, hook: Callable[
+        [nn.Module, Tuple[Any, ...], Dict[str, Any]], Optional[Tuple[Any, Dict[str, Any]]]]):
+        try:
+            return host.register_forward_pre_hook(hook, with_kwargs=True)
+        except TypeError:  # torch < 2.0
+            return host.register_forward_pre_hook(lambda host, args: hook(host, args, {})[0])
 
     def remove(self):
         pass
@@ -57,6 +72,7 @@ class BasePluginBlock(nn.Module):
     def get_trainable_parameters(self) -> Iterable[nn.Parameter]:
         return self.parameters()
 
+
 class WrapablePlugin:
     wrapable_classes = ()
 
@@ -66,7 +82,7 @@ class WrapablePlugin:
         return plugin
 
     @classmethod
-    def named_modules_with_exclude(cls, self, memo = None, prefix: str = '', remove_duplicate: bool = True,
+    def named_modules_with_exclude(cls, self, memo=None, prefix: str = '', remove_duplicate: bool = True,
                                    exclude_key=None, exclude_classes=tuple()):
 
         if memo is None:
@@ -80,11 +96,13 @@ class WrapablePlugin:
                     if module is None:
                         continue
                     submodule_prefix = prefix + ('.' if prefix else '') + name
-                    for m in cls.named_modules_with_exclude(module, memo, submodule_prefix, remove_duplicate, exclude_key, exclude_classes):
+                    for m in cls.named_modules_with_exclude(module, memo, submodule_prefix, remove_duplicate, exclude_key,
+                                                            exclude_classes):
                         yield m
 
     @classmethod
-    def wrap_model(cls, name: str, host: nn.Module, exclude_key=None, exclude_classes=tuple(), **kwargs):  # -> Dict[str, SinglePluginBlock]:
+    def wrap_model(cls, name: str, host: nn.Module, exclude_key=None, exclude_classes=tuple(),
+                   **kwargs):  # -> Dict[str, SinglePluginBlock]:
         '''
         parent_block and other args required in __init__ will be put into kwargs, compatible with multiple models.
         '''
@@ -92,7 +110,7 @@ class WrapablePlugin:
         if isinstance(host, cls.wrapable_classes):
             plugin_block_dict[''] = cls.wrap_layer(name, host, **kwargs)
         else:
-            named_modules = {layer_name:layer for layer_name, layer in cls.named_modules_with_exclude(
+            named_modules = {layer_name: layer for layer_name, layer in cls.named_modules_with_exclude(
                 host, exclude_key=exclude_key, exclude_classes=exclude_classes)}
             for layer_name, layer in named_modules.items():
                 if isinstance(layer, cls.wrapable_classes):
@@ -104,6 +122,7 @@ class WrapablePlugin:
                     plugin_block_dict[layer_name] = cls.wrap_layer(name, layer, **kwargs)
         return plugin_block_dict
 
+
 class SinglePluginBlock(BasePluginBlock, WrapablePlugin):
 
     def __init__(self, name: str, host: nn.Module, hook_param=None, host_model=None):
@@ -112,24 +131,23 @@ class SinglePluginBlock(BasePluginBlock, WrapablePlugin):
         setattr(host, name, self)
 
         if hook_param is None:
-            self.hook_handle = host.register_forward_hook(self.layer_hook)
+            self.hook_handle = self.register_forward_hook_to(host, self.layer_hook)
         else:  # hook for model parameters
             self.backup = getattr(host, hook_param)
             self.target = hook_param
-            self.handle_pre = host.register_forward_pre_hook(self.pre_hook)
-            self.handle_post = host.register_forward_hook(self.post_hook)
+            self.handle_pre = self.register_forward_pre_hook_to(host, self.pre_hook)
+            self.handle_post = self.register_forward_hook_to(host, self.post_hook)
 
-    def layer_hook(self, host, fea_in: Tuple[torch.Tensor], fea_out: torch.Tensor):
-        return self(fea_in, fea_out)
+    def layer_hook(self, host: nn.Module, args: Tuple[Any, ...], kwargs: Dict[str, Any], feat_out: Any):
+        return self(feat_out, *args, **kwargs)
 
-    def pre_hook(self, host, fea_in: torch.Tensor):
+    def pre_hook(self, host: nn.Module, args: Tuple[Any, ...], kwargs: Dict[str, Any]):
         host.weight_restored = False
         host_param = getattr(host, self.target)
         delattr(host, self.target)
         setattr(host, self.target, self(host_param))
-        return fea_in
 
-    def post_hook(self, host, fea_int, fea_out):
+    def post_hook(self, host, args, kwargs, feat_out):
         if not getattr(host, 'weight_restored', False):
             setattr(host, self.target, self.backup)
             host.weight_restored = True
@@ -143,6 +161,7 @@ class SinglePluginBlock(BasePluginBlock, WrapablePlugin):
             self.handle_pre.remove()
             self.handle_post.remove()
 
+
 class PluginBlock(BasePluginBlock):
     def __init__(self, name, from_layer: Dict[str, Any], to_layer: Dict[str, Any], host_model=None):
         super().__init__(name)
@@ -151,26 +170,27 @@ class PluginBlock(BasePluginBlock):
         setattr(from_layer['layer'], name, self)
 
         if from_layer['pre_hook']:
-            self.hook_handle_from = from_layer['layer'].register_forward_pre_hook(lambda host, fea_in:self.from_layer_hook(host, fea_in, None))
+            self.hook_handle_from = self.register_forward_pre_hook_to(from_layer['layer'], self.from_layer_hook)
         else:
-            self.hook_handle_from = from_layer['layer'].register_forward_hook(
-                lambda host, fea_in, fea_out:self.from_layer_hook(host, fea_in, fea_out))
+            self.hook_handle_from = self.register_forward_hook_to(from_layer['layer'], self.from_layer_hook)
+
         if to_layer['pre_hook']:
-            self.hook_handle_to = to_layer['layer'].register_forward_pre_hook(lambda host, fea_in:self.to_layer_hook(host, fea_in, None))
+            self.hook_handle_to = self.register_forward_pre_hook_to(to_layer['layer'], self.to_layer_hook)
         else:
-            self.hook_handle_to = to_layer['layer'].register_forward_hook(lambda host, fea_in, fea_out:self.to_layer_hook(host, fea_in, fea_out))
+            self.hook_handle_to = self.register_forward_hook_to(to_layer['layer'], self.to_layer_hook)
 
-    def from_layer_hook(self, host, fea_in: Tuple[torch.Tensor], fea_out: torch.Tensor):
-        self.feat_from = fea_in
+    def from_layer_hook(self, host, args: Tuple[Any, ...], kwargs: Dict[str, Any], fea_out: Any=None):
+        self.feat_from = (args, kwargs)
 
-    def to_layer_hook(self, host, fea_in: Tuple[torch.Tensor], fea_out: torch.Tensor):
-        return self(self.feat_from, fea_in, fea_out)
+    def to_layer_hook(self, host, args: Tuple[Any, ...], kwargs: Dict[str, Any], fea_out: Any=None):
+        return self(self.feat_from[0], self.feat_from[1], fea_out, *args, **kwargs)
 
     def remove(self):
         host_from = self.host_from()
         delattr(host_from, self.name)
         self.hook_handle_from.remove()
         self.hook_handle_to.remove()
+
 
 class MultiPluginBlock(BasePluginBlock):
     def __init__(self, name: str, from_layers: List[Dict[str, Any]], to_layers: List[Dict[str, Any]], host_model=None):
@@ -188,29 +208,32 @@ class MultiPluginBlock(BasePluginBlock):
 
         for idx, layer in enumerate(from_layers):
             if layer['pre_hook']:
-                handle_from = layer['layer'].register_forward_pre_hook(lambda host, fea_in, idx=idx:self.from_layer_hook(host, fea_in, None, idx))
+                handle_from = self.register_forward_pre_hook_to(layer['layer'],
+                        lambda host, args, kwargs, idx=idx: self.from_layer_hook(host, idx, args, kwargs))
             else:
-                handle_from = layer['layer'].register_forward_hook(
-                    lambda host, fea_in, fea_out, idx=idx:self.from_layer_hook(host, fea_in, fea_out, idx))
+                handle_from = self.register_forward_hook_to(layer['layer'],
+                        lambda host, args, kwargs, fea_out, idx=idx: self.from_layer_hook(host, idx, args, kwargs, fea_out))
             self.hook_handle_from.append(handle_from)
         for idx, layer in enumerate(to_layers):
             if layer['pre_hook']:
-                handle_to = layer['layer'].register_forward_pre_hook(lambda host, fea_in, idx=idx:self.to_layer_hook(host, fea_in, None, idx))
+                handle_to = self.register_forward_pre_hook_to(layer['layer'],
+                        lambda host, args, kwargs, idx=idx: self.to_layer_hook(host, idx, args, kwargs))
             else:
-                handle_to = layer['layer'].register_forward_hook(lambda host, fea_in, fea_out, idx=idx:self.to_layer_hook(host, fea_in, fea_out, idx))
+                handle_to = self.register_forward_hook_to(layer['layer'],
+                        lambda host, args, kwargs, fea_out, idx=idx: self.to_layer_hook(host, idx, args, kwargs, fea_out))
             self.hook_handle_to.append(handle_to)
 
         self.record_count = 0
 
-    def from_layer_hook(self, host, fea_in: Tuple[torch.Tensor], fea_out: Tuple[torch.Tensor], idx: int):
-        self.feat_from[idx] = fea_in
+    def from_layer_hook(self, host, idx: int, args: Tuple[Any, ...], kwargs: Dict[str, Any], fea_out: Any=None):
+        self.feat_from[idx] = (args, kwargs)
         self.record_count += 1
         if self.record_count == len(self.feat_from):  # call forward when all feat is record
             self.record_count = 0
             self.feat_to = self(self.feat_from)
 
-    def to_layer_hook(self, host, fea_in: Tuple[torch.Tensor], fea_out: Tuple[torch.Tensor], idx: int):
-        return self.feat_to[idx]+fea_out
+    def to_layer_hook(self, host, idx: int, args: Tuple[Any, ...], kwargs: Dict[str, Any], fea_out: Any=None):
+        return self.feat_to[idx] + fea_out
 
     def remove(self):
         host_model = self.host_model()
@@ -219,6 +242,7 @@ class MultiPluginBlock(BasePluginBlock):
             handle_from.remove()
         for handle_to in self.hook_handle_to:
             handle_to.remove()
+
 
 class PatchPluginContainer(nn.Module):
     def __init__(self, host_name, host, parent_block):
@@ -261,6 +285,7 @@ class PatchPluginContainer(nn.Module):
     def __getitem__(self, name):
         return getattr(self, name)
 
+
 class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
     container_cls = PatchPluginContainer
 
@@ -294,7 +319,8 @@ class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
             return self.container_cls(host_name, host, parent_block)
 
     @classmethod
-    def wrap_model(cls, name: str, host: nn.Module, exclude_key=None, exclude_classes=tuple(), **kwargs):  # -> Dict[str, SinglePluginBlock]:
+    def wrap_model(cls, name: str, host: nn.Module, exclude_key=None, exclude_classes=tuple(),
+                   **kwargs):  # -> Dict[str, SinglePluginBlock]:
         '''
         parent_block and other args required in __init__ will be put into kwargs, compatible with multiple models.
         '''
@@ -302,7 +328,7 @@ class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
         if isinstance(host, cls.wrapable_classes):
             plugin_block_dict[''] = cls.wrap_layer(name, host, **kwargs)
         else:
-            named_modules = {layer_name:layer for layer_name, layer in cls.named_modules_with_exclude(
+            named_modules = {layer_name: layer for layer_name, layer in cls.named_modules_with_exclude(
                 host, exclude_key=exclude_key or '_host', exclude_classes=exclude_classes)}
             for layer_name, layer in named_modules.items():
                 if isinstance(layer, cls.wrapable_classes) or isinstance(layer, cls.container_cls):
@@ -313,6 +339,7 @@ class PatchPluginBlock(BasePluginBlock, WrapablePlugin):
                         kwargs['host_name'] = host_name
                     plugin_block_dict[layer_name] = cls.wrap_layer(name, layer, **kwargs)
         return plugin_block_dict
+
 
 class PluginGroup:
     def __init__(self, plugin_dict: Dict[str, BasePluginBlock]):
@@ -336,13 +363,14 @@ class PluginGroup:
 
     def state_dict(self, model=None):
         if model is None:
-            return {f'{k}.___.{ks}':vs for k, v in self.plugin_dict.items() for ks, vs in v.state_dict().items()}
+            return {f'{k}.___.{ks}': vs for k, v in self.plugin_dict.items() for ks, vs in v.state_dict().items()}
         else:
             sd_model = model.state_dict()
-            return {f'{k}.___.{ks}':sd_model[f'{k}.{v.name}.{ks}'] for k, v in self.plugin_dict.items() for ks, vs in v.state_dict().items()}
+            return {f'{k}.___.{ks}': sd_model[f'{k}.{v.name}.{ks}'] for k, v in self.plugin_dict.items() for ks, vs in
+                    v.state_dict().items()}
 
     def from_model(self, model):
-        named_module = {name:layer for name, layer in model.named_modules()}
+        named_module = {name: layer for name, layer in model.named_modules()}
         return PluginGroup({k: named_module[f'{k}.{v.name}'] for k, v in self.plugin_dict.items()})
 
     def empty(self):
