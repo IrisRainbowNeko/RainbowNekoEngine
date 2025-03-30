@@ -28,7 +28,7 @@ class DistillationWrapper(BaseWrapper):
 
         res = {}
         if len(inputs_T_args)>0 or len(inputs_T_kwargs)>0:
-            with torch.inference_mode():
+            with torch.no_grad():
                 if hasattr(self, 'ema_teacher'):
                     out_teacher = self.ema_teacher(*inputs_T_args, **inputs_T_kwargs)
                 else:
