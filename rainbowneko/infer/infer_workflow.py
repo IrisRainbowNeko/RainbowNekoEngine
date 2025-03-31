@@ -35,6 +35,10 @@ def run_workflow():
     parser.add_argument('--cfg', type=str, default='')
     args, cfg_args = parser.parse_known_args()
 
+    import sys
+    import os
+    sys.path.append(os.getcwd())
+
     parser, conf = load_config_with_cli(args.cfg, args_list=cfg_args)
     runner = WorkflowRunner(parser, conf)
     runner.run()
