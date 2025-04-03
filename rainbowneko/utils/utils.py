@@ -164,6 +164,22 @@ def dict_parse_list(data: Dict[str, Any]):
     else:
         return data
 
+def dict_list_copy(obj):
+    if isinstance(obj, dict):
+        return {key: dict_list_copy(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [dict_list_copy(item) for item in obj]
+    else:
+        return obj
+
+def remove_empty_dict_list(data):
+    if isinstance(data, dict):
+        cleaned = {k: remove_empty_dict_list(v) for k, v in data.items()}
+        return {k: v for k, v in cleaned.items() if v not in ({}, [])}
+    elif isinstance(data, list):
+        cleaned = [remove_empty_dict_list(v) for v in data]
+        return [v for v in cleaned if v not in ({}, [])]
+    return data
 
 def dict_merge(dict_base, dict_override):
     """

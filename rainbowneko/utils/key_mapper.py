@@ -1,15 +1,18 @@
 from typing import Union, Iterable, Dict, Any, List
 
 from addict import Dict as ADict
-from .utils import is_dict, dict_parse_list
+
+from .utils import is_dict, dict_parse_list, dict_list_copy, remove_empty_dict_list
 
 
 class KeyMapper:
-    cls_map = {0: 'pred.pred', 1: 'inputs.label'} # 'pred.pred -> 0', 'inputs.label -> 1'
+    cls_map = {0: 'pred.pred', 1: 'inputs.label'}  # 'pred.pred -> 0', 'inputs.label -> 1'
     image_map = {0: 'pred.pred', 1: 'inputs.target_image'}
 
-    def __init__(self, host=None, key_map: Union[Iterable[str], Dict[Any, str], "KeyMapper"] = None, skip_missing=True):
+    def __init__(self, host=None, key_map: Union[Iterable[str], Dict[Any, str], "KeyMapper"] = None, skip_missing=True,
+                 move_mode=False):
         self.skip_missing = skip_missing
+        self.move_mode = move_mode
 
         if key_map is None:
             if host is None:
@@ -22,6 +25,7 @@ class KeyMapper:
         elif isinstance(key_map, KeyMapper):
             self.key_map = key_map.key_map
             self.skip_missing = key_map.skip_missing
+            self.move_mode = key_map.move_mode
         else:
             self.key_map = self.parse_key_map(key_map)
 
@@ -53,15 +57,21 @@ class KeyMapper:
         elif isinstance(keys, int):
             keys = [keys]
 
-        for k in keys:
+        for i, k in enumerate(keys):
             if isinstance(v, (list, tuple)):
                 try:
                     k = int(k)
                 except ValueError:
                     raise ValueError(f'{k} in {keys} cannot index a list')
-                v = v[k]
+                if self.move_mode and i == len(keys) - 1:
+                    v = v.pop(k)
+                else:
+                    v = v[k]
             else:
-                v = v[k]
+                if self.move_mode and i == len(keys) - 1:
+                    v = v.pop(k)
+                else:
+                    v = v[k]
         return v
 
     def set_value(self, v, keys: Union[str, List], data: ADict):
@@ -93,7 +103,10 @@ class KeyMapper:
         if self.key_map is None:
             return [], src
 
-        data = ADict({'args':{}, 'kwargs':{}})
+        if self.move_mode:
+            src = dict_list_copy(src)
+
+        data = ADict({'args': {}, 'kwargs': {}})
         for k_dst, k_src in self.key_map.items():
             if self.skip_missing:
                 try:
@@ -106,6 +119,11 @@ class KeyMapper:
             else:
                 v = self.get_value(src, k_src)
                 self.set_value(v, k_dst, data)
+        if self.move_mode:
+            src_ = ADict(src)
+            src_.update(data['kwargs'])
+            src_ = remove_empty_dict_list(src_)
+            data['kwargs'] = src_
         data = dict_parse_list(data.to_dict())
         args, kwargs = data['args'], data['kwargs']
 
@@ -113,6 +131,7 @@ class KeyMapper:
 
     def __call__(self, **src):
         return self.map_data(src)
+
 
 if __name__ == '__main__':
     mapper = KeyMapper(key_map=['0 -> input', '1 -> target.label'])
@@ -126,3 +145,12 @@ if __name__ == '__main__':
 
     args, kwargs = mapper.map_data(data)
     print(args, kwargs)
+
+    mapper = KeyMapper(key_map=['target.label -> label_1'], move_mode=True)
+    args, kwargs = mapper.map_data(data)
+    print(args, kwargs)  # {} {'image': 'image_data', 'label_1': 'label_data'}
+
+    mapper = KeyMapper(key_map=['target.label -> label_1'], move_mode=True)
+    data = {'image': 'image_data', 'target': {'label': 'label_data', 'cls': 'cls_data'}}
+    args, kwargs = mapper.map_data(data)
+    print(args, kwargs)  # {} {'image': 'image_data', 'target': {'cls': 'cls_data'}, 'label_1': 'label_data'}
