@@ -50,7 +50,7 @@ class CkptManager(CkptManagerBase):
                         model_key = item['model']
                         if model_key == '':
                             sd_base[k] = v
-                        if k.startswith(model_key):
+                        elif k.startswith(model_key):
                             sd_base[k[len(model_key)+1:]] = v
 
                 if len(sd_base)>0:

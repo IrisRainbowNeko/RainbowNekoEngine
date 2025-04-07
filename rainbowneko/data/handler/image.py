@@ -69,7 +69,7 @@ class ImageHandler(DataHandler):
     def handle(self, image):
         if isinstance(image, str):
             image = self.load_image(image)
-        elif isinstance(image, Image.Image):
+        elif isinstance(image, (Image.Image, torch.Tensor)):
             image = image
         elif isinstance(image, np.ndarray):
             image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))

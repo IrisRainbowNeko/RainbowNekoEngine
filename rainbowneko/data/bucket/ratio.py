@@ -146,16 +146,17 @@ class RatioBucket(BaseBucket):
         :param img_root_list:
         '''
         self.source = source
-        self.bs = bs * world_size
-        if self.pre_build_bucket and os.path.exists(self.pre_build_bucket):
-            self.load_bucket(self.pre_build_bucket)
-            return
+        self.bs = bs * world_size        
 
         try:
             _ = self.source[0]
             self.source_indexable = True
         except NotImplementedError:
             self.source_indexable = False
+
+        if self.pre_build_bucket and os.path.exists(self.pre_build_bucket):
+            self.load_bucket(self.pre_build_bucket)
+            return
 
         self._build()
 
