@@ -1,5 +1,5 @@
-from typing import Dict, List, Union, Any
-from .locator import get_match_layers
+from typing import Dict, List
+from rainbowneko.ckpt_manager.locator import get_match_layers
 from torch import nn
 
 class CfgModelParser:

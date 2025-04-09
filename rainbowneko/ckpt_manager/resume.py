@@ -1,4 +1,4 @@
-from .loader import NekoLoader
+from .base import NekoLoader
 
 class NekoResumer:
     def __init__(self, loader, start_step, loader_ema=None):

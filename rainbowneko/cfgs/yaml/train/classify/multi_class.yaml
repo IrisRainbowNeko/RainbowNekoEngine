@@ -9,12 +9,11 @@ model_part:
       layers:
         - ''
 
-ckpt_manager:
-  -
-    _target_: rainbowneko.ckpt_manager.ckpt_manager
-    saved_model:
-      - model: model
-        trainable: false
+ckpt_saver:
+  model:
+    _target_: rainbowneko.ckpt_manager.ckpt_saver
+    target_module: model
+    layers: all
 
 train:
   train_epochs: 100

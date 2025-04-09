@@ -11,7 +11,7 @@ from rainbowneko.infer.workflow import (Actions, BuildModelAction, PrepareAction
                                         LoadModelAction)
 from rainbowneko.models.wrapper import SingleWrapper
 from rainbowneko.parser import neko_cfg
-from rainbowneko.parser.model import NekoModelLoader
+from rainbowneko.ckpt_manager import auto_ckpt_loader
 
 num_classes = 10
 
@@ -56,8 +56,8 @@ def make_cfg():
         PrepareAction(device='cpu', dtype=torch.float16),
         BuildModelAction(SingleWrapper(_partial_=True, model=load_resnet())),
         LoadModelAction(dict(
-            model=NekoModelLoader(
-                module_to_load='model',
+            model=auto_ckpt_loader(
+                target_module='model',
                 path='exps/cifar/ckpts/cifar-resnet18-3900.ckpt',
             ),
         )),

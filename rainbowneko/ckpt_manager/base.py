@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Any
 
 from rainbowneko.models.plugin import PluginGroup
 from torch import nn
@@ -6,30 +6,46 @@ from torch import nn
 from .format import CkptFormat
 from .source import LocalCkptSource
 
+LAYERS_ALL = 'all'
+LAYERS_TRAINABLE = 'trainable'
 
-class CkptManagerBase:
-    def __init__(self, format: CkptFormat, source: LocalCkptSource, plugin_from_raw=False,
-                 saved_model=({'model': '', 'trainable': True},), **kwargs):
-        self.plugin_from_raw = plugin_from_raw
-        self.saved_model = saved_model
-
+class NekoLoader:
+    def __init__(self, format: CkptFormat, source: LocalCkptSource, layers='all'):
         self.format = format
         self.source = source
+        self.layers = layers
 
-    def save_step(self, model: nn.Module, name, step, prefix=None, model_ema=None, exclude_key=None):
-        self.save(model, f"{name}-{step}", prefix, model_ema, exclude_key)
+    def load(self, path, ext=None, **kwargs):
+        return self.source.get(path, self.format, **kwargs)
 
-    def save(self, model: nn.Module, name, prefix=None, model_ema=None, exclude_key=None):
+    def load_to(self, name, model):
+        raise NotImplementedError()
+
+    @staticmethod
+    def load_all(model: nn.Module, cfg: Dict[str, "NekoLoader"]):
+        for name, loader in cfg.items():
+            loader.load_to(name, model)
+
+
+class NekoSaver:
+    def __init__(self, format: CkptFormat, source: LocalCkptSource, layers='all', state_prefix=''):
+        self.format = format
+        self.source = source
+        self.layers = layers
+        self.state_prefix = state_prefix
+
+    def clean_prefix(self, state_dict: Dict[str, Any]):
+        return {k.removeprefix(self.state_prefix): v for k, v in state_dict.items() if k.startswith(self.state_prefix)}
+
+    def save(self, state_dict: Dict[str, Any], name, prefix=None):
+        self.source.put(f"{name}.{self.format.EXT}", state_dict, self.format, prefix=prefix)
+
+    def save_to(self, name, model: nn.Module, plugin_groups: Dict[str, PluginGroup], model_ema=None, exclude_key=None,
+                name_template=None):
         raise NotImplementedError
 
-    def load(cls, model_f, **kwargs):
-        raise NotImplementedError
-
-    def save_plugins(self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, prefix=None, model_ema=None):
-        raise NotImplementedError
-    
-    def save_plugins_step(self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, step: int, prefix=None, model_ema=None):
-        self.save_plugins(host_model, plugins, f"{name}-{step}", prefix, model_ema)
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}(format={self.format}, source={self.source})"
+    @staticmethod
+    def save_all(model: nn.Module, plugin_groups: Dict[str, PluginGroup], cfg: Dict[str, "NekoSaver"], model_ema=None,
+                 exclude_key=None, name_template=None):
+        for name, loader in cfg.items():
+            loader.save_to(name, model, plugin_groups, model_ema=model_ema, exclude_key=exclude_key, name_template=name_template)

@@ -11,7 +11,7 @@ from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
 from torchvision.transforms import InterpolationMode
 
 from cfgs.py.train.classify import multi_class
-from rainbowneko.ckpt_manager import ckpt_manager
+from rainbowneko.ckpt_manager import ckpt_saver
 from rainbowneko.evaluate import MetricGroup, MetricContainer
 from rainbowneko.models.ema import ModelEMA
 from rainbowneko.models.wrapper import DistillationWrapper
@@ -44,9 +44,9 @@ def make_cfg():
             )
         ]),
 
-        ckpt_manager=[ckpt_manager(saved_model=(
-            {'model': 'model_student', 'trainable': False},
-        ))],
+        ckpt_saver=dict(
+            model=ckpt_saver(target_module='model_student')
+        ),
 
         train=dict(
             train_epochs=100,

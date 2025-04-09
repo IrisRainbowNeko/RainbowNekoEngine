@@ -13,26 +13,24 @@ import math
 import os
 import warnings
 from functools import partial
+from typing import Dict
 
 import hydra
 import torch
+import torch.distributed as dist
 import torch.utils.checkpoint
 import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from typing import List
-import torch.distributed as dist
-
-from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
-from rainbowneko.models.wrapper import BaseWrapper
-from rainbowneko.models.ema import ModelEMA
-from rainbowneko.parser import load_config_with_cli
+from rainbowneko import _share
+from rainbowneko.ckpt_manager import NekoSaver, NekoResumer
 from rainbowneko.data import DataGroup, get_sampler, CacheableDataset
+from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
+from rainbowneko.models.ema import ModelEMA
+from rainbowneko.models.wrapper import BaseWrapper
+from rainbowneko.parser import load_config_with_cli
 from rainbowneko.train.loggers import LoggerGroup
 from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict, xformers_available, maybe_DDP
-from rainbowneko.parser.model import NekoResumer
-from rainbowneko.ckpt_manager import CkptManagerBase
-from rainbowneko import _share
 
 
 class Trainer:
@@ -48,7 +46,7 @@ class Trainer:
         self.init_context(cfgs_raw)
         self.build_loggers(cfgs_raw)
 
-        self.build_ckpt_manager()
+        self.build_ckpt_saver()
         self.build_model()
 
         for callback in _share.model_callbacks:
@@ -203,10 +201,12 @@ class Trainer:
         else:
             self.criterion = criterion.to(self.device)
 
-    def build_ckpt_manager(self):
+    def build_ckpt_saver(self):
         if self.is_local_main_process:
-            self.ckpt_manager: List[CkptManagerBase] = self.cfgs.ckpt_manager
+            self.ckpt_saver: Dict[str, NekoSaver] = self.cfgs.ckpt_saver
             self.ckpt_dir = os.path.join(self.exp_dir, "ckpts")
+            for ckpt_saver in self.ckpt_saver.values():
+                ckpt_saver.prefix = self.ckpt_dir
 
     def build_evaluator(self, cfgs_eval):
         def build_one(cfgs_eval_one):
@@ -462,29 +462,13 @@ class Trainer:
             self.ema_model.step(self.model_raw.named_parameters())
 
     def save_model(self, from_raw=False):
-        for manager in self.ckpt_manager:
-            manager.save_step(
-                self.model_raw,
-                name=self.cfgs.model.name,
-                step=self.real_step,
-                prefix=self.ckpt_dir,
-                model_ema=getattr(self, "ema_model", None),
-            )
-            try:
-                manager.save_plugins_step(
-                    self.model_raw,
-                    self.all_plugin,
-                    name=self.cfgs.model.name,
-                    step=self.real_step,
-                    prefix=self.ckpt_dir,
-                    model_ema=getattr(self, "ema_model", None),
-                )
-            except:
-                self.loggers.info(f"{manager} not support to save plugin")
-
-                import traceback
-                traceback.print_exc()
-
+        NekoSaver.save_all(
+            self.model_raw,
+            plugin_groups=self.all_plugin,
+            cfg=self.ckpt_saver,
+            model_ema=getattr(self, "ema_model", None),
+            name_template=f'{{}}-{self.real_step}',
+        )
 
         self.loggers.info(f"Saved state, step: {self.real_step}")
 

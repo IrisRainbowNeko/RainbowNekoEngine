@@ -9,7 +9,7 @@ from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
 
 from cfgs.py.eval import multi_class_flow
 from cfgs.py.train import train_base, tuning_base
-from rainbowneko.ckpt_manager import ckpt_manager
+from rainbowneko.ckpt_manager import ckpt_saver
 from rainbowneko.data import BaseDataset
 from rainbowneko.data import FixedBucket
 from rainbowneko.data.handler import HandlerChain, ImageHandler, LoadImageHandler
@@ -40,9 +40,9 @@ def make_cfg():
         ]),
 
         # func(_partial_=True, ...) same as partial(func, ...)
-        ckpt_manager=[
-            ckpt_manager(saved_model=({'model':'model', 'trainable':False},))
-        ],
+        ckpt_saver=dict(
+            model=ckpt_saver(target_module='model')
+        ),
 
         train=dict(
             train_epochs=10,

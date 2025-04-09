@@ -3,9 +3,9 @@ mixed_precision: null
 allow_tf32: false
 seed: 114514
 
-ckpt_manager:
-  -
-    _target_: rainbowneko.ckpt_manager.ckpt_manager
+ckpt_saver:
+  model:
+    _target_: rainbowneko.ckpt_manager.ckpt_saver
 
 train:
   train_steps: 1000

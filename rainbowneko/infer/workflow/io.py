@@ -3,7 +3,7 @@ import torch
 
 from PIL import Image
 from .base import BasicAction
-from rainbowneko.parser.model import NekoLoader
+from rainbowneko.ckpt_manager import NekoLoader
 
 class LoadImageAction(BasicAction):
     def __init__(self, image_paths:Union[str, List[str]], image_transforms=None, key_map_in=None, key_map_out=None):

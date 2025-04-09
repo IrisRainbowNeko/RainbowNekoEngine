@@ -5,7 +5,7 @@ from rainbowneko.models.plugin import SinglePluginBlock, MultiPluginBlock, Plugi
 from rainbowneko.utils import net_path_join, split_module_name
 from torch import nn
 
-from .locator import get_match_layers
+from rainbowneko.ckpt_manager.locator import get_match_layers
 
 
 class CfgPluginParser:

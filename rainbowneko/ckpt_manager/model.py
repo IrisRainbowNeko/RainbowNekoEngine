@@ -10,39 +10,42 @@ ckpt_pkl.py
 
 from typing import Dict
 
-from rainbowneko.models.plugin import PluginGroup
 from rainbowneko.models.ema import ModelEMA
+from rainbowneko.models.plugin import PluginGroup
 from torch import nn
 
-from .base import CkptManagerBase
+from .ckpt import NekoModelSaver, NekoPluginSaver
 
 
-class ModelManager(CkptManagerBase):
-
+class NekoModelModuleSaver(NekoModelSaver):
     def _get_modules(self, model):
-        if len(self.saved_model) == 1:
-            item = self.saved_model[0]
-            base_model = model if item['model'] == '' else eval(f"model.{item['model']}")
-        else:
-            base_model = {}
-            for item in self.saved_model:
-                base_model[item['model']] = model if item['model'] == '' else eval(f"model.{item['model']}")
+        assert len(self.target_module) == 1, "Only one target module is supported for NekoModelModuleSaver"
+
+        item = self.target_module[0]
+        base_model = model if item == '' else eval(f"model.{item}")
         return base_model
 
-    def save(self, model: nn.Module, name, prefix=None, model_ema:ModelEMA=None, exclude_key=None):
+    def save_to(self, name, model: nn.Module, plugin_groups: Dict[str, PluginGroup], model_ema: ModelEMA = None, exclude_key=None,
+                name_template=None):
         sd_model = {"base": self._get_modules(model)}
         if model_ema is not None:
             sd_model["base_ema"] = self._get_modules(model_ema.model)
 
-        self.source.put(f"{name}.{self.format.EXT}", sd_model, self.format, prefix=prefix)
+        if name_template is not None:
+            name = name_template.format(name)
+        self.save(sd_model, name, prefix=self.prefix)
 
-    def save_plugins(self, host_model: nn.Module, plugins: Dict[str, PluginGroup], name: str, step: int, model_ema:ModelEMA=None):
-        if len(plugins) > 0:
-            for plugin_name, plugin in plugins.items():
-                sd_plugin = {"plugin": plugin}
-                if model_ema is not None:
-                    sd_plugin["plugin_ema"] = plugin.from_model(model_ema.model)
-                self.source.put(f"{name}-{plugin_name}-{step}.{self.format.EXT}", sd_plugin, self.format)
 
-    def load(self, name, ext=None, **kwargs) -> nn.Module:
-        return self.source.get(name, self.format, **kwargs)
+class NekoPluginModuleSaver(NekoPluginSaver):
+
+    def save_to(self, name, model: nn.Module, plugin_groups: Dict[str, PluginGroup], model_ema: ModelEMA = None, exclude_key=None,
+                name_template=None):
+        plugin_name = self.target_plugin[0]
+        plugin = plugin_groups[plugin_name]
+        sd_plugin = {"plugin": plugin}
+        if model_ema is not None:
+            sd_plugin["plugin_ema"] = plugin.from_model(model_ema.model)
+
+        if name_template is not None:
+            name = name_template.format(name)
+        self.save(sd_plugin, name, prefix=self.prefix)
