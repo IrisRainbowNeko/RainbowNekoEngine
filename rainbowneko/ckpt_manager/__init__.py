@@ -2,7 +2,7 @@ from typing import Union, List
 
 from .base import NekoLoader, NekoSaver, LAYERS_ALL, LAYERS_TRAINABLE
 from .ckpt import NekoModelSaver, NekoPluginSaver, NekoModelLoader, NekoPluginLoader, NekoEasySaver
-from .format import PKLFormat, SafeTensorFormat
+from .format import PKLFormat, SafeTensorFormat, CkptFormat
 from .model import NekoPluginModuleSaver, NekoModelModuleSaver
 from .source import LocalCkptSource
 from .resume import NekoResumer
@@ -20,6 +20,18 @@ def ckpt_saver(ckpt_type='safetensors', layers=LAYERS_ALL, state_prefix='', targ
     return NekoModelSaver(format, LocalCkptSource(), layers=layers, state_prefix=state_prefix, target_module=target_module,
                           prefix=prefix)
 
+
+def plugin_saver(ckpt_type='safetensors', layers=LAYERS_ALL, state_prefix='', target_plugin: Union[str, List[str]] = '',
+                 prefix=None, plugin_from_raw=False):
+    if ckpt_type == 'pkl':
+        format = PKLFormat()
+    elif ckpt_type == 'safetensors':
+        format = SafeTensorFormat()
+    else:
+        raise ValueError(f'Unknown ckpt_type: {ckpt_type}')
+
+    return NekoPluginSaver(format, LocalCkptSource(), layers=layers, state_prefix=state_prefix, target_plugin=target_plugin,
+                          prefix=prefix, plugin_from_raw=plugin_from_raw)
 
 def ckpt_easy_saver(ckpt_type='safetensors', layers=LAYERS_ALL, state_prefix='', prefix=None):
     if ckpt_type == 'pkl':
