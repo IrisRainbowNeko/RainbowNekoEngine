@@ -1,8 +1,8 @@
 from typing import Dict, Union, List
 
-from rainbowneko.models.plugin import PluginGroup, BasePluginBlock
 from torch import nn
 
+from rainbowneko.models.plugin import PluginGroup, BasePluginBlock
 from .base import NekoLoader, NekoSaver, LAYERS_ALL, LAYERS_TRAINABLE
 from .format import CkptFormat
 from .locator import get_match_layers
@@ -10,7 +10,8 @@ from .source import LocalCkptSource
 
 
 class NekoModelLoader(NekoLoader):
-    def __init__(self, format: CkptFormat, source: LocalCkptSource, path: str = None, layers='all', target_module='',
+    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, path: str = None, layers='all',
+                 target_module='',
                  state_prefix=None, base_model_alpha=0.0, alpha=1.0, load_ema=False):
         super().__init__(format=format, source=source, layers=layers)
         self.path = path
@@ -51,7 +52,7 @@ class NekoModelLoader(NekoLoader):
 
 
 class NekoModelSaver(NekoSaver):
-    def __init__(self, format: CkptFormat, source: LocalCkptSource, layers='all', state_prefix='',
+    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, layers='all', state_prefix='',
                  target_module: Union[str, List[str]] = '', prefix=None):
         super().__init__(format=format, source=source, layers=layers, state_prefix=state_prefix)
         self.prefix = prefix
@@ -96,7 +97,8 @@ class NekoModelSaver(NekoSaver):
 
 
 class NekoPluginLoader(NekoLoader):
-    def __init__(self, format: CkptFormat, source: LocalCkptSource, path: str = None, layers='all', target_plugin=None,
+    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, path: str = None, layers='all',
+                 target_plugin=None,
                  state_prefix=None, base_model_alpha=0.0, load_ema=False, **plugin_kwargs):
         super().__init__(format=format, source=source, layers=layers)
         self.path = path
@@ -142,7 +144,7 @@ class NekoPluginLoader(NekoLoader):
 
 
 class NekoPluginSaver(NekoSaver):
-    def __init__(self, format: CkptFormat, source: LocalCkptSource, layers='all', state_prefix='',
+    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, layers='all', state_prefix='',
                  target_plugin: Union[str, List[str]] = '', prefix=None, plugin_from_raw=False):
         super().__init__(format=format, source=source, layers=layers, state_prefix=state_prefix)
         self.prefix = prefix
@@ -182,7 +184,7 @@ class NekoPluginSaver(NekoSaver):
 
 
 class NekoEasySaver(NekoSaver):
-    def __init__(self, format: CkptFormat, source: LocalCkptSource, layers='all', state_prefix='',
+    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, layers='all', state_prefix='',
                  prefix=None, plugin_from_raw=False):
         super().__init__(format=format, source=source, layers=layers, state_prefix=state_prefix)
 

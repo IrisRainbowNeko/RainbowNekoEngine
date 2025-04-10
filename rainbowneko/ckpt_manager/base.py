@@ -1,16 +1,22 @@
 from typing import Dict, Any
 
-from rainbowneko.models.plugin import PluginGroup
 from torch import nn
 
-from .format import CkptFormat
+from rainbowneko.models.plugin import PluginGroup
+from .format import CkptFormat, SafeTensorFormat
 from .source import LocalCkptSource
 
 LAYERS_ALL = 'all'
 LAYERS_TRAINABLE = 'trainable'
 
+
 class NekoLoader:
-    def __init__(self, format: CkptFormat, source: LocalCkptSource, layers='all'):
+    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, layers='all'):
+        if format is None:
+            format = SafeTensorFormat()
+        if source is None:
+            source = LocalCkptSource()
+
         self.format = format
         self.source = source
         self.layers = layers
@@ -28,7 +34,11 @@ class NekoLoader:
 
 
 class NekoSaver:
-    def __init__(self, format: CkptFormat, source: LocalCkptSource, layers='all', state_prefix=''):
+    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, layers='all', state_prefix=''):
+        if format is None:
+            format = SafeTensorFormat()
+        if source is None:
+            source = LocalCkptSource()
         self.format = format
         self.source = source
         self.layers = layers
