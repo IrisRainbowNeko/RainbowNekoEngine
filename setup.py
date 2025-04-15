@@ -15,15 +15,6 @@ if platform.system().lower() == 'windows':
 else:
     requires.append('bitsandbytes')
 
-def get_data_files(data_dir, prefix=''):
-    file_dict = {}
-    for root, dirs, files in os.walk(data_dir, topdown=False):
-        for name in files:
-            if prefix+root not in file_dict:
-                file_dict[prefix+root] = []
-            file_dict[prefix+root].append(os.path.join(root, name))
-    return [(k, v) for k, v in file_dict.items()]
-
 
 setuptools.setup(
     name="rainbowneko",
@@ -54,6 +45,7 @@ setuptools.setup(
             'nekoinit = rainbowneko.tools.init_proj:main',
             'neko_train = rainbowneko.train.trainer.trainer_ac:neko_train',
             'neko_train_1gpu = rainbowneko.train.trainer.trainer_ac_single:neko_train',
+            'neko_train_ds = rainbowneko.train.trainer.trainer_deepspeed:neko_train',
             'neko_run = rainbowneko.infer.infer_workflow:run_workflow',
         ]
     },
