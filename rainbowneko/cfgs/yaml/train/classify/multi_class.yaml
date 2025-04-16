@@ -29,7 +29,7 @@ train:
     _partial_: true
     weight_decay: 0.0005
   scale_lr: false
-  scheduler:
+  lr_scheduler:
     name: cosine
     warmup_steps: 10
   metrics:

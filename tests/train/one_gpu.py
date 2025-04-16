@@ -39,3 +39,9 @@ class PyCFGTester(TestCase):
         sys.argv = sys.argv+['--cfg', 'cfgs/py/train/classify/semi_supervise.py', 'train.train_steps=40', 'train.train_epochs=null']
         neko_train()
         sys.argv = argv
+
+    def test_wd_scheduler_py(self):
+        argv = sys.argv
+        sys.argv = sys.argv+['--cfg', 'cfgs/py/train/classify/multi_class_dynamic_wd.py', 'train.train_steps=40', 'train.train_epochs=null']
+        neko_train()
+        sys.argv = argv

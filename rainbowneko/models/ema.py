@@ -2,7 +2,7 @@ from copy import deepcopy
 from typing import Dict, Iterable, Union, Tuple
 
 import torch
-from rainbowneko.utils.lr_scheduler import SchedulerType
+from rainbowneko.utils.scheduler import SchedulerType
 from torch import nn
 
 ModelParamsType = Union[Dict[str, nn.Parameter], Iterable[Tuple[str, nn.Parameter]], nn.Module]

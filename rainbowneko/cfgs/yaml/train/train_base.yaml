@@ -24,9 +24,10 @@ train:
     _partial_: true
     weight_decay: 0.001
   scale_lr: true
-  scheduler:
-    name: one_cycle
-    warmup_steps: 0.2
+  lr_scheduler:
+    name: constant_with_warmup
+    warmup_steps: 0
+  wd_scheduler: null
   metric: null
 
 logger:

@@ -54,7 +54,7 @@ def make_cfg():
             optimizer=partial(torch.optim.AdamW, weight_decay=5e-4),
 
             scale_lr=False,
-            scheduler=CosineLR(
+            lr_scheduler=CosineLR(
                 _partial_=True,
                 warmup_steps=100,
             ),

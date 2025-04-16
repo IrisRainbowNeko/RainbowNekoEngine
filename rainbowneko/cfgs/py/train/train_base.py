@@ -7,7 +7,7 @@ from torch.nn import MSELoss
 from rainbowneko.ckpt_manager import ckpt_saver
 from rainbowneko.parser import neko_cfg
 from rainbowneko.train.loggers import CLILogger
-from rainbowneko.utils import OneCycleLR
+from rainbowneko.utils import ConstantLR
 
 time_format="%Y-%m-%d-%H-%M-%S"
 
@@ -38,10 +38,11 @@ def make_cfg():
             loss=MSELoss(),
             optimizer=partial(torch.optim.AdamW, weight_decay=1e-3),
             scale_lr=True,  # auto scale lr with total batch size
-            scheduler=OneCycleLR(
+            lr_scheduler=ConstantLR(
                 _partial_=True,
-                warmup_steps=0.2,
+                warmup_steps=0,
             ),
+            wd_scheduler=None,
 
             metric=None,
         ),

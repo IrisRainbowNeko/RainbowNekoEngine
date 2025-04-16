@@ -21,7 +21,7 @@ from rainbowneko.data import FixedBucket
 from rainbowneko.data.handler import HandlerChain, ImageHandler, LoadImageHandler, HandlerGroup
 from rainbowneko.data.source import IndexSource, UnLabelSource
 from rainbowneko.train.loss import LossContainer, PseudoLabelLoss
-from rainbowneko.utils.lr_scheduler import fractional_warmup_schedule
+from rainbowneko.utils.scheduler import fractional_warmup_schedule
 
 num_classes = 10
 

@@ -30,7 +30,8 @@ from rainbowneko.models.ema import ModelEMA
 from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.train.loggers import LoggerGroup
-from rainbowneko.utils import get_scheduler, mgcd, format_number, disable_hf_loggers, is_dict, xformers_available, maybe_DDP
+from rainbowneko.utils import mgcd, format_number, disable_hf_loggers, is_dict, xformers_available, maybe_DDP
+from rainbowneko.utils.scheduler import get_lr_scheduler, get_wd_scheduler
 
 
 class Trainer:
@@ -55,9 +56,9 @@ class Trainer:
         # build dataset
         self.batch_size_list = []
         assert len(cfgs.data_train) > 0, "At least one dataset is need."
-        loss_weights = {name:dataset.keywords["loss_weight"] for name, dataset in cfgs.data_train.items()}
+        loss_weights = {name: dataset.keywords["loss_weight"] for name, dataset in cfgs.data_train.items()}
         self.train_loader_group = DataGroup(
-            {name:self.build_data(dataset, train=True) for name, dataset in cfgs.data_train.items()}, loss_weights
+            {name: self.build_data(dataset, train=True) for name, dataset in cfgs.data_train.items()}, loss_weights
         )
 
         # calculate steps and epochs
@@ -65,7 +66,8 @@ class Trainer:
         if self.cfgs.train.train_epochs is not None:
             self.cfgs.train.train_steps = self.cfgs.train.train_epochs * self.steps_per_epoch // self.cfgs.train.gradient_accumulation_steps
         else:
-            self.cfgs.train.train_epochs = math.ceil(self.cfgs.train.gradient_accumulation_steps * self.cfgs.train.train_steps / self.steps_per_epoch)
+            self.cfgs.train.train_epochs = math.ceil(
+                self.cfgs.train.gradient_accumulation_steps * self.cfgs.train.train_steps / self.steps_per_epoch)
 
         self.build_optimizer_scheduler()
         self.model_wrapper.post_init()
@@ -164,8 +166,8 @@ class Trainer:
 
         # prepared dataset
         ds_num = len(self.train_loader_group.loader_dict)
-        for i, (k,v) in enumerate(self.train_loader_group.loader_dict.items()):
-            self.train_loader_group.loader_dict[k] = prepared_obj[-ds_num+i]
+        for i, (k, v) in enumerate(self.train_loader_group.loader_dict.items()):
+            self.train_loader_group.loader_dict[k] = prepared_obj[-ds_num + i]
         prepared_obj = prepared_obj[:-ds_num]
 
         # prepared optimizer and scheduler
@@ -197,7 +199,7 @@ class Trainer:
     def build_loss(self):
         criterion = self.cfgs.train.loss
         if is_dict(criterion):
-            self.criterion = {name:loss.to(self.device) for name, loss in criterion.items()}
+            self.criterion = {name: loss.to(self.device) for name, loss in criterion.items()}
         else:
             self.criterion = criterion.to(self.device)
 
@@ -220,7 +222,7 @@ class Trainer:
 
         if cfgs_eval is not None:
             if is_dict(cfgs_eval):
-                evaluator_dict = {name:build_one(cfg) for name, cfg in cfgs_eval.items()}
+                evaluator_dict = {name: build_one(cfg) for name, cfg in cfgs_eval.items()}
                 return EvaluatorGroup(loggers=self.loggers, evaluator_dict=evaluator_dict)
             else:
                 return build_one(cfgs_eval)
@@ -261,7 +263,7 @@ class Trainer:
         return obj[0]
 
     def all_gather(self, data):
-        if not hasattr(self, 'gloo_group'): # Transfer data on cpu
+        if not hasattr(self, 'gloo_group'):  # Transfer data on cpu
             self.gloo_group = dist.new_group(backend='gloo')
         gathered_objects = [None for _ in range(self.world_size)]
         dist.all_gather_object(gathered_objects, data, group=self.gloo_group)
@@ -329,7 +331,8 @@ class Trainer:
                 self.scale_lr(parameters)
             assert isinstance(cfg_opt, partial), f"optimizer config should be partial."
             self.optimizer = cfg_opt(params=parameters)
-            self.lr_scheduler = get_scheduler(self.cfgs.train.scheduler, self.optimizer, self.cfgs.train.train_steps)
+            self.lr_scheduler = get_lr_scheduler(self.cfgs.train.lr_scheduler, self.optimizer, self.cfgs.train.train_steps)
+            self.wd_scheduler = get_wd_scheduler(self.cfgs.train.wd_scheduler, self.optimizer, self.cfgs.train.train_steps)
 
     def train(self, loss_ema=0.93):
         acc_steps = self.cfgs.train.gradient_accumulation_steps
@@ -347,7 +350,10 @@ class Trainer:
         self.real_step = 0
         if self.cfgs.train.resume is not None:
             self.global_step = self.cfgs.train.resume.start_step * acc_steps
-            self.lr_scheduler.step(self.cfgs.train.resume.start_step)
+            if self.lr_scheduler:
+                self.lr_scheduler.step(self.cfgs.train.resume.start_step)
+            if self.wd_scheduler:
+                self.wd_scheduler.step(self.cfgs.train.resume.start_step)
 
         self.model_wrapper.train()
         loss_sum = None
@@ -356,21 +362,21 @@ class Trainer:
             loss_sum = loss if loss_sum is None else (loss_ema * loss_sum + (1 - loss_ema) * loss)
 
             self.global_step += 1
-            acc_step = self.global_step%acc_steps
-            self.real_step = max(1, self.global_step//acc_steps)
+            acc_step = self.global_step % acc_steps
+            self.real_step = max(1, self.global_step // acc_steps)
             if self.is_local_main_process:
-                if self.real_step % self.cfgs.train.save_step == 0 and acc_step==acc_steps-1:
+                if self.real_step % self.cfgs.train.save_step == 0 and acc_step == acc_steps - 1:
                     self.save_model()
                 if self.global_step % self.min_log_step == 0:
                     # get learning rate from optimizer
                     lr_model = self.optimizer.param_groups[0]["lr"] if hasattr(self, "optimizer") else 0.0
-                    if acc_steps>1:
-                        log_step={
+                    if acc_steps > 1:
+                        log_step = {
                             "format": "[{}/{}]({}/{})",
-                            "data": [self.real_step, self.cfgs.train.train_steps, self.global_step%acc_steps, acc_steps],
+                            "data": [self.real_step, self.cfgs.train.train_steps, self.global_step % acc_steps, acc_steps],
                         }
                     else:
-                        log_step={
+                        log_step = {
                             "format": "[{}/{}]",
                             "data": [self.real_step, self.cfgs.train.train_steps],
                         }
@@ -392,23 +398,23 @@ class Trainer:
                                 if self.metric_train[ds_name] is not None:
                                     self.metric_train[ds_name].reset()
                                     self.metric_train[ds_name].update(pred_dict[ds_name], inputs_dict[ds_name])
-                                    metrics_dict = self.metric_train[ds_name].finish(lambda x:x, self.is_local_main_process)
+                                    metrics_dict = self.metric_train[ds_name].finish(lambda x: x, self.is_local_main_process)
                                     log_data.update(MetricGroup.format(metrics_dict, prefix=f'{ds_name}/'))
                         else:
                             self.metric_train.reset()
                             for ds_name in pred_dict.keys():
                                 self.metric_train.update(pred_dict[ds_name], inputs_dict[ds_name])
-                            metrics_dict = self.metric_train.finish(lambda x:x, self.is_local_main_process)
+                            metrics_dict = self.metric_train.finish(lambda x: x, self.is_local_main_process)
                             log_data.update(MetricGroup.format(metrics_dict))
                     self.loggers.log(
                         datas=log_data,
                         step=self.real_step,
                     )
 
-            if self.evaluator is not None and acc_step==acc_steps-1:
+            if self.evaluator is not None and acc_step == acc_steps - 1:
                 self.evaluator.evaluate(self.real_step, self.model_raw)
 
-            if self.real_step >= self.cfgs.train.train_steps and acc_step==acc_steps-1:
+            if self.real_step >= self.cfgs.train.train_steps and acc_step == acc_steps - 1:
                 break
 
         self.wait_for_everyone()
@@ -443,6 +449,8 @@ class Trainer:
                 self.optimizer.step()
                 if self.lr_scheduler:
                     self.lr_scheduler.step()
+                if self.wd_scheduler:
+                    self.wd_scheduler.step()
                 self.optimizer.zero_grad(set_to_none=self.cfgs.train.set_grads_to_none)
 
             self.model_raw.update_model(self.real_step)  # Some model may update by step
@@ -475,6 +483,7 @@ class Trainer:
     def wait_for_everyone(self):
         self.accelerator.wait_for_everyone()
 
+
 def neko_train():
     import subprocess
     parser = argparse.ArgumentParser(description='RainbowNeko Launcher')
@@ -483,6 +492,7 @@ def neko_train():
 
     subprocess.run(["accelerate", "launch", '--config_file', args.launch_cfg, "-m",
                     "rainbowneko.train.trainer.trainer_ac"] + train_args, check=True)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RainbowNeko Trainer")
