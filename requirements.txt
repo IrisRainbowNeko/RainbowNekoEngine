@@ -13,3 +13,4 @@ scikit_learn
 tqdm
 addict
 albumentations
+rich
