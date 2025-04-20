@@ -1,6 +1,6 @@
 from typing import Dict, Any, Union
 from rainbowneko.data.label_loader import BaseLabelLoader, auto_label_loader
-from rainbowneko.utils import is_image_file
+from rainbowneko.utils import types_support
 from webdataset import DataPipeline
 import webdataset as wds
 
@@ -8,9 +8,10 @@ from .base import DataSource
 
 
 class WebDatasetSource(DataSource):
-    def __init__(self, pipeline: DataPipeline, repeat=1, **kwargs):
+    def __init__(self, pipeline: DataPipeline, repeat=1, size=1<<15, **kwargs):
         super().__init__(repeat, **kwargs)
         self.pipeline = pipeline
+        self.size = size
 
     def __getitem__(self, index) -> Dict[str, Any]:
         raise NotImplementedError('WebDatasetSource is not indexable')
@@ -25,6 +26,9 @@ class WebDatasetSource(DataSource):
             'id': data['__key__'],
             **{k: v for k, v in data.items() if not k.startswith('__')}
         }
+
+    def __len__(self):
+        return self.size
 
 
 class WebDSImageLabelSource(WebDatasetSource):
@@ -53,13 +57,16 @@ class WebDSImageLabelSource(WebDatasetSource):
     def __next__(self):
         data = next(self.pipeline_iter)
         img_id = data['__key__']
-        image = [v for k, v in data.items() if is_image_file(k)][0]
+        image = [v for k, v in data.items() if k.lower() in types_support][0]
 
         return {
             'id': img_id,
             'image': image,
             'label': self.label_dict.get(img_id, None),
         }
+
+    def __len__(self):
+        return len(self.label_dict)
 
 
 def image_pipeline(url, buffer_size=1000):

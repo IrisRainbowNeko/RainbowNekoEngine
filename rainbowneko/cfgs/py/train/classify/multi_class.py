@@ -59,8 +59,8 @@ def make_cfg():
                 warmup_steps=100,
             ),
             metrics=MetricGroup(
-                acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
-                f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
+                acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes, average='micro')),
+                f1=MetricContainer(MulticlassF1Score(num_classes=num_classes, average='micro')),
             ),
         ),
 
@@ -103,8 +103,8 @@ def cfg_evaluator():
     return partial(Evaluator,
         interval=50,
         metric=MetricGroup(
-            acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
-            f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
+            acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes, average='micro')),
+            f1=MetricContainer(MulticlassF1Score(num_classes=num_classes, average='micro')),
         ),
         dataset=partial(BaseDataset, batch_size=16, loss_weight=1.0,
             source=dict(

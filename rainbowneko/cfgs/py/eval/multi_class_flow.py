@@ -44,8 +44,8 @@ def infer_all(path):
         actions=Actions([
             ForwardAction(key_map_in=('image -> input.image', 'model -> model', 'device -> device', 'dtype -> dtype')),
             MetricAction(metric=MetricGroup(
-                acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
-                f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
+                acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes, average='micro')),
+                f1=MetricContainer(MulticlassF1Score(num_classes=num_classes, average='micro')),
             ), key_map_in=('output -> pred', 'label -> target.label', 'device -> device'))
         ])
     )

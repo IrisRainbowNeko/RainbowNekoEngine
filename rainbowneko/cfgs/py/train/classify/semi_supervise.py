@@ -59,8 +59,8 @@ def make_cfg():
 
             metrics=dict(_replace_=True,
                 dataset_S=MetricGroup(
-                    acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes), key_map=('pred.pred_student -> 0', 'inputs.label -> 1')),
-                    f1=MetricContainer(MulticlassF1Score(num_classes=num_classes), key_map=('pred.pred_student -> 0', 'inputs.label -> 1')),
+                    acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes, average='micro'), key_map=('pred.pred_student -> 0', 'inputs.label -> 1')),
+                    f1=MetricContainer(MulticlassF1Score(num_classes=num_classes, average='micro'), key_map=('pred.pred_student -> 0', 'inputs.label -> 1')),
                 ),
                 dataset_U=None,
             ),

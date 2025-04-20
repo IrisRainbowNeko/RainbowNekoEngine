@@ -60,8 +60,8 @@ def make_cfg():
                 warmup_steps=100,
             ),
             metrics=MetricGroup(
-                acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes)),
-                f1=MetricContainer(MulticlassF1Score(num_classes=num_classes)),
+                acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes, average='micro')),
+                f1=MetricContainer(MulticlassF1Score(num_classes=num_classes, average='micro')),
             ),
         ),
 

@@ -84,7 +84,7 @@ class Evaluator:
             }
         }
         log_data.update(MetricGroup.format(v_metric, prefix=prefix))
-        self.trainer.loggers.log(log_data, step)
+        self.trainer.loggers.log(log_data, step, force=True)
 
         for layer in training_layers:
             layer.train()

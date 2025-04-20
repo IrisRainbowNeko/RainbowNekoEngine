@@ -98,13 +98,13 @@ def MultiStepLR(optimizer: Optimizer, step_rules: str, last_epoch: int = -1):
 
 def CosineLR(optimizer: Optimizer, training_steps: int, warmup_steps: int = 0, num_cycles: float = 0.5, min_scale: float = 0.0,
              last_epoch: int = -1):
-    scheduler = cosine_schedule_with_warmup(warmup_steps, training_steps, num_cycles, min_scale=min_scale)
+    scheduler = cosine_schedule_with_warmup(warmup_steps, training_steps, num_cycles, final_scale=min_scale)
     return LambdaLR(optimizer, scheduler, last_epoch=last_epoch)
 
 
 def CosineRestartLR(optimizer: Optimizer, training_steps: int, warmup_steps: int = 0, num_cycles: int = 1, min_scale: float = 0.0,
                     last_epoch: int = -1):
-    scheduler = cosine_with_hard_restarts_schedule_with_warmup(warmup_steps, training_steps, num_cycles, min_scale=min_scale)
+    scheduler = cosine_with_hard_restarts_schedule_with_warmup(warmup_steps, training_steps, num_cycles, final_scale=min_scale)
     return LambdaLR(optimizer, scheduler, last_epoch=last_epoch)
 
 

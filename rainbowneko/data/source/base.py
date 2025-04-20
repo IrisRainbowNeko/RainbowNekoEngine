@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple, Any
 from rainbowneko.utils import Path_Like
 from rainbowneko.utils.img_size_tool import get_image_size
 from contextlib import contextmanager
+from itertools import chain
 
 
 class DataSource:
@@ -59,6 +60,31 @@ class ComposeDataSource(DataSource):
     def __len__(self):
         return self._offsets[-1]
 
+class ComposeWebdsSource(DataSource):
+    def __init__(self, source_list: List[DataSource]):
+        self.source_list = source_list
+        self.size = sum(len(source) for source in self.source_list)
+
+        self._return_source = False
+
+    @contextmanager
+    def return_source(self):
+        self._return_source = True
+        yield
+        self._return_source = False
+
+    def __iter__(self):
+        self.source_iter = iter(chain(*self.source_list))
+        return self
+
+    def __next__(self):
+        return next(self.source_iter)
+
+    def __getitem__(self, index) -> Dict[str, Any]:
+        raise NotImplementedError('WebDatasetSource is not indexable')
+
+    def __len__(self):
+        return self.size
 
 class VisionDataSource(DataSource):
     def __init__(self, img_root: Path_Like, repeat=1, **kwargs):

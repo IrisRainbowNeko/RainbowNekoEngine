@@ -22,6 +22,8 @@ import torch.utils.checkpoint
 import torch.utils.data
 from accelerate import Accelerator
 from accelerate.utils import set_seed
+from torch.utils.data import IterableDataset
+
 from rainbowneko import _share
 from rainbowneko.ckpt_manager import NekoSaver, NekoResumer
 from rainbowneko.data import DataGroup, get_sampler, CacheableDataset
@@ -113,6 +115,9 @@ class Trainer:
             gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
             mixed_precision=self.cfgs.mixed_precision,
             step_scheduler_with_optimizer=False,
+            # For webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
+            # Disable it, please use webdataset.split_by_node instead
+            dispatch_batches=False,
         )
 
         self.local_rank = int(os.environ.get("LOCAL_RANK", -1))
@@ -286,12 +291,15 @@ class Trainer:
         dataset, batch_size = self.build_dataset(data_builder)
 
         # Pytorch Data loader
-        sampler = get_sampler(train)(
-            dataset,
-            num_replicas=self.world_size,
-            rank=self.local_rank,
-            shuffle=train and dataset.bucket.can_shuffle,
-        )
+        if isinstance(dataset, IterableDataset):
+            sampler = None  # IterableDataset cannot be read randomly
+        else:
+            sampler = get_sampler(train)(
+                dataset,
+                num_replicas=self.world_size,
+                rank=self.local_rank,
+                shuffle=train and dataset.bucket.can_shuffle,
+            )
         loader = torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,

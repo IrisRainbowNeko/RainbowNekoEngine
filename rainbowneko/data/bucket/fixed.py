@@ -18,6 +18,13 @@ class FixedBucket(BaseBucket):
     def __len__(self):
         return len(self.source)
 
+    def next_data(self, shuffle=True):
+        if not hasattr(self, 'buffer_iter'):
+            self.buffer_iter = self._shuffle(rs=self.rs) if shuffle else iter(self.source)
+        datas = next(self.buffer_iter)
+        datas['image_size'] = self.target_size
+        return datas
+
 
 class FixedCropBucket(FixedBucket):
     handler = AutoSizeHandler(mode='pad')

@@ -22,7 +22,7 @@ class BaseBucket:
         buf = []
 
         def pick():
-            k = rs.randint(0, len(buf) - 1)
+            k = rs.randint(0, len(buf))
             sample = buf[k]
             buf[k] = buf[-1]
             buf.pop()

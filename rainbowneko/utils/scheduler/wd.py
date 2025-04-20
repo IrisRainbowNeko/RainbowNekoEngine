@@ -200,7 +200,7 @@ class MultiStepWD(WDScheduler):
 class CosineWD(WDScheduler):
     def __init__(self, optimizer: Optimizer, training_steps: int, warmup_steps: int = 0, num_cycles: float = 0.5,
                  min_scale: float = 0.0, last_epoch: int = -1):
-        self.scheduler = cosine_schedule_with_warmup(warmup_steps, training_steps, num_cycles, min_scale=min_scale)
+        self.scheduler = cosine_schedule_with_warmup(warmup_steps, training_steps, num_cycles, final_scale=min_scale)
         super().__init__(optimizer, last_epoch)
 
     def get_wd(self):
@@ -212,7 +212,7 @@ class CosineRestartWD(WDScheduler):
     def __init__(self, optimizer: Optimizer, training_steps: int, warmup_steps: int = 0, num_cycles: int = 1,
                  min_scale: float = 0.0, last_epoch: int = -1):
         self.scheduler = cosine_with_hard_restarts_schedule_with_warmup(warmup_steps, training_steps, num_cycles,
-                                                                        min_scale=min_scale)
+                                                                        final_scale=min_scale)
         super().__init__(optimizer, last_epoch)
 
     def get_wd(self):

@@ -12,6 +12,9 @@ class TrainerSingleCard(Trainer):
             gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
             mixed_precision=self.cfgs.mixed_precision,
             step_scheduler_with_optimizer=False,
+            # False for webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
+            # Disable it, please use webdataset.split_by_node instead
+            dispatch_batches=False,
         )
 
         self.local_rank = 0

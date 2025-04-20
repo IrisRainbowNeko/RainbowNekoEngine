@@ -68,9 +68,9 @@ class LoggerGroup:
         for logger in self.logger_list:
             logger.info(info)
 
-    def log(self, datas: Dict[str, Any], step: int = 0):
+    def log(self, datas: Dict[str, Any], step: int = 0, force=False):
         for logger in self.logger_list:
-            if step % logger.log_step == 0:
+            if force or step % logger.log_step == 0:
                 logger.log(datas, step)
 
     def __len__(self):

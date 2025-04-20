@@ -213,7 +213,7 @@ class RatioBucket(BaseBucket):
             if rs is None:
                 k = 0
             else:
-                k = rs.randint(0, len(select_bucket) - 1)
+                k = rs.randint(0, len(select_bucket))
             sample = select_bucket[k]
             select_bucket[k] = select_bucket[-1]
             select_bucket.pop()

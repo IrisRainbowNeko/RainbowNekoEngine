@@ -41,7 +41,7 @@ def constant_schedule() -> SchedulerType:
     return lambda _: 1
 
 
-def constant_schedule_with_warmup(num_warmup_steps: int) -> SchedulerType:
+def constant_schedule_with_warmup(num_warmup_steps: int, warmup_start=0.0, warmup_final=1.0) -> SchedulerType:
     """
     Create a schedule with a constant learning rate preceded by a warmup period during which the learning rate
     increases linearly between 0 and the initial lr set in the optimizer.
@@ -56,8 +56,11 @@ def constant_schedule_with_warmup(num_warmup_steps: int) -> SchedulerType:
 
     def lr_lambda(current_step: int):
         if current_step < num_warmup_steps:
-            return float(current_step) / float(max(1.0, num_warmup_steps))
-        return 1.0
+            v = float(current_step) / float(max(1.0, num_warmup_steps))
+            return v*(warmup_final - warmup_start) + warmup_start
+        else:
+            v = warmup_final
+        return v
 
     return lr_lambda
 
@@ -100,7 +103,7 @@ def piecewise_constant_schedule(step_rules: str) -> SchedulerType:
     return rules_func
 
 
-def linear_schedule_with_warmup(num_warmup_steps, num_training_steps, min_scale=0.0) -> SchedulerType:
+def linear_schedule_with_warmup(num_warmup_steps, num_training_steps, start_scale=1.0, final_scale=0.0) -> SchedulerType:
     """
     Create a schedule with a learning rate that decreases linearly from the initial lr set in the optimizer to 0, after
     a warmup period during which it increases linearly from 0 to the initial lr set in the optimizer.
@@ -119,12 +122,12 @@ def linear_schedule_with_warmup(num_warmup_steps, num_training_steps, min_scale=
         if current_step < num_warmup_steps:
             return float(current_step) / float(max(1, num_warmup_steps))
         scale = float(num_training_steps - current_step) / float(max(1, num_training_steps - num_warmup_steps))
-        return max(0.0, scale * (1.0 - min_scale) + min_scale)
+        return max(0.0, scale * (start_scale - final_scale) + final_scale)
 
     return lr_lambda
 
 
-def cosine_schedule_with_warmup(num_warmup_steps: int, num_training_steps: int, num_cycles: float = 0.5, min_scale=0.0):
+def cosine_schedule_with_warmup(num_warmup_steps: int, num_training_steps: int, num_cycles: float = 0.5, start_scale=1.0, final_scale=0.0):
     """
     Create a schedule with a learning rate that decreases following the values of the cosine function between the
     initial lr set in the optimizer to 0, after a warmup period during which it increases linearly between 0 and the
@@ -148,12 +151,12 @@ def cosine_schedule_with_warmup(num_warmup_steps: int, num_training_steps: int, 
             return float(current_step) / float(max(1, num_warmup_steps))
         progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_warmup_steps))
         scale = 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress))
-        return max(0.0, scale * (1.0 - min_scale) + min_scale)
+        return max(0.0, scale * (start_scale - final_scale) + final_scale)
 
     return lr_lambda
 
 
-def cosine_with_hard_restarts_schedule_with_warmup(num_warmup_steps: int, num_training_steps: int, num_cycles: int = 1, min_scale=0.0):
+def cosine_with_hard_restarts_schedule_with_warmup(num_warmup_steps: int, num_training_steps: int, num_cycles: int = 1, start_scale=1.0, final_scale=0.0):
     """
     Create a schedule with a learning rate that decreases following the values of the cosine function between the
     initial lr set in the optimizer to 0, with several hard restarts, after a warmup period during which it increases
@@ -176,9 +179,9 @@ def cosine_with_hard_restarts_schedule_with_warmup(num_warmup_steps: int, num_tr
             return float(current_step) / float(max(1, num_warmup_steps))
         progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_warmup_steps))
         if progress >= 1.0:
-            return min_scale
+            return final_scale
         scale = 0.5 * (1.0 + math.cos(math.pi * ((float(num_cycles) * progress) % 1.0)))
-        return max(0.0, scale * (1.0 - min_scale) + min_scale)
+        return max(0.0, scale * (start_scale - final_scale) + final_scale)
 
     return lr_lambda
 
