@@ -30,6 +30,31 @@ class WebDatasetSource(DataSource):
     def __len__(self):
         return self.size
 
+class WebDatasetImageSource(DataSource):
+    def __init__(self, pipeline: DataPipeline, repeat=1, size=1<<15, **kwargs):
+        super().__init__(repeat, **kwargs)
+        self.pipeline = pipeline
+        self.size = size
+
+    def __getitem__(self, index) -> Dict[str, Any]:
+        raise NotImplementedError('WebDatasetSource is not indexable')
+
+    def __iter__(self):
+        self.pipeline_iter = iter(self.pipeline)
+        return self
+
+    def __next__(self):
+        data = next(self.pipeline_iter)
+        img_id = data['__key__']
+        image = [v for k, v in data.items() if k.lower() in types_support][0]
+
+        return {
+            'id': img_id,
+            'image': image,
+        }
+
+    def __len__(self):
+        return self.size
 
 class WebDSImageLabelSource(WebDatasetSource):
     '''
