@@ -20,7 +20,7 @@ import torch
 import torch.distributed as dist
 import torch.utils.checkpoint
 import torch.utils.data
-from accelerate import Accelerator
+from accelerate import Accelerator, DataLoaderConfiguration
 from accelerate.utils import set_seed
 from torch.utils.data import IterableDataset
 
@@ -117,7 +117,7 @@ class Trainer:
             step_scheduler_with_optimizer=False,
             # For webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
             # Disable it, please use webdataset.split_by_node instead
-            dispatch_batches=False,
+            dataloader_config=DataLoaderConfiguration(dispatch_batches=False),
         )
 
         self.local_rank = int(os.environ.get("LOCAL_RANK", -1))

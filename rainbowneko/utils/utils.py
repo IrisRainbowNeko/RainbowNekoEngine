@@ -172,13 +172,16 @@ def dict_list_copy(obj):
     else:
         return obj
 
+def is_empty(v):
+    return isinstance(v, (dict, list)) and len(v) == 0
+
 def remove_empty_dict_list(data):
     if isinstance(data, dict):
         cleaned = {k: remove_empty_dict_list(v) for k, v in data.items()}
-        return {k: v for k, v in cleaned.items() if v not in ({}, [])}
+        return {k: v for k, v in cleaned.items() if not is_empty(v)}
     elif isinstance(data, list):
         cleaned = [remove_empty_dict_list(v) for v in data]
-        return [v for v in cleaned if v not in ({}, [])]
+        return [v for v in cleaned if not is_empty(v)]
     return data
 
 def dict_merge(dict_base, dict_override):

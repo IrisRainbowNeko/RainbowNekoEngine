@@ -61,8 +61,8 @@ class FullMetricContainer(MetricContainer):
         self.args_list = []
         self.kwargs_list = {}
 
-    def update(self, pred, target):
-        args, kwargs = self.key_mapper(pred=pred, target=target)
+    def update(self, pred, inputs):
+        args, kwargs = self.key_mapper(pred=pred, inputs=inputs)
 
         if len(self.args_list) == 0:
             for v in args:

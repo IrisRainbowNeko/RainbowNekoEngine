@@ -3,6 +3,7 @@ import numpy as np
 from PIL import Image
 from torchvision import transforms as T
 from torchvision.transforms import functional as F
+from accelerate.data_loader import IterableDatasetShard
 
 class DualRandomCrop:
     def __init__(self, size):
@@ -72,7 +73,10 @@ class CycleData():
 
         def cycle():
             while True:
-                self.data_loader.dataset.bucket.rest(self.epoch)
+                if isinstance(self.data_loader.dataset, IterableDatasetShard):
+                    self.data_loader.dataset.dataset.bucket.rest(self.epoch)
+                else:
+                    self.data_loader.dataset.bucket.rest(self.epoch)
                 for data in self.data_loader:
                     yield data
                 self.epoch += 1

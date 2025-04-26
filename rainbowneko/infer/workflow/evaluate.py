@@ -7,11 +7,11 @@ class MetricAction(BasicAction):
         super().__init__(key_map_in=key_map_in, key_map_out=key_map_out)
         self.metric = metric
 
-    def forward(self, pred, target, device, _metric=None, **states):
+    def forward(self, pred, inputs, device, _metric=None, **states):
         if _metric is None:
             self.metric.to(device)
             self.metric.reset()
-        self.metric.update(pred, target)
+        self.metric.update(pred=pred, inputs=inputs)
         return {'_metric':self.metric}
 
 # class MetricFinishAction(BasicAction):

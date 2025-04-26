@@ -8,8 +8,9 @@ from torch import nn
 ModelParamsType = Union[Dict[str, nn.Parameter], Iterable[Tuple[str, nn.Parameter]], nn.Module]
 
 
-class ModelEMA:
+class ModelEMA(nn.Module):
     def __init__(self, model: nn.Module, scheduler: SchedulerType, start_step=0, interval=1):
+        super().__init__()
         with torch.no_grad():
             self.model = deepcopy(model)
             self.train_params = {name: p for name, p in model.named_parameters()}
@@ -45,7 +46,7 @@ class ModelEMA:
 
         # torch.cuda.empty_cache()
 
-    def __call__(self, *args, **kwargs):
+    def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
 
     def copy_to(self, model: nn.Module) -> None:
@@ -65,8 +66,8 @@ class ModelEMA:
             self.train_params = {name: p for name, p in self.model.named_parameters()}
         return self
 
-    def state_dict(self) -> Dict[str, torch.Tensor]:
-        return self.model.state_dict()
+    def state_dict(self, destination=None, prefix='', keep_vars=False) -> Dict[str, torch.Tensor]:
+        return self.model.state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
 
     def load_state_dict(self, state: Dict[str, torch.Tensor], prefix=None):
         for k, v in state:
