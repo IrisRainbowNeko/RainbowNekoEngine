@@ -8,6 +8,7 @@ from .label_loader import JsonLabelLoader, YamlLabelLoader, TXTLabelLoader, auto
 from .sampler import DistributedCycleSampler, get_sampler
 from .source import *
 from .utils import CycleData
+from .data_loader import NekoDataLoader
 
 try:
     from .webds import WebDataset
