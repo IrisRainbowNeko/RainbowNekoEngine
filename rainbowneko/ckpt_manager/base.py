@@ -5,6 +5,7 @@ from torch import nn
 from rainbowneko.models.plugin import PluginGroup
 from .format import CkptFormat, SafeTensorFormat
 from .source import LocalCkptSource
+from .ckpt import NekoPluginLoader, NekoModelLoader
 
 LAYERS_ALL = 'all'
 LAYERS_TRAINABLE = 'trainable'
@@ -28,9 +29,12 @@ class NekoLoader:
         raise NotImplementedError()
 
     @staticmethod
-    def load_all(model: nn.Module, cfg: Dict[str, "NekoLoader"]):
+    def load_all(model: nn.Module, model_plugin: Dict[str, PluginGroup], cfg: Dict[str, "NekoLoader"]):
         for name, loader in cfg.items():
-            loader.load_to(name, model)
+            if isinstance(loader, NekoPluginLoader):
+                loader.load_to(name, model_plugin)
+            elif isinstance(loader, NekoModelLoader):
+                loader.load_to(name, model)
 
 
 class NekoSaver:

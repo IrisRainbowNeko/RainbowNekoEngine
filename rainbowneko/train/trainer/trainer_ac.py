@@ -251,7 +251,11 @@ class Trainer:
     @torch.no_grad()
     def load_resume(self, resumer: NekoResumer):
         if resumer is not None:
-            resumer.load_to(self.model_wrapper, getattr(self, "ema_model", None))
+            resumer.load_to(
+                self.model_wrapper, 
+                self.all_plugin,
+                getattr(self, "ema_model", None)
+            )
 
     def to_dev(self, x):
         if isinstance(x, torch.Tensor):
