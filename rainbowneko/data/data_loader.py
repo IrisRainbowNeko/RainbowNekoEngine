@@ -24,7 +24,7 @@ class NekoDataLoader:
     def __init__(self, dataset: Union[BaseDataset, Iterable], batch_size=1, shuffle=False,
                  sampler: Union[Sampler, Iterable, None] = None,
                  num_workers: int = 0, collate_fn: Optional[_collate_fn_t] = None,
-                 generator=None, drop_last: bool = False,
+                 generator=None, drop_last: bool = False, split_iter_worker=False,
                  prefetch_factor: Optional[int] = 2, timeout: int = 120):
         """
         Initialize the NekoDataLoader.
@@ -48,6 +48,7 @@ class NekoDataLoader:
         self.collate_fn = collate_fn if collate_fn is not None else lambda x: x
         self.generator = generator
         self.drop_last = drop_last
+        self.split_iter_worker = split_iter_worker
         self.prefetch_factor = max(1, prefetch_factor) if prefetch_factor is not None else 2
         self.timeout = timeout
         self._processes = []
@@ -93,8 +94,7 @@ class NekoDataLoader:
         gc.collect()
 
     @staticmethod
-    def _worker(worker_id, num_workers, dataset, sample_iter, queue, queue_next,
-                bs, prefetch_factor, drop_last):
+    def _worker(worker_id, num_workers, dataset, sample_iter, queue, queue_next, bs, prefetch_factor, drop_last):
         """
         Worker process function for data loading.
 
@@ -173,8 +173,7 @@ class NekoDataLoader:
             gc.collect()
 
     @staticmethod
-    def worker(worker_id, num_workers, dataset, sampler, queue, queue_next,
-               bs, prefetch_factor, drop_last):
+    def worker(worker_id, num_workers, dataset, sampler, queue, queue_next, bs, prefetch_factor, drop_last):
         """Worker for datasets that use a sampler."""
 
         def sample_iter(dataset):
@@ -187,13 +186,17 @@ class NekoDataLoader:
         )
 
     @staticmethod
-    def worker_iter(worker_id, num_workers, dataset, queue, queue_next,
-                    bs, prefetch_factor, drop_last):
+    def worker_iter(worker_id, num_workers, dataset, queue, queue_next, bs, prefetch_factor, drop_last, split=False):
         """Worker for iterable datasets."""
 
         def sample_iter(dataset):
-            for sample in dataset:
-                yield sample
+            if split:
+                for i, sample in enumerate(dataset):
+                    if i % num_workers == worker_id:
+                        yield sample
+            else:
+                for sample in dataset:
+                    yield sample
 
         return NekoDataLoader._worker(
             worker_id, num_workers, dataset, sample_iter, queue, queue_next, bs, prefetch_factor, drop_last
@@ -260,16 +263,14 @@ class NekoDataLoader:
             if self.sampler == -1:  # Iterable dataset
                 p = ctx.Process(
                     target=self.worker_iter,
-                    args=(worker_id, num_workers, dataset, queue,
-                          queue_next_list[worker_id], bs,
-                          self.prefetch_factor, self.drop_last)
+                    args=(worker_id, num_workers, dataset, queue, queue_next_list[worker_id], bs,
+                          self.prefetch_factor, self.drop_last, self.split_iter_worker)
                 )
             else:  # Regular dataset with sampler
                 p = ctx.Process(
                     target=self.worker,
                     args=(worker_id, num_workers, dataset, self.sampler, queue,
-                          queue_next_list[worker_id], bs, self.prefetch_factor,
-                          self.drop_last)
+                          queue_next_list[worker_id], bs, self.prefetch_factor, self.drop_last)
                 )
             p.daemon = True
             p.start()
