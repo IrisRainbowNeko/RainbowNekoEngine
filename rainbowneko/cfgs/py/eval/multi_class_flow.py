@@ -46,7 +46,7 @@ def infer_all(path):
             MetricAction(metric=MetricGroup(
                 acc=MetricContainer(MulticlassAccuracy(num_classes=num_classes, average='micro')),
                 f1=MetricContainer(MulticlassF1Score(num_classes=num_classes, average='micro')),
-            ), key_map_in=('output -> pred', 'label -> target.label', 'device -> device'))
+            ), key_map_in=('output -> pred', 'label -> inputs.label', 'device -> device'))
         ])
     )
 

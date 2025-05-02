@@ -26,7 +26,7 @@ from torch.utils.data import IterableDataset
 
 from rainbowneko import _share
 from rainbowneko.ckpt_manager import NekoSaver, NekoResumer
-from rainbowneko.data import DataGroup, get_sampler, CacheableDataset
+from rainbowneko.data import DataGroup, get_sampler, CacheableDataset, NekoDataLoader
 from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
 from rainbowneko.models.ema import ModelEMA
 from rainbowneko.models.wrapper import BaseWrapper
@@ -300,7 +300,7 @@ class Trainer:
                 rank=self.local_rank,
                 shuffle=train and dataset.bucket.can_shuffle,
             )
-        loader = torch.utils.data.DataLoader(
+        loader = NekoDataLoader(
             dataset,
             batch_size=batch_size,
             num_workers=self.cfgs.train.workers,
