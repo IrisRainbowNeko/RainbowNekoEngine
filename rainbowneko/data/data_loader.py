@@ -1,8 +1,7 @@
 import gc
 import multiprocessing as mp
-import time
-from queue import Empty
 import warnings
+from queue import Empty
 from typing import Union, Iterable, Optional, Callable, List, Any, TypeVar
 
 from torch.utils.data import Sampler, IterableDataset, RandomSampler, SequentialSampler
@@ -155,7 +154,7 @@ class NekoDataLoader:
                     continue  # Skip this sample and continue
 
             # Handle remaining items if not dropping last batch
-            if not drop_last and len(batch)>0:
+            if not drop_last and len(batch) > 0:
                 batch_list.append(batch)
 
             # Send all remaining batches
@@ -244,7 +243,7 @@ class NekoDataLoader:
                 yield self.collate_fn(batch)
             return
 
-        if num_workers>bs:
+        if num_workers > bs:
             warnings.warn('"num_workers > batch_size" is not support, setting num_workers to batch_size')
             num_workers = bs
 
@@ -331,7 +330,7 @@ class NekoDataLoader:
                     break
 
             print(batch, data_count)
-            if data_count>0:
+            if data_count > 0:
                 head_worker = (batch_count * bs) % num_workers
                 batch = batch[head_worker:] + batch[:head_worker]
                 batch_flatten = [lst[i] for i in range(max(map(len, batch))) for lst in batch if lst is not None and i < len(lst)]
