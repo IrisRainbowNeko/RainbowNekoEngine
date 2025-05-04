@@ -1,10 +1,19 @@
 import os
+import sys
 from typing import Dict, Any
 
 from PIL import Image
 from loguru import logger
 
 from .base_logger import BaseLogger
+
+logger.remove()  # 移除默认的 handler
+logger.add(
+    sys.stdout,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+           "<level>{level: <8}</level> <magenta>>> </magenta>"
+           "{message}",
+)
 
 class CLILogger(BaseLogger):
     def __init__(self, exp_dir, out_path, log_step=10,

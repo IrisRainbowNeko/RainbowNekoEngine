@@ -2,8 +2,9 @@ from copy import deepcopy
 from typing import Dict, Iterable, Union, Tuple
 
 import torch
-from rainbowneko.utils.scheduler import SchedulerType
 from torch import nn
+
+from rainbowneko.utils.scheduler import SchedulerType
 
 ModelParamsType = Union[Dict[str, nn.Parameter], Iterable[Tuple[str, nn.Parameter]], nn.Module]
 
@@ -69,14 +70,16 @@ class ModelEMA(nn.Module):
     def state_dict(self, destination=None, prefix='', keep_vars=False) -> Dict[str, torch.Tensor]:
         return self.model.state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
 
-    def load_state_dict(self, state: Dict[str, torch.Tensor], prefix=None):
-        for k, v in state:
-            if prefix is None:
-                if k in self.train_params:
-                    self.train_params[k].data = v
-            else:
-                if k in self.train_params and k.startswith(prefix):
-                    self.train_params[k].data = v
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+        def clean_name(name: str):
+            return prefix + 'model.' + name[len(prefix):]
+
+        state_dict_new = {clean_name(k): v for k, v in state_dict.items()}
+        state_dict.clear()
+        state_dict.update(state_dict_new)
+
+        return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
+                                             missing_keys, unexpected_keys, error_msgs)
 
 
 class ParameterEMA:

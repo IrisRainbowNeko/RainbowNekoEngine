@@ -24,8 +24,7 @@ class NekoModelLoader(NekoLoader):
 
     def load_to(self, name, model):
         model = model if self.target_module == '' else eval(f"model.{self.target_module}")
-        named_params = {k: v for k, v in model.named_parameters()}
-        named_params.update({k: v for k, v in model.named_buffers()})
+        states = model.state_dict()
 
         part_state = self.load(self.path, map_location='cpu')
         if self.load_ema:
@@ -39,16 +38,14 @@ class NekoModelLoader(NekoLoader):
             part_state = {k[state_prefix_len:]: v for k, v in part_state.items() if k.startswith(self.state_prefix)}
 
         if self.layers == LAYERS_ALL:
-            for k, v in part_state.items():
-                named_params[k].data = self.base_model_alpha * named_params[k].data + self.alpha * v.to(
-                    named_params[k].data.device)
+            sd_data = {k: self.base_model_alpha * states[k] + self.alpha * v.to(states[k].device) for k, v in part_state.items()}
+            model.load_state_dict(sd_data)
         else:
             named_modules = {k: v for k, v in model.named_modules()}
             match_blocks = get_match_layers(self.layers, named_modules)
             state_add = {k: v for blk in match_blocks for k, v in part_state.items() if k.startswith(blk)}
-            for k, v in state_add.items():
-                named_params[k].data = self.base_model_alpha * named_params[k].data + self.alpha * v.to(
-                    named_params[k].data.device)
+            sd_data = {k: self.base_model_alpha * states[k] + self.alpha * v.to(states[k].device) for k, v in state_add.items()}
+            model.load_state_dict(sd_data, strict=False)
 
 
 class NekoModelSaver(NekoSaver):
