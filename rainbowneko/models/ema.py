@@ -82,7 +82,7 @@ class ModelEMA(nn.Module):
                                              missing_keys, unexpected_keys, error_msgs)
 
 
-class ParameterEMA:
+class ParameterEMA(nn.Module):
     def __init__(self, params: ModelParamsType, scheduler: SchedulerType, start_step=0, interval=1):
         with torch.no_grad():
             self.params = self.get_params(params)
@@ -141,8 +141,8 @@ class ParameterEMA:
     def state_dict(self) -> Dict[str, torch.Tensor]:
         return {name: p.data for name, p in self.params.items()}
 
-    def load_state_dict(self, state: Dict[str, torch.Tensor], prefix=None):
-        for k, v in state:
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+        for k, v in state_dict.items():
             if prefix is None:
                 if k in self.params:
                     self.params[k].data = v
