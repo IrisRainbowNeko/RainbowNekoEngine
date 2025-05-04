@@ -148,4 +148,4 @@ class ParameterEMA(nn.Module):
                     self.params[k].data = v
             else:
                 if k in self.params and k.startswith(prefix):
-                    self.params[k].data = v
+                    self.params[k[len(prefix):]].data = v
