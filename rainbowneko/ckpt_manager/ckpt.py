@@ -39,7 +39,7 @@ class NekoModelLoader(NekoLoader):
 
         if self.layers == LAYERS_ALL:
             sd_data = {k: self.base_model_alpha * states[k] + self.alpha * v.to(states[k].device) for k, v in part_state.items()}
-            model.load_state_dict(sd_data)
+            model.load_state_dict(sd_data, strict=False)
         else:
             named_modules = {k: v for k, v in model.named_modules()}
             match_blocks = get_match_layers(self.layers, named_modules)
@@ -110,7 +110,11 @@ class NekoPluginLoader(NekoLoader):
     def load_to(self, name: str, plugin_groups: Dict[str, PluginGroup]):
         # get plugin_group to load
         plugin_group = plugin_groups[self.target_plugin or name]
-        plugin_state = self.load(self.path, map_location='cpu')['base_ema' if self.load_ema else 'base']
+        state_dict = self.load(self.path, map_location='cpu')
+        if 'base' in state_dict or 'base_ema' in state_dict:
+            plugin_state = state_dict['base_ema' if self.load_ema else 'base']
+        else:
+            plugin_state = state_dict['plugin_ema' if self.load_ema else 'plugin']
 
         if self.state_prefix:
             state_prefix_len = len(self.state_prefix)
