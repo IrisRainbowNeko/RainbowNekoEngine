@@ -483,10 +483,11 @@ class Trainer:
 
     def save_model(self, from_raw=False):
         NekoSaver.save_all(
-            self.model_raw,
-            plugin_groups=self.all_plugin,
             cfg=self.ckpt_saver,
+            model=self.model_raw,
+            plugin_groups=self.all_plugin,
             model_ema=getattr(self, "ema_model", None),
+            optimizer=self.optimizer,
             name_template=f'{{}}-{self.real_step}',
         )
 

@@ -1,8 +1,9 @@
 from typing import Dict, Union, List
 
-from torch import nn
-
 from rainbowneko.models.plugin import PluginGroup, BasePluginBlock
+from torch import nn
+from torch.optim import Optimizer
+
 from .base import NekoLoader, NekoSaver, LAYERS_ALL, LAYERS_TRAINABLE
 from .format import CkptFormat
 from .locator import get_match_layers
@@ -11,9 +12,9 @@ from .source import LocalCkptSource
 
 class NekoModelLoader(NekoLoader):
     def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, path: str = None, layers='all',
-                 target_module='',
-                 state_prefix=None, base_model_alpha=0.0, alpha=1.0, load_ema=False):
-        super().__init__(format=format, source=source, layers=layers)
+                 target_module='', state_prefix=None, base_model_alpha=0.0, alpha=1.0, load_ema=False, key_map=None):
+        key_map = key_map or ('name -> name', 'model -> model')
+        super().__init__(format=format, source=source, layers=layers, key_map=key_map)
         self.path = path
 
         self.target_module = target_module
@@ -22,12 +23,12 @@ class NekoModelLoader(NekoLoader):
         self.load_ema = load_ema
         self.state_prefix = state_prefix
 
-    def load_to(self, name, model):
+    def _load_to(self, name, model):
         model = model if self.target_module == '' else eval(f"model.{self.target_module}")
         states = model.state_dict()
 
         part_state = self.load(self.path, map_location='cpu')
-        if self.load_ema:
+        if self.load_ema and 'base_ema' in part_state:
             part_state = part_state['base_ema']
         else:
             if 'base' in part_state:
@@ -50,8 +51,10 @@ class NekoModelLoader(NekoLoader):
 
 class NekoModelSaver(NekoSaver):
     def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, layers='all', state_prefix='',
-                 target_module: Union[str, List[str]] = '', prefix=None):
-        super().__init__(format=format, source=source, layers=layers, state_prefix=state_prefix)
+                 target_module: Union[str, List[str]] = '', prefix=None, key_map=None):
+        key_map = key_map or ('name -> name', 'model -> model', 'model_ema -> model_ema', 'exclude_key -> exclude_key',
+                              'name_template -> name_template')
+        super().__init__(format=format, source=source, layers=layers, state_prefix=state_prefix, key_map=key_map)
         self.prefix = prefix
         if isinstance(target_module, str):
             target_module = [target_module]
@@ -63,8 +66,7 @@ class NekoModelSaver(NekoSaver):
         else:
             return {k: v for k, v in state.items() if key not in k}
 
-    def save_to(self, name, model: nn.Module, plugin_groups: Dict[str, PluginGroup], model_ema=None, exclude_key=None,
-                name_template=None):
+    def _save_to(self, name, model: nn.Module, model_ema=None, exclude_key=None, name_template=None):
         sd_base = {}
         for item in self.target_module:
             block = model if item == '' else eval(f"model.{item}")
@@ -80,24 +82,32 @@ class NekoModelSaver(NekoSaver):
 
             sd_base.update(sd_item)
 
-        if len(sd_base) > 0:
-            sd_model = {"base": sd_base}
-            if model_ema is not None:
-                sd_ema = model_ema.state_dict()
-                sd_ema = {k: sd_ema[k] for k in sd_base.keys()}
-                sd_model["base_ema"] = self.exclude_state(sd_ema, exclude_key)
-                sd_model["base_ema"] = self.clean_prefix(sd_model["base_ema"])
-            sd_model["base"] = self.clean_prefix(sd_model["base"])
+        if model_ema is not None:
+            sd_ema = model_ema.state_dict()
+            sd_ema = {k: sd_ema[k] for k in sd_base.keys()}
+            sd_ema = self.exclude_state(sd_ema, exclude_key)
+            sd_ema = self.clean_prefix(sd_ema)
+
             if name_template is not None:
-                name = name_template.format(name)
-            self.save(sd_model, name, prefix=self.prefix)
+                name_ema = name_template.format(f'{name}-ema')
+            else:
+                name_ema = name
+            self.save(sd_ema, name_ema, prefix=self.prefix)
+
+        if len(sd_base) > 0:
+            sd_base = self.clean_prefix(sd_base)
+            if name_template is not None:
+                name_base = name_template.format(name)
+            else:
+                name_base = name
+            self.save(sd_base, name_base, prefix=self.prefix)
 
 
 class NekoPluginLoader(NekoLoader):
     def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, path: str = None, layers='all',
-                 target_plugin=None,
-                 state_prefix=None, base_model_alpha=0.0, load_ema=False, **plugin_kwargs):
-        super().__init__(format=format, source=source, layers=layers)
+                 target_plugin=None, state_prefix=None, base_model_alpha=0.0, load_ema=False, key_map=None, **plugin_kwargs):
+        key_map = key_map or ('name -> name', 'plugin_groups -> plugin_groups')
+        super().__init__(format=format, source=source, layers=layers, key_map=key_map)
         self.path = path
 
         self.target_plugin = target_plugin
@@ -107,14 +117,16 @@ class NekoPluginLoader(NekoLoader):
 
         self.plugin_kwargs = plugin_kwargs
 
-    def load_to(self, name: str, plugin_groups: Dict[str, PluginGroup]):
+    def _load_to(self, name: str, plugin_groups: Dict[str, PluginGroup]):
         # get plugin_group to load
         plugin_group = plugin_groups[self.target_plugin or name]
         state_dict = self.load(self.path, map_location='cpu')
         if 'base' in state_dict or 'base_ema' in state_dict:
             plugin_state = state_dict['base_ema' if self.load_ema else 'base']
-        else:
+        elif 'plugin' in state_dict or 'plugin_ema' in state_dict:
             plugin_state = state_dict['plugin_ema' if self.load_ema else 'plugin']
+        else:
+            plugin_state = state_dict
 
         if self.state_prefix:
             state_prefix_len = len(self.state_prefix)
@@ -146,16 +158,18 @@ class NekoPluginLoader(NekoLoader):
 
 class NekoPluginSaver(NekoSaver):
     def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, layers='all', state_prefix='',
-                 target_plugin: Union[str, List[str]] = '', prefix=None, plugin_from_raw=False):
-        super().__init__(format=format, source=source, layers=layers, state_prefix=state_prefix)
+                 target_plugin: Union[str, List[str]] = '', prefix=None, plugin_from_raw=False, key_map=None):
+        key_map = key_map or ('name -> name', 'model -> host_model', 'plugin_groups -> plugin_groups', 'model_ema -> model_ema',
+                              'exclude_key -> exclude_key', 'name_template -> name_template')
+        super().__init__(format=format, source=source, layers=layers, state_prefix=state_prefix, key_map=key_map)
         self.prefix = prefix
         if isinstance(target_plugin, str):
             target_plugin = [target_plugin]
         self.target_plugin = target_plugin
         self.plugin_from_raw = plugin_from_raw
 
-    def save_to(self, name, host_model, plugin_groups: Dict[str, PluginGroup], model_ema=None, exclude_key=None,
-                name_template=None):
+    def _save_to(self, name, host_model, plugin_groups: Dict[str, PluginGroup], model_ema=None, exclude_key=None,
+                 name_template=None):
         sd_base = {}
         sd_ema = {}
         for plugin_name in self.target_plugin:
@@ -175,13 +189,20 @@ class NekoPluginSaver(NekoSaver):
                 sd_ema.update(sd_ema_item)
 
         if len(sd_base) > 0:
-            sd_plugin = {'base': sd_base}
-            if model_ema is not None:
-                sd_plugin["base_ema"] = self.clean_prefix(sd_ema)
-            sd_plugin["base"] = self.clean_prefix(sd_plugin["base"])
+            sd_base = self.clean_prefix(sd_base)
             if name_template is not None:
-                name = name_template.format(name)
-            self.save(sd_plugin, name, prefix=self.prefix)
+                name_base = name_template.format(name)
+            else:
+                name_base = name
+            self.save(sd_base, name_base, prefix=self.prefix)
+
+        if model_ema is not None:
+            if name_template is not None:
+                name_ema = name_template.format(f'{name}-ema')
+            else:
+                name_ema = name
+            sd_ema = self.clean_prefix(sd_ema)
+            self.save(sd_ema, name_ema, prefix=self.prefix)
 
 
 class NekoEasySaver(NekoSaver):
@@ -198,8 +219,7 @@ class NekoEasySaver(NekoSaver):
         else:
             return {k: v for k, v in state.items() if key not in k}
 
-    def model_save_to(self, name, model: nn.Module, model_ema=None, exclude_key=None,
-                      name_template=None):
+    def model_save_to(self, name, model: nn.Module, model_ema=None, exclude_key=None, name_template=None):
         sd_base = {}
         sd_item = self.exclude_state(
             BasePluginBlock.extract_state_without_plugin(model, trainable=self.layers == LAYERS_TRAINABLE), exclude_key
@@ -213,17 +233,25 @@ class NekoEasySaver(NekoSaver):
 
         sd_base.update(sd_item)
 
-        if len(sd_base) > 0:
-            sd_model = {"base": sd_base}
-            if model_ema is not None:
-                sd_ema = model_ema.state_dict()
-                sd_ema = {k: sd_ema[k] for k in sd_base.keys()}
-                sd_model["base_ema"] = self.exclude_state(sd_ema, exclude_key)
-                sd_model["base_ema"] = self.clean_prefix(sd_model["base_ema"])
-            sd_model["base"] = self.clean_prefix(sd_model["base"])
+        if model_ema is not None:
+            sd_ema = model_ema.state_dict()
+            sd_ema = {k: sd_ema[k] for k in sd_base.keys()}
+            sd_ema = self.exclude_state(sd_ema, exclude_key)
+            sd_ema = self.clean_prefix(sd_ema)
+
             if name_template is not None:
-                name = name_template.format(name)
-            self.save(sd_model, name, prefix=self.prefix)
+                name_ema = name_template.format(f'{name}-ema')
+            else:
+                name_ema = name
+            self.save(sd_ema, name_ema, prefix=self.prefix)
+
+        if len(sd_base) > 0:
+            sd_base = self.clean_prefix(sd_base)
+            if name_template is not None:
+                name_base = name_template.format(name)
+            else:
+                name_base = name
+            self.save(sd_base, name_base, prefix=self.prefix)
 
     def plugin_save_to(self, name, host_model, plugin_groups: Dict[str, PluginGroup], model_ema=None, exclude_key=None,
                        name_template=None):
@@ -241,15 +269,75 @@ class NekoEasySaver(NekoSaver):
                 sd_ema = {k: sd_ema[k] for k in sd_base.keys()}
 
             if len(sd_base) > 0:
-                sd_plugin = {'base': sd_base}
-                if model_ema is not None:
-                    sd_plugin["base_ema"] = self.clean_prefix(sd_ema)
-                sd_plugin["base"] = self.clean_prefix(sd_plugin["base"])
+                sd_base = self.clean_prefix(sd_base)
                 if name_template is not None:
-                    name = name_template.format(f'{name}-{plugin_name}')
-                self.save(sd_plugin, name, prefix=self.prefix)
+                    name_base = name_template.format(name)
+                else:
+                    name_base = name
+                self.save(sd_base, name_base, prefix=self.prefix)
 
-    def save_to(self, name, host_model, plugin_groups: Dict[str, PluginGroup], model_ema=None, exclude_key=None,
-                name_template=None):
-        self.model_save_to(name, host_model, model_ema, exclude_key, name_template)
-        self.plugin_save_to(name, host_model, plugin_groups, model_ema, exclude_key, name_template)
+            if model_ema is not None:
+                if name_template is not None:
+                    name_ema = name_template.format(f'{name}-ema')
+                else:
+                    name_ema = name
+                sd_ema = self.clean_prefix(sd_ema)
+                self.save(sd_ema, name_ema, prefix=self.prefix)
+
+    def _save_to(self, name, model, plugin_groups: Dict[str, PluginGroup], model_ema=None, exclude_key=None, name_template=None):
+        self.model_save_to(name, model, model_ema, exclude_key, name_template)
+        self.plugin_save_to(name, model, plugin_groups, model_ema, exclude_key, name_template)
+
+
+class NekoOptimizerSaver(NekoSaver):
+    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, state_prefix='',
+                 target_module: Union[str, List[str]] = '', prefix=None, key_map=None):
+        key_map = key_map or ('name -> name', 'optimizer -> optimizer', 'name_template -> name_template')
+        super().__init__(format=format, source=source, state_prefix=state_prefix, key_map=key_map)
+        self.prefix = prefix
+        if isinstance(target_module, str):
+            target_module = [target_module]
+        self.target_module = target_module
+
+    def _save_to(self, name, optimizer: Optimizer, name_template=None):
+        sd_base = {}
+        for item in self.target_module:
+            block = optimizer if item == '' else eval(f"optimizer.{item}")
+            sd_item = block.state_dict()
+            sd_base.update(sd_item)
+
+        if len(sd_base) > 0:
+            sd_base = self.clean_prefix(sd_base)
+            if name_template is not None:
+                name_base = name_template.format(name)
+            else:
+                name_base = name
+            self.save(sd_base, name_base, prefix=self.prefix)
+
+
+class NekoOptimizerLoader(NekoLoader):
+    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, path: str = None,
+                 target_module='', state_prefix=None, base_model_alpha=0.0, alpha=1.0, key_map=None):
+        key_map = key_map or ('name -> name', 'optimizer -> optimizer')
+        super().__init__(format=format, source=source, key_map=key_map)
+        self.path = path
+
+        self.target_module = target_module
+        self.base_model_alpha = base_model_alpha
+        self.alpha = alpha
+        self.state_prefix = state_prefix
+
+    def _load_to(self, name, optimizer: Optimizer):
+        optimizer = optimizer if self.target_module == '' else eval(f"optimizer.{self.target_module}")
+        states = optimizer.state_dict()
+
+        part_state = self.load(self.path, map_location='cpu')
+        if 'base' in part_state:
+            part_state = part_state['base']
+
+        if self.state_prefix:
+            state_prefix_len = len(self.state_prefix)
+            part_state = {k[state_prefix_len:]: v for k, v in part_state.items() if k.startswith(self.state_prefix)}
+
+        sd_data = {k: self.base_model_alpha * states[k] + self.alpha * v.to(states[k].device) for k, v in part_state.items()}
+        optimizer.load_state_dict(sd_data, strict=True)

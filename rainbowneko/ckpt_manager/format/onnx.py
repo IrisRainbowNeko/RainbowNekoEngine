@@ -57,7 +57,7 @@ class ONNXFormat(CkptFormat):
         return tuple(input_tensors), input_names, dynamic_axes
 
     def save_ckpt(self, sd_model: Dict[str, torch.nn.Module], save_f: FILE_LIKE, **kwargs):
-        torch.onnx.export(sd_model['base'], self.inputs, save_f, input_names=self.input_names, output_names=self.output_names,
+        torch.onnx.export(sd_model, self.inputs, save_f, input_names=self.input_names, output_names=self.output_names,
                           dynamic_axes=self.dynamic_axes, **kwargs)
 
     def load_ckpt(self, ckpt_f: FILE_LIKE, providers=['CPUExecutionProvider', 'CUDAExecutionProvider']):

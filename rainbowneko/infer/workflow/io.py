@@ -31,7 +31,7 @@ class LoadModelAction(BasicAction):
 
     def forward(self, model, all_plugin_group=None, in_preview=False, **states):
         if not in_preview:
-            NekoLoader.load_all(model, all_plugin_group, self.cfg)
+            NekoLoader.load_all(self.cfg, model=model, plugin_groups=all_plugin_group)
 
 class FeedAction(BasicAction):
     def __init__(self, key_map_in=None, key_map_out=None, **datas):

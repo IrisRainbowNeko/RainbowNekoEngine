@@ -4,12 +4,9 @@ from .base import NekoLoader
 
 
 class NekoResumer:
-    def __init__(self, loader: Dict[str, NekoLoader], start_step: int, loader_ema: Dict[str, NekoLoader] = None):
+    def __init__(self, loader: Dict[str, NekoLoader], start_step: int):
         self.loader = loader
         self.start_step = start_step
-        self.loader_ema = loader_ema
 
-    def load_to(self, model, plugin_groups, ema_model=None):
-        NekoLoader.load_all(model, plugin_groups, self.loader)
-        if ema_model is not None:
-            NekoLoader.load_all(ema_model, plugin_groups, self.loader_ema)
+    def load_to(self, **kwargs):
+        NekoLoader.load_all(**kwargs)
