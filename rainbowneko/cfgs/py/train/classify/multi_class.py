@@ -8,7 +8,7 @@ from torch.nn import CrossEntropyLoss
 from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
 
 from cfgs.py.train import train_base, tuning_base
-from rainbowneko.ckpt_manager import ckpt_saver
+from rainbowneko.ckpt_manager import ckpt_saver, NekoOptimizerSaver
 from rainbowneko.data import BaseDataset
 from rainbowneko.data import FixedBucket
 from rainbowneko.data.handler import HandlerChain, ImageHandler, LoadImageHandler
@@ -40,7 +40,8 @@ def make_cfg():
 
         # func(_partial_=True, ...) same as partial(func, ...)
         ckpt_saver=dict(
-            model=ckpt_saver(target_module='model')
+            model=ckpt_saver(target_module='model'),
+            optimizer=NekoOptimizerSaver(),
         ),
 
         train=dict(
