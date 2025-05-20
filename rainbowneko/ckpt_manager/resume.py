@@ -9,4 +9,4 @@ class NekoResumer:
         self.start_step = start_step
 
     def load_to(self, **kwargs):
-        NekoLoader.load_all(**kwargs)
+        NekoLoader.load_all(cfg=self.loader, **kwargs)
