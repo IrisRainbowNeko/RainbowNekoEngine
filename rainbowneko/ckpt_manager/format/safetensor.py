@@ -12,12 +12,25 @@ class SafeTensorFormat(CkptFormat):
 
     def save_ckpt(self, sd_model: Dict[str, Any], save_f: FILE_LIKE):
         sd_unfold = self.unfold_dict(sd_model)
+        sd_unfold = self.type_check(sd_unfold)
         save_file(sd_unfold, save_f)
 
     def load_ckpt(self, ckpt_f: FILE_LIKE, map_location='cpu'):
         with safe_open(ckpt_f, framework="pt", device=map_location) as f:
             sd_fold = self.fold_dict(f)
         return sd_fold
+
+    @staticmethod
+    def type_check(sd_unfold: Dict[str, Any]):
+        sd_pruned = {}
+        for k, v in sd_unfold.items():
+            if isinstance(v, (float, int)):
+                sd_pruned[k] = torch.tensor(v)
+            elif isinstance(v, torch.Tensor):
+                sd_pruned[k] = v
+            else:
+                pass
+        return sd_pruned
 
     @staticmethod
     def unfold_dict(data, split_key=':'):

@@ -1,6 +1,6 @@
 _base_:
-  - cfgs\yaml\train\train_base.yaml
-  - cfgs\yaml\train\tuning_base.yaml
+  - cfgs/yaml/train/train_base.yaml
+  - cfgs/yaml/train/tuning_base.yaml
 
 model_part:
   _target_: rainbowneko.parser.CfgModelParser

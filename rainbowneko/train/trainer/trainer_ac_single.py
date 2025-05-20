@@ -1,6 +1,6 @@
 import argparse
 
-from accelerate import Accelerator
+from accelerate import Accelerator, DataLoaderConfiguration
 from rainbowneko import _share
 
 from .trainer_ac import Trainer, load_config_with_cli, set_seed
@@ -8,14 +8,24 @@ from .trainer_ac import Trainer, load_config_with_cli, set_seed
 
 class TrainerSingleCard(Trainer):
     def init_context(self, cfgs_raw):
-        self.accelerator = Accelerator(
-            gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
-            mixed_precision=self.cfgs.mixed_precision,
-            step_scheduler_with_optimizer=False,
-            # False for webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
-            # Disable it, please use webdataset.split_by_node instead
-            dispatch_batches=False,
-        )
+        try:
+            self.accelerator = Accelerator(
+                gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
+                mixed_precision=self.cfgs.mixed_precision,
+                step_scheduler_with_optimizer=False,
+                # False for webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
+                # Disable it, please use webdataset.split_by_node instead
+                dispatch_batches=False,
+            )
+        except TypeError:
+            self.accelerator = Accelerator(
+                gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
+                mixed_precision=self.cfgs.mixed_precision,
+                step_scheduler_with_optimizer=False,
+                # False for webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
+                # Disable it, please use webdataset.split_by_node instead
+                dataloader_config=DataLoaderConfiguration(dispatch_batches=False),
+            )
 
         self.local_rank = 0
         self.world_size = self.accelerator.num_processes

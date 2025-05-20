@@ -19,9 +19,10 @@ class CfgModelParser:
             params.extend(layer.parameters())
 
         for param_name in get_match_layers(layers, named_parameters):
-            param: nn.Parameter = named_parameters[param_name]
-            param.requires_grad_(True)
-            params.append(param)
+            if param_name != '':
+                param: nn.Parameter = named_parameters[param_name]
+                param.requires_grad_(True)
+                params.append(param)
         return train_layers, list(dict.fromkeys(params))  # remove duplicates and keep order
 
     def get_params_group(self, model: nn.Module):
@@ -43,6 +44,7 @@ class CfgModelParser:
 class CfgWDModelParser(CfgModelParser):
     def get_params_group(self, model):
         named_modules = {k: v for k, v in model.named_modules()}
+        named_parameters = {k: v for k, v in model.named_parameters()}
 
         params_group = []
         train_layers = []
@@ -54,7 +56,7 @@ class CfgWDModelParser(CfgModelParser):
 
         if self.cfg_model is not None:
             for item in self.cfg_model:
-                layers, params = self.get_params(item.layers, named_modules)
+                layers, params = self.get_params(item.layers, named_modules, named_parameters)
                 train_layers.extend(layers)
 
                 params_nowd = []
