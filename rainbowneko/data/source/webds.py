@@ -56,7 +56,7 @@ class WebDSImageLabelSource(WebDatasetSource):
         super().__init__(pipeline, repeat, **kwargs)
         self.label_dict = self._load_label_data(label_file)
 
-    def _load_label_data(self, label_file: Union[str, BaseLabelLoader]):
+    def _load_label_data(self, label_file: str | BaseLabelLoader):
         if label_file is None:
             return {}
         elif isinstance(label_file, str):
@@ -79,20 +79,12 @@ class WebDSImageLabelSource(WebDatasetSource):
         return len(self.label_dict)
 
 
-def image_pipeline(url, buffer_size=1000):
+def image_pipeline(url, buffer_size=300):
     return wds.DataPipeline(
         wds.SimpleShardList(url),
-        # at this point we have an iterator over all the shards
-
-        # this shuffles the shards
-        wds.shuffle(buffer_size),
-
-        # add wds.split_by_node here if you are using multiple nodes
-        wds.split_by_worker,
-
-        # at this point, we have an iterator over the shards assigned to each worker
-        wds.tarfile_to_samples(),
         wds.split_by_node,
-
+        wds.split_by_worker,
+        wds.tarfile_to_samples(),
+        wds.shuffle(buffer_size),
         wds.decode("pil"),
     )

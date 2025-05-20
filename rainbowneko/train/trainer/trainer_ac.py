@@ -290,7 +290,7 @@ class Trainer:
 
         return dataset, batch_size
 
-    def build_data(self, data_builder: partial, train=True) -> torch.utils.data.DataLoader:
+    def build_data(self, data_builder: partial, train=True) -> torch.utils.data.DataLoader | NekoDataLoader:
         drop_last = data_builder.keywords.pop("drop_last", True)
         dataset, batch_size = self.build_dataset(data_builder)
 
@@ -366,6 +366,8 @@ class Trainer:
                 self.lr_scheduler.step(self.cfgs.train.resume.start_step)
             if self.wd_scheduler:
                 self.wd_scheduler.step(self.cfgs.train.resume.start_step)
+            self.real_step = max(1, self.global_step // acc_steps)
+            self.model_raw.update_model(self.real_step)
 
         self.model_wrapper.train()
         loss_sum = None
