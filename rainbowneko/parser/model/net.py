@@ -19,7 +19,7 @@ class CfgModelParser:
             params.extend(layer.parameters())
 
         for param_name in get_match_layers(layers, named_parameters):
-            if param_name != '':
+            if param_name in named_parameters:
                 param: nn.Parameter = named_parameters[param_name]
                 param.requires_grad_(True)
                 params.append(param)

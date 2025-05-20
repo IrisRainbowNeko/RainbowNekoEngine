@@ -262,9 +262,9 @@ class Trainer:
     def load_resume(self, resumer: NekoResumer):
         if resumer is not None:
             resumer.load_to(
-                self.model_wrapper, 
-                self.all_plugin,
-                getattr(self, "ema_model", None)
+                model=self.model_wrapper,
+                plugin_groups=self.all_plugin,
+                model_ema=getattr(self, "ema_model", None)
             )
 
     def to_dev(self, x):
