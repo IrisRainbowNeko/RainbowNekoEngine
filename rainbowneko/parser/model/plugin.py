@@ -171,19 +171,25 @@ class CfgWDPluginParser(CfgPluginParser):
         for plugin_name, builder in self.cfg_plugin.items():
             builder: functools.partial
 
-            lr = builder.keywords.pop("lr") if "lr" in builder.keywords else self.lr
-            weight_decay = builder.keywords.pop("weight_decay") if "weight_decay" in builder.keywords else self.weight_decay
-            train_plugin = builder.keywords.pop("train") if "train" in builder.keywords else True
+            lr = builder.keywords.pop("lr", self.lr)
+            weight_decay = builder.keywords.pop("weight_decay", self.weight_decay)
+            train_plugin = builder.keywords.pop("train", True)
+            reload = builder.keywords.pop("_reload", False)
             plugin_class = getattr(builder.func, "__self__", builder.func)  # support static or class method
 
+            if reload:
+                named_modules_ = {k: v for k, v in model.named_modules()}
+            else:
+                named_modules_ = named_modules
+
             if issubclass(plugin_class, MultiPluginBlock):
-                blocks, params_list = self.get_params_multi(builder, named_modules, plugin_name, model, train_plugin)
+                blocks, params_list = self.get_params_multi(builder, named_modules_, plugin_name, model, train_plugin)
             elif issubclass(plugin_class, SinglePluginBlock):
-                blocks, params_list = self.get_params_single(builder, named_modules, plugin_name, model, train_plugin)
+                blocks, params_list = self.get_params_single(builder, named_modules_, plugin_name, model, train_plugin)
             elif issubclass(plugin_class, PluginBlock):
-                blocks, params_list = self.get_params_plugin(builder, named_modules, plugin_name, model, train_plugin)
+                blocks, params_list = self.get_params_plugin(builder, named_modules_, plugin_name, model, train_plugin)
             elif issubclass(plugin_class, PatchPluginBlock):
-                blocks, params_list = self.get_params_patch(builder, named_modules, plugin_name, model, train_plugin)
+                blocks, params_list = self.get_params_patch(builder, named_modules_, plugin_name, model, train_plugin)
             else:
                 raise NotImplementedError(f"Unknown plugin: {plugin_class}")
 
