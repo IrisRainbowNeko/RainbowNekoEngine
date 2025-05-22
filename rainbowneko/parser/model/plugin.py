@@ -134,7 +134,7 @@ class CfgPluginParser:
 
             lr = builder.keywords.pop("lr", self.lr)
             train_plugin = builder.keywords.pop("train", True)
-            reload = builder.keywords.pop("_reload", False)
+            reload = builder.keywords.pop("_reload_", False)
             plugin_class = getattr(builder.func, "__self__", builder.func)  # support static or class method
 
             if reload:
@@ -174,7 +174,7 @@ class CfgWDPluginParser(CfgPluginParser):
             lr = builder.keywords.pop("lr", self.lr)
             weight_decay = builder.keywords.pop("weight_decay", self.weight_decay)
             train_plugin = builder.keywords.pop("train", True)
-            reload = builder.keywords.pop("_reload", False)
+            reload = builder.keywords.pop("_reload_", False)
             plugin_class = getattr(builder.func, "__self__", builder.func)  # support static or class method
 
             if reload:
