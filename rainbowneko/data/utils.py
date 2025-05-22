@@ -62,7 +62,7 @@ def pad_crop_fix(img, target_size):
         return img, (h,w,0,0,h,w)  # No need to crop
     else:
         img, crop_coord = DualRandomCrop(target_size[::-1])(img)
-        return img, crop_coord
+        return img, [h, w, *crop_coord[::-1], *target_size]
 
 class CycleData():
     def __init__(self, data_loader):
