@@ -245,7 +245,7 @@ class ConfigCodeReconstructor:
                     ))
                 keywords.append(
                     ast.keyword(
-                        arg='_ex_attrs',
+                        arg='_ex_attrs_',
                         value=ast.Call(
                             func=ast.Name(id='dict', ctx=ast.Load()),
                             args=[],

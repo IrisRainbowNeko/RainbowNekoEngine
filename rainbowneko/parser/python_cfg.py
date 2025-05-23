@@ -10,7 +10,7 @@ import string
 from contextlib import nullcontext
 from pathlib import Path
 from types import ModuleType
-from typing import Dict
+from typing import Callable, Dict, Any
 
 from omegaconf import OmegaConf
 from yapf.yapflib.yapf_api import FormatCode
@@ -171,7 +171,7 @@ class PythonCfgParser(YamlCfgParser):
         })
         lines = [line + '\n' for line in new_code.splitlines()]
         linecache.cache[filename] = (len(source), None, lines, filename)
-        modified_tree = ast.parse(new_code) # rebuild lineno
+        modified_tree = ast.parse(new_code)  # rebuild lineno
 
         # compile modified code
         code = compile(modified_tree, filename=filename, mode="exec")
