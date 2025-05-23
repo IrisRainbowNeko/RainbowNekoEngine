@@ -1,4 +1,5 @@
 import hashlib
+import keyword
 import math
 import random
 import re
@@ -202,3 +203,6 @@ def dict_merge(dict_base, dict_override):
 
 def repeat_list(lst, length):
     return list(islice(cycle(lst), length))
+
+def is_valid_variable_name(s):
+    return s.isidentifier() and not keyword.iskeyword(s)

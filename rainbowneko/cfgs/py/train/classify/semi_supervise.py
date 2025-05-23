@@ -115,7 +115,7 @@ def make_cfg():
             dataset_U=partial(BaseDataset, batch_size=16, loss_weight=1.0,
                 source=dict(
                     data_source1=UnLabelSource(
-                        img_root=r'E:\dataset\k40\k40'
+                        img_root=r'/mnt/others/dataset/k40/k40/'
                     ),
                 ),
                 handler=HandlerGroup(

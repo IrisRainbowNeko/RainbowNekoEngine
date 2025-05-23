@@ -9,6 +9,7 @@ from .recursive_partial import RecursivePartial
 ####### patch hydra resolve target #######
 target_stack = []
 
+
 def getattr_call(obj: RecursivePartial, attr: str):
     if type(obj) is partial:
         obj = RecursivePartial(obj)
@@ -19,6 +20,7 @@ def getattr_call(obj: RecursivePartial, attr: str):
         return obj(getattr, attr)
     else:
         return getattr(obj, attr)
+
 
 def _resolve_target(
         target: Union[str, type, Callable[..., Any]], full_key: str
@@ -50,18 +52,22 @@ def _resolve_target(
 
     return target
 
+
 _instantiate2._resolve_target = _resolve_target
 ####### patch hydra resolve target #######
 
 from .model import CfgModelParser, CustomModelParser, CfgWDModelParser, CfgPluginParser, CfgWDPluginParser
 from .python_cfg import PythonCfgParser, get_rel_path, disable_neko_cfg
+from .cfg2py import ConfigCodeReconstructor
 from .yaml_cfg import YamlCfgParser
+
 
 def neko_cfg(func):
     parser = PythonCfgParser()
     return parser.compile_cfg(func)
 
-def load_config(path: Union[str, ModuleType], remove_undefined=True):
+
+def load_config(path: str | ModuleType, remove_undefined=True):
     if isinstance(path, ModuleType):
         parser = PythonCfgParser()
     elif path.lower().endswith('.yaml'):
@@ -73,7 +79,7 @@ def load_config(path: Union[str, ModuleType], remove_undefined=True):
     return parser, parser.load_config(path, remove_undefined)
 
 
-def load_config_with_cli(path: Union[str, ModuleType], args_list=None, remove_undefined=True):
+def load_config_with_cli(path: str | ModuleType, args_list=None, remove_undefined=True):
     if isinstance(path, ModuleType):
         parser = PythonCfgParser()
     elif path.lower().endswith('.yaml'):
@@ -83,6 +89,7 @@ def load_config_with_cli(path: Union[str, ModuleType], args_list=None, remove_un
     else:
         raise ValueError('Unsupported config file format: {}'.format(path))
     return parser, parser.load_config_with_cli(path, args_list, remove_undefined)
+
 
 def load_config_instant(path: str, remove_undefined=True):
     import hydra
