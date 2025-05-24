@@ -1,7 +1,7 @@
 from typing import Dict, List, Tuple, Union
 
 import torch
-from torch.serialization import FILE_LIKE
+from rainbowneko.utils import FILE_LIKE
 from io import BytesIO
 
 from rainbowneko.utils import is_list
