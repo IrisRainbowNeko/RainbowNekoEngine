@@ -1,11 +1,12 @@
-from .pkl import PKLFormat
-from typing import Dict, Any, Union
+from typing import Dict, Any
 
 import torch
-from torch.serialization import FILE_LIKE
 from safetensors import safe_open
 from safetensors.torch import save_file
+
+from rainbowneko.utils import FILE_LIKE
 from .base import CkptFormat
+
 
 class SafeTensorFormat(CkptFormat):
     EXT = 'safetensors'

@@ -14,3 +14,4 @@ tqdm
 addict
 albumentations
 rich
+yapf

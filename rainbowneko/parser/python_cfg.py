@@ -8,11 +8,14 @@ import re
 import shutil
 import string
 from contextlib import nullcontext
+from pathlib import Path
 from types import ModuleType
-from typing import Union
+from typing import Callable, Dict, Any
 
 from omegaconf import OmegaConf
+from yapf.yapflib.yapf_api import FormatCode
 
+from .cfg2py import ConfigCodeReconstructor
 from .yaml_cfg import YamlCfgParser
 
 
@@ -146,7 +149,6 @@ class PythonCfgParser(YamlCfgParser):
 
     def print_code(self, code):
         # format code with yapf
-        from yapf.yapflib.yapf_api import FormatCode
         new_code, _ = FormatCode(code, style_config='facebook')
         print(new_code)
 
@@ -162,8 +164,14 @@ class PythonCfgParser(YamlCfgParser):
         # add source code for new function
         filename = random_filename()
         new_code = ast.unparse(modified_tree)
+        # for easily detect lambda in ConfigCodeReconstructor
+        new_code, _ = FormatCode(new_code, style_config={
+            'based_on_style': 'facebook',
+            'column_limit': 100  # 覆盖 facebook 样式的行长度
+        })
         lines = [line + '\n' for line in new_code.splitlines()]
         linecache.cache[filename] = (len(source), None, lines, filename)
+        modified_tree = ast.parse(new_code)  # rebuild lineno
 
         # compile modified code
         code = compile(modified_tree, filename=filename, mode="exec")
@@ -209,7 +217,7 @@ class PythonCfgParser(YamlCfgParser):
                 elif isinstance(value, list):
                     self.resolve_sub_cfgs(value)
 
-    def load_cfg(self, path: Union[str, ModuleType]):
+    def load_cfg(self, path: str | ModuleType):
         if isinstance(path, str):
             # record for save
             if len(self.cfg_dict) == 0:
@@ -243,11 +251,17 @@ class PythonCfgParser(YamlCfgParser):
 
         return OmegaConf.create(cfg, flags={"allow_objects": True})
 
-    def save_configs(self, cfg, path, name='cfg'):
+    def save_configs(self, cfg: Dict, path: str | Path, name='full_cfg'):
+        path = Path(path)
         for dst, src in self.cfg_dict.items():
-            if dst == 'cfg.py':
-                path_dst = os.path.join(path, f'{name}.py')
-            else:
-                path_dst = os.path.join(path, dst)
+            path_dst = path / dst
             os.makedirs(os.path.dirname(path_dst), exist_ok=True)
             shutil.copy2(src, path_dst)
+
+        try:
+            coder = ConfigCodeReconstructor()
+            cfg_code = coder.generate_code(cfg)
+            with open(path / f'{name}.py', 'w') as f:
+                f.write(cfg_code)
+        except:
+            print('Reconstruct code from config failed.')

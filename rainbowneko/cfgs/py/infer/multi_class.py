@@ -78,6 +78,6 @@ def make_cfg():
                 path='exps/cifar/ckpts/cifar-resnet18-3900.ckpt',
             ),
         )),
-        #infer_one(path=r"E:\dataset\frog10.png")
-        infer_all(path=r'D:\others\dataset\cifar')
+        infer_one(path=r"E:\dataset\frog10.png")
+        # infer_all(path=r'D:\others\dataset\cifar')
     ]))

@@ -1,6 +1,6 @@
 from .cfg_resolvers import *
 from .cfg_tool import change_num_classes
-from .constant import Path_Like
+from .constant import Path_Like, FILE_LIKE
 from .key_mapper import KeyMapper
 from .scheduler import ConstantLR, CosineLR, CosineRestartLR, MultiStepLR, PolynomialLR, OneCycleLR, \
     get_scheduler_with_name, SchedulerType, ConstantWD, CosineWD, CosineRestartWD, MultiStepWD, PolynomialWD
