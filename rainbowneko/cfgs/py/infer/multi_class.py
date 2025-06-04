@@ -8,6 +8,7 @@ from rainbowneko.infer import HandlerAction, DataLoaderAction
 from rainbowneko.infer.workflow import (Actions, BuildModelAction, PrepareAction, FeedAction, ForwardAction,
                                         LambdaAction, VisClassAction, LoadModelAction)
 from rainbowneko.models.wrapper import SingleWrapper
+from rainbowneko.utils import KeyMapper
 from rainbowneko.parser import neko_cfg
 from rainbowneko.ckpt_manager import auto_ckpt_loader
 
@@ -31,7 +32,7 @@ def infer_one(path):
             ]))
         ), key_map_in=('image -> image',)),
         LambdaAction(f_act=lambda image, **kwargs: {'image': image.unsqueeze(0)}),
-        ForwardAction(key_map_in=('image -> input.image', 'model -> model')),
+        ForwardAction(key_map_in=KeyMapper(key_map=('image -> input.image', 'model -> model'), move_mode=True)),
         VisClassAction(
             class_map=['airplanes', 'cars', 'birds', 'cats', 'deer', 'dogs', 'frogs', 'horses', 'ships', 'trucks'],
             key_map_in=('output.pred -> pred',)
@@ -69,15 +70,18 @@ def infer_all(path):
 
 @neko_cfg
 def make_cfg():
-    return dict(workflow=Actions(actions=[
-        PrepareAction(device='cpu', dtype=torch.float16),
-        BuildModelAction(SingleWrapper(_partial_=True, model=load_resnet())),
-        LoadModelAction(dict(
-            model=auto_ckpt_loader(
-                target_module='model',
-                path='exps/cifar/ckpts/cifar-resnet18-3900.ckpt',
-            ),
-        )),
-        infer_one(path=r"E:\dataset\frog10.png")
-        # infer_all(path=r'D:\others\dataset\cifar')
-    ]))
+    return dict(
+        img_path=r"E:\dataset\frog10.png",
+        workflow=Actions(actions=[
+            PrepareAction(device='cpu', dtype=torch.float16),
+            BuildModelAction(SingleWrapper(_partial_=True, model=load_resnet())),
+            LoadModelAction(dict(
+                model=auto_ckpt_loader(
+                    target_module='model',
+                    path='exps/cifar/ckpts/cifar-resnet18-3900.ckpt',
+                ),
+            )),
+            infer_one(path="${img_path}")
+            # infer_all(path=r'D:\others\dataset\cifar')
+        ])
+    )

@@ -11,56 +11,38 @@ train_ac.py
 import argparse
 import math
 import os
-import warnings
 from functools import partial
-from typing import Dict
 
-import hydra
 import torch
-import torch.distributed as dist
 import torch.utils.checkpoint
 import torch.utils.data
-from accelerate import Accelerator, DataLoaderConfiguration
-from accelerate.utils import set_seed
-from torch.utils.data import IterableDataset
 
-from rainbowneko import _share
-from rainbowneko.ckpt_manager import NekoSaver, NekoResumer
-from rainbowneko.data import DataGroup, get_sampler, CacheableDataset, NekoDataLoader
+from rainbowneko.ckpt_manager import NekoSaver
+from rainbowneko.data import DataGroup
+from rainbowneko.engine import NekoEngineMixin, NekoCkptMixin, NekoLoggerMixin, NekoModelMixin, NekoDataMixin, NekoAccelerateMixin
 from rainbowneko.evaluate import EvaluatorGroup, MetricGroup
-from rainbowneko.models.ema import ModelEMA
 from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.parser import load_config_with_cli
-from rainbowneko.train.loggers import LoggerGroup
-from rainbowneko.utils import mgcd, format_number, disable_hf_loggers, is_dict, xformers_available, maybe_DDP
+from rainbowneko.utils import format_number, is_dict
 from rainbowneko.utils.scheduler import get_lr_scheduler, get_wd_scheduler
 
 
-class Trainer:
-    weight_dtype_map = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
-
+class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixin, NekoCkptMixin, NekoLoggerMixin):
     def __init__(self, parser, cfgs_raw):
-        torch.backends.cudnn.benchmark = True
+        super().__init__(parser, cfgs_raw)
 
-        cfgs = hydra.utils.instantiate(cfgs_raw)
-        self.cfgs = cfgs
-        self.parser = parser
-
-        self.init_context(cfgs_raw)
+        self.init_context(cfgs_raw, self.cfgs.train.gradient_accumulation_steps)
         self.build_loggers(cfgs_raw)
 
-        self.build_ckpt_saver()
+        self.build_ckpt_saver(self.exp_dir)
         self.build_model()
-
-        for callback in _share.model_callbacks:
-            callback(self.model_wrapper)
 
         # build dataset
         self.batch_size_list = []
-        assert len(cfgs.data_train) > 0, "At least one dataset is need."
-        loss_weights = {name: dataset.keywords["loss_weight"] for name, dataset in cfgs.data_train.items()}
+        assert len(self.cfgs.data_train) > 0, "At least one dataset is need."
+        loss_weights = {name: dataset.keywords["loss_weight"] for name, dataset in self.cfgs.data_train.items()}
         self.train_loader_group = DataGroup(
-            {name: self.build_data(dataset, train=True) for name, dataset in cfgs.data_train.items()}, loss_weights
+            {name: self.build_data(dataset, self.cfgs.train.workers, train=True) for name, dataset in self.cfgs.data_train.items()}, loss_weights
         )
 
         # calculate steps and epochs
@@ -81,7 +63,7 @@ class Trainer:
 
         self.load_resume(self.cfgs.train.resume)
 
-        torch.backends.cuda.matmul.allow_tf32 = cfgs.allow_tf32
+        torch.backends.cuda.matmul.allow_tf32 = self.cfgs.allow_tf32
 
         if self.cfgs.train.metrics is not None:
             self.metric_train = self.cfgs.train.metrics
@@ -95,65 +77,17 @@ class Trainer:
             self.metric_train = None
 
         if self.cfgs.evaluator is not None:
-            self.evaluator = self.build_evaluator(self.cfgs.evaluator)
+            self.evaluator = self.build_evaluator(self.cfgs.evaluator, self.cfgs_raw.evaluator)
             self.evaluator.to(self.accelerator.device)
         else:
             self.evaluator = None
 
         self.prepare()
 
-    @property
-    def device(self):
-        return self.accelerator.device
-
-    @property
-    def is_local_main_process(self):
-        return self.accelerator.is_local_main_process
-
-    def init_context(self, cfgs_raw):
-        try:
-            self.accelerator = Accelerator(
-                gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
-                mixed_precision=self.cfgs.mixed_precision,
-                step_scheduler_with_optimizer=False,
-                # False for webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
-                # Disable it, please use webdataset.split_by_node instead
-                dispatch_batches=False,
-            )
-        except TypeError:
-            self.accelerator = Accelerator(
-                gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
-                mixed_precision=self.cfgs.mixed_precision,
-                step_scheduler_with_optimizer=False,
-                # False for webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
-                # Disable it, please use webdataset.split_by_node instead
-                dataloader_config=DataLoaderConfiguration(dispatch_batches=False),
-            )
-
-        self.local_rank = int(os.environ.get("LOCAL_RANK", -1))
-        self.world_size = self.accelerator.num_processes
-        _share.local_rank = self.local_rank
-        _share.world_size = self.world_size
-        _share.device = self.device
-
-        set_seed(self.cfgs.seed + self.local_rank)
-
     def build_loggers(self, cfgs_raw):
+        super().build_loggers(cfgs_raw)
         if self.is_local_main_process:
-            self.exp_dir = self.cfgs.exp_dir
-            os.makedirs(os.path.join(self.exp_dir, "ckpts/"), exist_ok=True)
-            self.parser.save_configs(cfgs_raw, self.exp_dir)
-            self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=self.exp_dir) for builder in self.cfgs.logger])
-        else:
-            self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.logger])
-
-        _share.loggers = self.loggers
-        self.min_log_step = mgcd(*([item.log_step for item in self.loggers.logger_list]))
-
-        self.loggers.info(f"world size (num GPUs): {self.world_size}")
-        self.loggers.info(f"accumulation: {self.cfgs.train.gradient_accumulation_steps}")
-
-        disable_hf_loggers(self.is_local_main_process)
+            self.loggers.info(f"world size (num GPUs): {self.world_size}")
 
     def prepare(self):
         # Prepare everything with accelerator.
@@ -200,17 +134,6 @@ class Trainer:
             if "lr" in param:
                 param["lr"] *= scale_factor
 
-    def build_model(self):
-        self.model_wrapper = self.cfgs.model.wrapper()
-
-        self.model_wrapper.requires_grad_(False)
-        self.model_wrapper.eval()
-        self.weight_dtype = self.weight_dtype_map.get(self.cfgs.mixed_precision, torch.float32)
-
-    def build_ema(self):
-        if self.cfgs.model.ema is not None:
-            self.ema_model: ModelEMA = self.cfgs.model.ema(self.model_wrapper)
-
     def build_loss(self):
         criterion = self.cfgs.train.loss
         if is_dict(criterion):
@@ -218,111 +141,20 @@ class Trainer:
         else:
             self.criterion = criterion.to(self.device)
 
-    def build_ckpt_saver(self):
-        if self.is_local_main_process:
-            self.ckpt_saver: Dict[str, NekoSaver] = self.cfgs.ckpt_saver
-            self.ckpt_dir = os.path.join(self.exp_dir, "ckpts")
-            for ckpt_saver in self.ckpt_saver.values():
-                ckpt_saver.prefix = self.ckpt_dir
-
-    def build_evaluator(self, cfgs_eval):
-        def build_one(cfgs_eval_one):
-            dataset_cfg = cfgs_eval_one.keywords.pop('dataset', None)
-            if dataset_cfg is None:
-                evaluator = cfgs_eval_one(trainer=self)
-            else:
-                val_loader = self.build_data(dataset_cfg, train=False)
-                evaluator = cfgs_eval_one(trainer=self, data_loader=val_loader)
-            return evaluator
-
+    def build_evaluator(self, cfgs_eval, cfgs_eval_raw):
         if cfgs_eval is not None:
             if is_dict(cfgs_eval):
-                evaluator_dict = {name: build_one(cfg) for name, cfg in cfgs_eval.items()}
+                evaluator_dict = {name: cfg(self.parser, cfgs_eval_raw, trainer=self) for name, cfg in cfgs_eval.items()}
                 return EvaluatorGroup(loggers=self.loggers, evaluator_dict=evaluator_dict)
             else:
-                return build_one(cfgs_eval)
+                return cfgs_eval(self.parser, cfgs_eval_raw, trainer=self)
         else:
             return None
 
-    @property
-    def model_raw(self):
-        return maybe_DDP(self.model_wrapper)
-
-    def config_model(self):
-        if self.cfgs.model.enable_xformers:
-            if xformers_available:
-                self.model_wrapper.enable_xformers()
-            else:
-                warnings.warn("xformers is not available. Make sure it is installed correctly")
-
-        if self.cfgs.model.gradient_checkpointing:
-            self.model_wrapper.enable_gradient_checkpointing()
-
-    @torch.no_grad()
-    def load_resume(self, resumer: NekoResumer):
-        if resumer is not None:
-            resumer.load_to(
-                model=self.model_wrapper,
-                plugin_groups=self.all_plugin,
-                model_ema=getattr(self, "ema_model", None)
-            )
-
-    def to_dev(self, x):
-        if isinstance(x, torch.Tensor):
-            if torch.is_floating_point(x):
-                return x.to(self.device, dtype=self.weight_dtype)
-            else:
-                return x.to(self.device)
-        else:
-            return x
-
-    def boardcast_main(self, data):
-        obj = [data]
-        dist.broadcast_object_list(obj, src=0)
-        return obj[0]
-
-    def all_gather(self, data):
-        if not hasattr(self, 'gloo_group'):  # Transfer data on cpu
-            self.gloo_group = dist.new_group(backend='gloo')
-        gathered_objects = [None for _ in range(self.world_size)]
-        dist.all_gather_object(gathered_objects, data, group=self.gloo_group)
-        return gathered_objects
-
     def build_dataset(self, data_builder: partial):
-        batch_size = data_builder.keywords.pop("batch_size")
+        dataset, batch_size = super().build_dataset(data_builder)
         self.batch_size_list.append(batch_size)
-
-        dataset = data_builder()
-        dataset.build_bucket(bs=batch_size, world_size=self.world_size)
-        if isinstance(dataset, CacheableDataset):
-            dataset.build_cache(self.model_wrapper, self.all_gather)
-        self.loggers.info(f"len(dataset): {len(dataset)}")
-
         return dataset, batch_size
-
-    def build_data(self, data_builder: partial, train=True) -> torch.utils.data.DataLoader | NekoDataLoader:
-        drop_last = data_builder.keywords.pop("drop_last", True)
-        dataset, batch_size = self.build_dataset(data_builder)
-
-        # Pytorch Data loader
-        if isinstance(dataset, IterableDataset):
-            sampler = None  # IterableDataset cannot be read randomly
-        else:
-            sampler = get_sampler(train)(
-                dataset,
-                num_replicas=self.world_size,
-                rank=self.local_rank,
-                shuffle=train and dataset.bucket.can_shuffle,
-            )
-        loader = NekoDataLoader(
-            dataset,
-            batch_size=batch_size,
-            num_workers=self.cfgs.train.workers,
-            sampler=sampler,
-            collate_fn=dataset.collate_fn,
-            drop_last=drop_last,
-        )
-        return loader
 
     def get_param_group_train(self):
         # make model part and plugin
@@ -436,7 +268,7 @@ class Trainer:
                     )
 
             if self.evaluator is not None and acc_step == acc_steps - 1:
-                self.evaluator.evaluate(self.real_step, self.model_raw)
+                self.evaluator.evaluate(self.real_step)
 
             if self.real_step >= self.cfgs.train.train_steps and acc_step == acc_steps - 1:
                 break
@@ -489,10 +321,6 @@ class Trainer:
             loss = self.criterion(model_pred, inputs).mean()
         return loss * weight
 
-    def update_ema(self):
-        if hasattr(self, "ema_model"):
-            self.ema_model.step(self.model_raw.named_parameters())
-
     def save_model(self, from_raw=False):
         NekoSaver.save_all(
             cfg=self.ckpt_saver,
@@ -504,9 +332,6 @@ class Trainer:
         )
 
         self.loggers.info(f"Saved state, step: {self.real_step}")
-
-    def wait_for_everyone(self):
-        self.accelerator.wait_for_everyone()
 
 
 def neko_train():

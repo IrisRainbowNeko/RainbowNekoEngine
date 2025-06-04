@@ -1,1 +1,1 @@
-from .trainer import Trainer, TrainerSingleCard
+#from .trainer import Trainer, TrainerSingleCard

@@ -1,16 +1,17 @@
 import argparse
 
 from accelerate import Accelerator, DataLoaderConfiguration
-from rainbowneko import _share
+from accelerate.utils import set_seed
 
-from .trainer_ac import Trainer, load_config_with_cli, set_seed
+from rainbowneko import _share
+from .trainer_ac import Trainer, load_config_with_cli
 
 
 class TrainerSingleCard(Trainer):
-    def init_context(self, cfgs_raw):
+    def init_context(self, cfgs_raw, gradient_accumulation_steps=1):
         try:
             self.accelerator = Accelerator(
-                gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
+                gradient_accumulation_steps=gradient_accumulation_steps,
                 mixed_precision=self.cfgs.mixed_precision,
                 step_scheduler_with_optimizer=False,
                 # False for webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
@@ -19,7 +20,7 @@ class TrainerSingleCard(Trainer):
             )
         except TypeError:
             self.accelerator = Accelerator(
-                gradient_accumulation_steps=self.cfgs.train.gradient_accumulation_steps,
+                gradient_accumulation_steps=gradient_accumulation_steps,
                 mixed_precision=self.cfgs.mixed_precision,
                 step_scheduler_with_optimizer=False,
                 # False for webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.

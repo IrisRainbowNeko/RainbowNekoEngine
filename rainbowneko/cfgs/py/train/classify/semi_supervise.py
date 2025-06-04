@@ -90,7 +90,7 @@ def make_cfg():
             dataset_S=partial(BaseDataset, batch_size=16, loss_weight=1.0,
                 source=dict(
                     data_source1=IndexSource(
-                        data=torchvision.datasets.cifar.CIFAR10(root=r'D:\others\dataset\cifar', train=True, download=True)
+                        data=torchvision.datasets.cifar.CIFAR10(root='/mnt/others/dataset/cifar', train=True, download=True)
                     ),
                 ),
                 handler=HandlerChain(

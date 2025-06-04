@@ -4,7 +4,7 @@ from .base import NekoLoader
 
 
 class NekoResumer:
-    def __init__(self, loader: Dict[str, NekoLoader], start_step: int):
+    def __init__(self, loader: Dict[str, NekoLoader], start_step: int = 0):
         self.loader = loader
         self.start_step = start_step
 

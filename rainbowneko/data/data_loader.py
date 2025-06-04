@@ -1,5 +1,6 @@
 import gc
 import multiprocessing as mp
+import platform
 import warnings
 from queue import Empty
 from typing import Union, Iterable, Optional, Callable, List, Any, TypeVar
@@ -93,7 +94,7 @@ class NekoDataLoader:
         gc.collect()
 
     @staticmethod
-    def _worker(worker_id, num_workers, dataset, sample_iter, queue, queue_next, bs, prefetch_factor, drop_last):
+    def _worker(worker_id, num_workers, dataset, sample_iter, queue: mp.Queue, queue_next: mp.Queue, event: mp.Event, bs, prefetch_factor, drop_last):
         """
         Worker process function for data loading.
 
@@ -171,8 +172,10 @@ class NekoDataLoader:
             del batch_list
             gc.collect()
 
+        event.wait()  # https://github.com/pytorch/pytorch/issues/60654
+
     @staticmethod
-    def worker(worker_id, num_workers, dataset, sampler, queue, queue_next, bs, prefetch_factor, drop_last):
+    def worker(worker_id, num_workers, dataset, sampler, queue, queue_next, event, bs, prefetch_factor, drop_last):
         """Worker for datasets that use a sampler."""
 
         def sample_iter(dataset):
@@ -181,11 +184,11 @@ class NekoDataLoader:
                     yield dataset[idx]
 
         return NekoDataLoader._worker(
-            worker_id, num_workers, dataset, sample_iter, queue, queue_next, bs, prefetch_factor, drop_last
+            worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, bs, prefetch_factor, drop_last
         )
 
     @staticmethod
-    def worker_iter(worker_id, num_workers, dataset, queue, queue_next, bs, prefetch_factor, drop_last, split=False):
+    def worker_iter(worker_id, num_workers, dataset, queue, queue_next, event, bs, prefetch_factor, drop_last, split=False):
         """Worker for iterable datasets."""
 
         def sample_iter(dataset):
@@ -198,7 +201,7 @@ class NekoDataLoader:
                     yield sample
 
         return NekoDataLoader._worker(
-            worker_id, num_workers, dataset, sample_iter, queue, queue_next, bs, prefetch_factor, drop_last
+            worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, bs, prefetch_factor, drop_last
         )
 
     @staticmethod
@@ -248,9 +251,13 @@ class NekoDataLoader:
             num_workers = bs
 
         # Set up multiprocessing
-        ctx = mp.get_context('spawn')
+        if platform.system() == "Linux":
+            ctx = mp.get_context('fork')
+        else:
+            ctx = mp.get_context('spawn')
         queue = ctx.Queue(maxsize=num_workers * 2)  # Double buffer for better throughput
         queue_next_list = [ctx.Queue(maxsize=self.prefetch_factor) for _ in range(num_workers)]
+        event = mp.Event()  # https://github.com/pytorch/pytorch/issues/60654
 
         # Track all queues for cleanup
         self._queues = [queue] + queue_next_list
@@ -262,14 +269,14 @@ class NekoDataLoader:
             if self.sampler == -1:  # Iterable dataset
                 p = ctx.Process(
                     target=self.worker_iter,
-                    args=(worker_id, num_workers, dataset, queue, queue_next_list[worker_id], bs,
+                    args=(worker_id, num_workers, dataset, queue, queue_next_list[worker_id], event, bs,
                           self.prefetch_factor, self.drop_last, self.split_iter_worker)
                 )
             else:  # Regular dataset with sampler
                 p = ctx.Process(
                     target=self.worker,
-                    args=(worker_id, num_workers, dataset, self.sampler, queue,
-                          queue_next_list[worker_id], bs, self.prefetch_factor, self.drop_last)
+                    args=(worker_id, num_workers, dataset, self.sampler, queue, queue_next_list[worker_id],
+                          event, bs, self.prefetch_factor, self.drop_last)
                 )
             p.daemon = True
             p.start()
@@ -327,9 +334,12 @@ class NekoDataLoader:
 
                 except Exception as e:
                     print(f"Unexpected error in main process: {e}")
+                    import traceback
+                    traceback.print_exc()
                     break
 
-            print(batch, data_count)
+            event.set()
+
             if data_count > 0:
                 head_worker = (batch_count * bs) % num_workers
                 batch = batch[head_worker:] + batch[:head_worker]

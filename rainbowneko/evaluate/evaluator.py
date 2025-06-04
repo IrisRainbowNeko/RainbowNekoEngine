@@ -1,82 +1,115 @@
+import os
+from functools import partial
 from types import ModuleType
-from typing import Dict, Union
+from typing import Dict
 
 import torch
-import torch.distributed as dist
-from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
+from rainbowneko.engine import NekoEngineMixin, NekoModelMixin, NekoDataMixin, NekoAccelerateMixin, NekoLoggerMixin, NekoCkptMixin, \
+    NekoAccelerateSingleCardMixin
 from rainbowneko.infer import WorkflowRunner
 from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.parser import load_config
+from rainbowneko.utils import weight_dtype_map
 from .metrics import BaseMetric, MetricGroup
 
 
-class Evaluator:
-    def __init__(self, trainer: "Trainer", data_loader: DataLoader, metric: BaseMetric, ds_name=None, interval=100, dataset:None=None):
-        assert dataset is None, '"dataset" is a placeholder for cfg, should always be None.'
-        self.data_loader = data_loader
-        self.trainer = trainer
-        self.metric = metric
+class Evaluator(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixin, NekoCkptMixin, NekoLoggerMixin):
+    def __init__(self, parser, cfgs_raw, ds_name=None, interval=100, trainer=None, **cfgs):
+        super().__init__(parser, cfgs_raw, **cfgs)
+        if trainer is None:
+            self.init_context(cfgs_raw)
+            self.build_loggers(cfgs_raw)
+
+            self.build_model()
+
+            self.cfgs.dataset: partial
+            workers = self.cfgs.dataset.keywords.pop("workers", 0)
+            self.data_loader = self.build_data(self.cfgs.dataset, workers, train=False)
+            self.data_loader.dataset.bucket.rest(0)
+
+            self.model_wrapper.post_init()
+            self.config_model()
+            self.load_resume(self.cfgs.resume)
+            self.prepare()
+        else:
+            self.accelerator = trainer.accelerator
+            self.local_rank = trainer.local_rank
+            self.world_size = trainer.world_size
+            self.loggers = trainer.loggers
+
+            self.model_wrapper = trainer.model_wrapper
+            self.weight_dtype = trainer.weight_dtype
+            print(self.cfgs.dataset)
+
+            workers = self.cfgs.dataset.keywords.pop("workers", 0)
+            self.data_loader = self.build_data(self.cfgs.dataset, workers, train=False)
+            self.data_loader.dataset.bucket.rest(0)
+
+        torch.backends.cuda.matmul.allow_tf32 = self.cfgs.get('allow_tf32', False)
+        self.metric: BaseMetric = self.cfgs.metric
         self.interval = interval
         self.ds_name = ds_name
-
-        self.data_loader.dataset.bucket.rest(0)
-
         self.metric.to(self.device)
 
-    @property
-    def device(self):
-        return self.trainer.device
+    def prepare(self):
+        # Prepare everything with accelerator.
+        prepare_name_list, prepare_obj_list = [], []
+        for k, v in self.model_wrapper.trainable_models.items():
+            prepare_obj_list.append(v)
+            prepare_name_list.append(k)
+        N_trainable_models = len(prepare_obj_list)
 
-    @property
-    def dtype(self):
-        return self.trainer.weight_dtype
+        prepared_obj = self.accelerator.prepare(*prepare_obj_list)
+
+        # prepared model
+        if prepare_name_list[0] == "self":  # entire model is trainable
+            if N_trainable_models == 1:
+                self.model_wrapper = prepared_obj
+            else:
+                self.model_wrapper = prepared_obj[0]
+        else:
+            for name, obj in zip(prepare_name_list[:N_trainable_models], prepared_obj[:N_trainable_models]):
+                setattr(self.model_wrapper, name, obj)
+
+        self.model_wrapper: BaseWrapper = self.model_wrapper.to(self.device)
+        if self.cfgs.model.force_cast_precision:
+            self.model_wrapper.to(dtype=self.weight_dtype)
 
     def forward_one_step(self, model, data):
-        input_datas = {k: self.trainer.to_dev(v) for k, v in data.items() if k != "plugin_input"}
+        input_datas = {k: self.to_dev(v) for k, v in data.items() if k != "plugin_input"}
         if "plugin_input" in data:
-            input_datas["plugin_input"] = {k: self.trainer.to_dev(v) for k, v in data["plugin_input"].items()}
+            input_datas["plugin_input"] = {k: self.to_dev(v) for k, v in data["plugin_input"].items()}
 
-        model_pred = model(self.ds_name, **input_datas)
+        with torch.autocast(self.device.type, dtype=self.weight_dtype, enabled=self.weight_dtype != torch.float32):
+            model_pred = model(self.ds_name, **input_datas)
 
         return model_pred, input_datas
-    
-    def cpu_gather(self, tensor):
-        if self.trainer.world_size>1:
-            if not hasattr(self, 'gloo_group'): # Transfer data on cpu
-                self.gloo_group = dist.new_group(backend='gloo')
-
-            world_size = dist.get_world_size()
-            gathered_tensors = [torch.empty_like(tensor) for _ in range(world_size)]
-            dist.all_gather(gathered_tensors, tensor, group=self.gloo_group)
-            return torch.cat(gathered_tensors, dim=0)
-        else:
-            return tensor
 
     @torch.no_grad()
-    def evaluate(self, step: int, model: BaseWrapper, prefix='eval/'):
+    def evaluate(self, step: int, prefix='eval/'):
         if step % self.interval != 0:
             return
 
         # record training layers
-        training_layers = [layer for layer in model.modules() if layer.training]
+        training_layers = [layer for layer in self.model_raw.modules() if layer.training]
 
         # reset metric
-        model.eval()
+        self.model_wrapper.eval()
         self.metric.reset()
 
-        for data in tqdm(self.data_loader, disable=not self.trainer.is_local_main_process):
-            pred, input_datas = self.forward_one_step(model, data)
+        for data in tqdm(self.data_loader, disable=not self.is_local_main_process):
+            pred, input_datas = self.forward_one_step(self.model_wrapper, data)
             # update data to metric
             self.metric.update(pred, input_datas)
 
-        v_metric = self.metric.finish(self.cpu_gather, self.trainer.is_local_main_process)
+        v_metric = self.metric.finish(self.cpu_gather, self.is_local_main_process)
         if not isinstance(v_metric, dict):
             v_metric = {'metric': v_metric}
 
         data_size = len(self.data_loader.dataset)
-        self.trainer.loggers.info(f'Evaluate: data size {data_size}')
+        self.loggers.info(f'Evaluate: data size {data_size}')
         log_data = {
             "eval/Step": {
                 "format": "{}",
@@ -84,7 +117,7 @@ class Evaluator:
             }
         }
         log_data.update(MetricGroup.format(v_metric, prefix=prefix))
-        self.trainer.loggers.log(log_data, step, force=True)
+        self.loggers.log(log_data, step, force=True)
 
         for layer in training_layers:
             layer.train()
@@ -108,33 +141,66 @@ class EvaluatorGroup:
             evaluator.to(device)
 
 
+class EvaluatorSingle(NekoAccelerateSingleCardMixin, Evaluator):
+    pass
+
+
 class WorkflowEvaluator(Evaluator):
-    def __init__(self, trainer: "Trainer", workflow: Union[str, ModuleType, Dict], ds_name=None, interval=100):
-        self.trainer = trainer
+    def __init__(self, parser, cfgs_raw, workflow: str | ModuleType | Dict, ds_name=None, interval=100, trainer=None,
+                 mixed_precision=None, seed=42, **cfgs):
+        cfgs['seed'] = seed
+        cfgs['mixed_precision'] = mixed_precision
+        super(Evaluator, self).__init__(parser, cfgs_raw, **cfgs)  # skip Evaluator init
+
+        self.model_wrapper: BaseWrapper | None
+        if trainer is None:
+            self.init_context(cfgs_raw)
+            self.loggers = None
+            self.weight_dtype = weight_dtype_map.get(self.cfgs.mixed_precision, torch.float32)
+
+            if isinstance(workflow, (ModuleType, str)):
+                parser, conf = load_config(workflow)
+                self.workflow_runner = WorkflowRunner(parser, conf)
+            else:
+                self.workflow_runner = WorkflowRunner(parser, workflow)
+        else:
+            self.accelerator = trainer.accelerator
+            self.local_rank = trainer.local_rank
+            self.world_size = trainer.world_size
+            self.loggers = trainer.loggers
+
+            self.model_wrapper = trainer.model_wrapper
+            self.weight_dtype = trainer.weight_dtype
+
+            if isinstance(workflow, (ModuleType, str)):
+                parser, conf = load_config(workflow)
+                self.workflow_runner = WorkflowRunner(parser, conf)
+            else:
+                self.workflow_runner = WorkflowRunner(parser, workflow)
+
         self.interval = interval
         self.ds_name = ds_name
 
-        if isinstance(workflow, (ModuleType,str)):
-            parser, conf = load_config(workflow)
-            self.workflow_runner = WorkflowRunner(parser, conf)
-        else:
-            self.workflow_runner = WorkflowRunner(trainer.parser, workflow)
-
     @torch.no_grad()
-    def evaluate(self, step: int, model: BaseWrapper, prefix='eval/'):
+    def evaluate(self, step: int, prefix='eval/'):
         if step % self.interval != 0:
             return
 
         # record training layers
-        training_layers = [layer for layer in model.modules() if layer.training]
+        if self.model_wrapper is not None:
+            training_layers = [layer for layer in self.model_raw.modules() if layer.training]
+            self.model_wrapper.eval()
+            model = self.model_wrapper
+        else:
+            training_layers = []
+            model = None
 
-        model.eval()
-
-        states = self.workflow_runner.run(model=model, in_preview=True, device=self.device, dtype=self.dtype,
-                                          world_size=self.trainer.world_size, local_rank=self.trainer.local_rank)
+        states = self.workflow_runner.run(model=model, in_preview=True, device=self.device, dtype=self.weight_dtype,
+                                          world_size=self.world_size, local_rank=self.local_rank)
         metric = states['_metric']
+        loggers = states.get('loggers', None)
 
-        v_metric = metric.finish(self.trainer.accelerator.gather, self.trainer.is_local_main_process)
+        v_metric = metric.finish(self.accelerator.gather, self.is_local_main_process)
         if not isinstance(v_metric, dict):
             v_metric = {'metric': v_metric}
 
@@ -145,7 +211,12 @@ class WorkflowEvaluator(Evaluator):
             }
         }
         log_data.update(MetricGroup.format(v_metric, prefix=prefix))
-        self.trainer.loggers.log(log_data, step, force=True)
+        if self.loggers is not None:
+            self.loggers.log(log_data, step, force=True)
+        elif loggers is not None:
+            loggers.log(log_data, step, force=True)
+        else:
+            print(', '.join([f"{os.path.basename(k)} = {v['format'].format(*v['data'])}" for k, v in log_data.items()]))
 
         for layer in training_layers:
             layer.train()
