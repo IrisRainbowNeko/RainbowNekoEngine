@@ -1,10 +1,9 @@
-import os
 from typing import Dict, Any, TYPE_CHECKING, Callable
 
 from omegaconf import DictConfig
 
 from rainbowneko import _share
-from rainbowneko.train.loggers import LoggerGroup
+from rainbowneko.loggers import LoggerGroup
 from rainbowneko.utils import disable_hf_loggers, mgcd
 
 

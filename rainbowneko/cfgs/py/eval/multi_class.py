@@ -10,7 +10,7 @@ from rainbowneko.data import BaseDataset, ImageHandler, IndexSource, HandlerChai
 from rainbowneko.evaluate import Evaluator, MetricGroup, MetricContainer
 from rainbowneko.models.wrapper import SingleWrapper
 from rainbowneko.parser import neko_cfg
-from rainbowneko.train.loggers import CLILogger
+from rainbowneko.loggers import CLILogger
 
 time_format="%Y-%m-%d-%H-%M-%S"
 num_classes = 10

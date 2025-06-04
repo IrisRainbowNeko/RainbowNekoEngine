@@ -16,7 +16,7 @@ class WorkflowRunner:
         self.parser = parser
 
         if _share.loggers is None:
-            from rainbowneko.train.loggers import CLILogger
+            from rainbowneko.loggers import CLILogger
             _share.loggers = CLILogger('exps/', None, log_step=1)
 
         self.actions: BasicAction = cfgs.workflow

@@ -6,7 +6,7 @@ from torch.nn import MSELoss
 
 from rainbowneko.ckpt_manager import ckpt_saver
 from rainbowneko.parser import neko_cfg
-from rainbowneko.train.loggers import CLILogger
+from rainbowneko.loggers import CLILogger
 from rainbowneko.utils import ConstantLR
 
 time_format="%Y-%m-%d-%H-%M-%S"

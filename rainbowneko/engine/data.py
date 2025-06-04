@@ -11,7 +11,7 @@ from torch.utils.data import IterableDataset
 class NekoDataMixin:
     if TYPE_CHECKING:
         from rainbowneko.models.wrapper import BaseWrapper
-        from rainbowneko.train.loggers import BaseLogger
+        from rainbowneko.loggers import BaseLogger
 
         cfgs: Dict[str, Any] | DictConfig
         world_size: int  # Number of GPUs
