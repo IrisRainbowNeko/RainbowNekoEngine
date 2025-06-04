@@ -19,7 +19,7 @@ else:
 setuptools.setup(
     name="rainbowneko",
     py_modules=["rainbowneko"],
-    version="1.7.2",
+    version="1.8",
     author="IrisRainbowNeko",
     author_email="rainbow-neko@outlook.com",
     description="Neural network training and inference framework",
@@ -47,6 +47,8 @@ setuptools.setup(
             'neko_train_1gpu = rainbowneko.train.trainer.trainer_ac_single:neko_train',
             'neko_train_ds = rainbowneko.train.trainer.trainer_deepspeed:neko_train',
             'neko_run = rainbowneko.infer.infer_workflow:run_workflow',
+            'neko_eval = rainbowneko.evaluate.eval_ac:neko_eval',
+            'neko_eval_1gpu = rainbowneko.evaluate.eval_ac_single:neko_eval',
         ]
     },
 

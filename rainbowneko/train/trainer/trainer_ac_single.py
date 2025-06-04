@@ -1,50 +1,12 @@
 import argparse
 
-from accelerate import Accelerator, DataLoaderConfiguration
-from accelerate.utils import set_seed
-
-from rainbowneko import _share
+from rainbowneko.engine import NekoAccelerateSingleCardMixin
 from .trainer_ac import Trainer, load_config_with_cli
 
 
-class TrainerSingleCard(Trainer):
-    def init_context(self, cfgs_raw, gradient_accumulation_steps=1):
-        try:
-            self.accelerator = Accelerator(
-                gradient_accumulation_steps=gradient_accumulation_steps,
-                mixed_precision=self.cfgs.mixed_precision,
-                step_scheduler_with_optimizer=False,
-                # False for webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
-                # Disable it, please use webdataset.split_by_node instead
-                dispatch_batches=False,
-            )
-        except TypeError:
-            self.accelerator = Accelerator(
-                gradient_accumulation_steps=gradient_accumulation_steps,
-                mixed_precision=self.cfgs.mixed_precision,
-                step_scheduler_with_optimizer=False,
-                # False for webdataset. dispatch_batches need all data to be Tensor, "str" and other is not support.
-                # Disable it, please use webdataset.split_by_node instead
-                dataloader_config=DataLoaderConfiguration(dispatch_batches=False),
-            )
+class TrainerSingleCard(NekoAccelerateSingleCardMixin, Trainer):
+    pass
 
-        self.local_rank = 0
-        self.world_size = self.accelerator.num_processes
-        _share.local_rank = self.local_rank
-        _share.world_size = self.world_size
-        _share.device = self.device
-
-        set_seed(self.cfgs.seed + self.local_rank)
-
-    @property
-    def model_raw(self):
-        return self.model_wrapper
-
-    def boardcast_main(self, data):
-        return data
-
-    def all_gather(self, data):
-        return [data]
 
 def neko_train():
     import subprocess
@@ -54,6 +16,7 @@ def neko_train():
 
     subprocess.run(["accelerate", "launch", '--config_file', args.launch_cfg, "-m",
                     "rainbowneko.train.trainer.trainer_ac_single"] + train_args, check=True)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RainbowNeko Trainer for one GPU')
