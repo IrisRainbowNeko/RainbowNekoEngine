@@ -80,7 +80,7 @@ class NekoDataLoader:
 
         # Clear all queues
         for q in self._queues:
-            if q:
+            if q and Empty is not None:
                 try:
                     while True:
                         q.get_nowait()
@@ -89,6 +89,9 @@ class NekoDataLoader:
 
         self._processes = []
         self._queues = []
+
+        if gc is None: # gc maybe deleted
+            return
 
         # Force garbage collection to clean up resources
         gc.collect()

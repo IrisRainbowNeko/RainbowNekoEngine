@@ -22,8 +22,6 @@ class NekoDataMixin:
 
     def build_dataset(self, data_builder: partial):
         batch_size = data_builder.keywords.pop("batch_size")
-        if hasattr(self, "batch_size_list"):
-            self.batch_size_list.append(batch_size)
 
         dataset = data_builder()
         dataset.build_bucket(bs=batch_size, world_size=self.world_size)

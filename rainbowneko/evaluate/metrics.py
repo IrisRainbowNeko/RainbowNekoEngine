@@ -111,8 +111,17 @@ class MetricGroup(BaseMetric):
             metric.to(device)
 
     @staticmethod
-    def format(metrics_dict, format="{:.2e}", prefix=''):
+    def format(metrics_dict, prefix=''):
         if not isinstance(metrics_dict, dict):
             metrics_dict = {"metrics": metrics_dict}
-        metrics_dict = {prefix+k: {"format": format, "data": [v]} for k, v in metrics_dict.items()}
+
+        def get_format(v):
+            if isinstance(v, float):
+                return "{:.2e}"
+            elif isinstance(v, int):
+                return "{:d}"
+            else:
+                return "{}"
+
+        metrics_dict = {prefix+k: {"format": get_format(v), "data": [v]} for k, v in metrics_dict.items()}
         return metrics_dict
