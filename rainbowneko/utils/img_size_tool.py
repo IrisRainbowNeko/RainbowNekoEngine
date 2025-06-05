@@ -27,7 +27,7 @@ FILE_UNKNOWN = "Sorry, don't know how to get size for this file."
 class UnknownImageFormat(Exception):
     pass
 
-types_support = ['bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'tiff', 'webp']
+types_support = ['bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'tiff', 'tif', 'webp']
 
 def get_image_size(file_path):
     """
