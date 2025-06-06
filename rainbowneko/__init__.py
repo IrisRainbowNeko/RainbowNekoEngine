@@ -1,2 +1,2 @@
-import logging
-logging.getLogger("albumentations.check_version").setLevel(logging.ERROR)
+import os
+os.environ['NO_ALBUMENTATIONS_UPDATE'] = '1'
