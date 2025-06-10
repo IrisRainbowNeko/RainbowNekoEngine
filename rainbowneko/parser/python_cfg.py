@@ -255,7 +255,7 @@ class PythonCfgParser(YamlCfgParser):
         path = Path(path)
         for dst, src in self.cfg_dict.items():
             path_dst = path / dst
-            os.makedirs(os.path.dirname(path_dst), exist_ok=True)
+            path_dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, path_dst)
 
         try:

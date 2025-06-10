@@ -5,6 +5,7 @@ from omegaconf import DictConfig
 from rainbowneko import _share
 from rainbowneko.loggers import LoggerGroup
 from rainbowneko.utils import disable_hf_loggers, mgcd
+from pathlib import Path
 
 
 class NekoLoggerMixin:
@@ -17,7 +18,8 @@ class NekoLoggerMixin:
 
     def build_loggers(self, cfgs_raw):
         if self.is_local_main_process:
-            self.exp_dir = self.cfgs.exp_dir
+            self.exp_dir = Path(self.cfgs.exp_dir)
+            self.exp_dir.mkdir(parents=True, exist_ok=True)
             self.parser.save_configs(cfgs_raw, self.exp_dir)
             self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=self.exp_dir) for builder in self.cfgs.logger])
         else:

@@ -1,14 +1,15 @@
 import os
+from pathlib import Path
 from typing import Dict, Any
 
-from PIL import Image
 from loguru import logger
 from tqdm.auto import tqdm
 
 from .cli_logger import CLILogger
 
+
 class TQDMLogger(CLILogger):
-    def __init__(self, exp_dir, out_path, log_step=10,
+    def __init__(self, exp_dir: Path, out_path, log_step=10,
                  img_log_dir=None, img_ext='png', img_quality=95):
         super().__init__(exp_dir, None, log_step, img_log_dir=img_log_dir, img_ext=img_ext, img_quality=img_quality)
         self.out_path = out_path
@@ -45,4 +46,3 @@ class TQDMLogger(CLILogger):
         self.pbar.last_print_n = step
         self.pbar.refresh()
         self.pbar.set_description(desc)
-

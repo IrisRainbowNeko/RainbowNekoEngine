@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import Dict, Any
 
 import numpy as np
@@ -9,10 +9,10 @@ from .base_logger import BaseLogger
 
 
 class TBLogger(BaseLogger):
-    def __init__(self, exp_dir, out_path, log_step=10):
+    def __init__(self, exp_dir: Path, out_path, log_step=10):
         super().__init__(exp_dir, out_path, log_step)
         if exp_dir is not None:  # exp_dir is only available in local main process
-            self.writer = SummaryWriter(os.path.join(exp_dir, out_path))
+            self.writer = SummaryWriter(exp_dir / out_path)
         else:
             self.writer = None
             self.disable()

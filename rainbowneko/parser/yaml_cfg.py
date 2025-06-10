@@ -1,7 +1,7 @@
+from pathlib import Path
 from typing import Iterable, Any, Dict
 
 from omegaconf import OmegaConf, ListConfig, DictConfig
-import os
 
 
 class YamlCfgParser:
@@ -66,5 +66,5 @@ class YamlCfgParser:
             cfg = self.remove_config_undefined(cfg)
         return cfg
 
-    def save_configs(self, cfg, path, name='cfg'):
-        OmegaConf.save(cfg, os.path.join(path, f'{name}.yaml'))
+    def save_configs(self, cfg, path: Path, name='cfg'):
+        OmegaConf.save(cfg, path / f'{name}.yaml')

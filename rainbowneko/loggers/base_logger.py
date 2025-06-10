@@ -1,9 +1,11 @@
+from pathlib import Path
 from typing import Dict, Any, List
 
 from PIL import Image
 
+
 class BaseLogger:
-    def __init__(self, exp_dir, out_path, log_step=10):
+    def __init__(self, exp_dir: Path, out_path, log_step=10):
         self.exp_dir = exp_dir
         self.out_path = out_path
         self.log_step = log_step
