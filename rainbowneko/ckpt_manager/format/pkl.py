@@ -12,4 +12,4 @@ class PKLFormat(CkptFormat):
         torch.save(sd_model, save_f)
 
     def load_ckpt(self, ckpt_f: FILE_LIKE, map_location="cpu"):
-        return torch.load(ckpt_f, map_location=map_location)
+        return torch.load(ckpt_f, map_location=map_location, weights_only=False)
