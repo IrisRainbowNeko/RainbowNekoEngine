@@ -12,6 +12,7 @@ class NekoCkptMixin:
 
         cfgs: Dict[str, Any] | DictConfig
         model_wrapper: BaseWrapper # Model instance
+        optimizer: torch.optim.Optimizer
         is_local_main_process: Callable[[], bool]
 
     @torch.no_grad()
@@ -19,6 +20,7 @@ class NekoCkptMixin:
         if resumer is not None:
             resumer.load_to(
                 model=self.model_wrapper,
+                optimizer=self.optimizer,
                 plugin_groups=getattr(self, "all_plugin", None),
                 model_ema=getattr(self, "ema_model", None)
             )

@@ -84,6 +84,8 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
 
         self.prepare()
 
+        self.load_resume(self.cfgs.train.get('resume_prepared', None))
+
     def build_loggers(self, cfgs_raw):
         super().build_loggers(cfgs_raw)
         if self.is_local_main_process:
@@ -220,9 +222,9 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
             self.global_step += 1
             acc_step = self.global_step % acc_steps
             self.real_step = max(1, self.global_step // acc_steps)
+            if self.real_step % self.cfgs.train.save_step == 0 and acc_step == acc_steps - 1:
+                self.save_model()
             if self.is_local_main_process:
-                if self.real_step % self.cfgs.train.save_step == 0 and acc_step == acc_steps - 1:
-                    self.save_model()
                 if self.global_step % self.min_log_step == 0:
                     # get learning rate from optimizer
                     lr_model = self.optimizer.param_groups[0]["lr"] if hasattr(self, "optimizer") else 0.0
@@ -274,8 +276,7 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
                 break
 
         self.wait_for_everyone()
-        if self.is_local_main_process:
-            self.save_model()
+        self.save_model()
 
     def train_one_step(self, data_dict):
         v_proc = lambda v: v.detach() if isinstance(v, torch.Tensor) else v
@@ -322,16 +323,17 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
         return loss * weight
 
     def save_model(self, from_raw=False):
-        NekoSaver.save_all(
-            cfg=self.ckpt_saver,
-            model=self.model_raw,
-            plugin_groups=self.all_plugin,
-            model_ema=getattr(self, "ema_model", None),
-            optimizer=self.optimizer,
-            name_template=f'{{}}-{self.real_step}',
-        )
+        if self.is_local_main_process:
+            NekoSaver.save_all(
+                cfg=self.ckpt_saver,
+                model=self.model_raw,
+                plugin_groups=self.all_plugin,
+                model_ema=getattr(self, "ema_model", None),
+                optimizer=self.optimizer,
+                name_template=f'{{}}-{self.real_step}',
+            )
 
-        self.loggers.info(f"Saved state, step: {self.real_step}")
+            self.loggers.info(f"Saved state, step: {self.real_step}")
 
 
 def neko_train():

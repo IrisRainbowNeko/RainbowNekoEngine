@@ -17,13 +17,12 @@ class NekoLoggerMixin:
         is_local_main_process: Callable[[], bool]
 
     def build_loggers(self, cfgs_raw):
+        self.exp_dir = Path(self.cfgs.exp_dir)
         if self.is_local_main_process:
-            self.exp_dir = Path(self.cfgs.exp_dir)
             self.exp_dir.mkdir(parents=True, exist_ok=True)
             self.parser.save_configs(cfgs_raw, self.exp_dir)
             self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=self.exp_dir) for builder in self.cfgs.logger])
         else:
-            self.exp_dir = None
             self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=None) for builder in self.cfgs.logger])
 
         _share.loggers = self.loggers

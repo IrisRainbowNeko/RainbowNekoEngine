@@ -48,6 +48,16 @@ class NekoEngineMixin:
         dist.broadcast_object_list(obj, src=0)
         return obj[0]
 
+    def gather_to_main(self, data: Any) -> List[Any]:
+        if not hasattr(self, 'gloo_group'):  # Transfer data on cpu
+            self.gloo_group = dist.new_group(backend='gloo')
+        if self.is_local_main_process:
+            gathered_objects = [None for _ in range(self.world_size)]
+        else:
+            gathered_objects = None
+        dist.gather_object(data, gathered_objects, dst=0, group=self.gloo_group)
+        return gathered_objects
+
     def all_gather(self, data: Any) -> List[Any]:
         if not hasattr(self, 'gloo_group'):  # Transfer data on cpu
             self.gloo_group = dist.new_group(backend='gloo')

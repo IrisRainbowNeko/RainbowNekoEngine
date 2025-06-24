@@ -1,9 +1,11 @@
 from typing import Dict, Union, List
 
-from rainbowneko.models.plugin import PluginGroup, BasePluginBlock
+import torch
 from torch import nn
 from torch.optim import Optimizer
 
+from rainbowneko.models.plugin import PluginGroup, BasePluginBlock
+from rainbowneko.utils import is_dict, is_list
 from .base import NekoLoader, NekoSaver, LAYERS_ALL, LAYERS_TRAINABLE
 from .format import CkptFormat
 from .locator import get_match_layers
@@ -290,21 +292,16 @@ class NekoEasySaver(NekoSaver):
 
 
 class NekoOptimizerSaver(NekoSaver):
-    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, state_prefix='',
-                 target_module: Union[str, List[str]] = '', prefix=None, key_map=None):
+    def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, state_prefix='', prefix=None, key_map=None):
         key_map = key_map or ('name -> name', 'optimizer -> optimizer', 'name_template -> name_template')
         super().__init__(format=format, source=source, state_prefix=state_prefix, key_map=key_map)
         self.prefix = prefix
-        if isinstance(target_module, str):
-            target_module = [target_module]
-        self.target_module = target_module
 
     def _save_to(self, name, optimizer: Optimizer, name_template=None):
-        sd_base = {}
-        for item in self.target_module:
-            block = optimizer if item == '' else eval(f"optimizer.{item}")
-            sd_item = block.state_dict()
-            sd_base.update(sd_item)
+        if hasattr(optimizer, '_full_state_dict'):
+            sd_base = optimizer._full_state_dict()
+        else:
+            sd_base = optimizer.state_dict()
 
         if len(sd_base) > 0:
             sd_base = self.clean_prefix(sd_base)
@@ -317,18 +314,26 @@ class NekoOptimizerSaver(NekoSaver):
 
 class NekoOptimizerLoader(NekoLoader):
     def __init__(self, format: CkptFormat = None, source: LocalCkptSource = None, path: str = None,
-                 target_module='', state_prefix=None, base_model_alpha=0.0, alpha=1.0, key_map=None):
+                 state_prefix=None, base_model_alpha=0.0, alpha=1.0, key_map=None):
         key_map = key_map or ('name -> name', 'optimizer -> optimizer')
         super().__init__(format=format, source=source, key_map=key_map)
         self.path = path
 
-        self.target_module = target_module
         self.base_model_alpha = base_model_alpha
         self.alpha = alpha
         self.state_prefix = state_prefix
 
+    def merge_states(self, base_states, part_states):
+        if is_dict(part_states):
+            return {k: self.merge_states(base_states[k], v) for k, v in part_states.items()}
+        elif is_list(part_states):
+            return [self.merge_states(v_base, v_part) for v_base, v_part in zip(base_states, part_states)]
+        elif torch.is_tensor(part_states):
+            return self.base_model_alpha * base_states + self.alpha * part_states.to(base_states.device)
+        else:
+            return part_states
+
     def _load_to(self, name, optimizer: Optimizer):
-        optimizer = optimizer if self.target_module == '' else eval(f"optimizer.{self.target_module}")
         states = optimizer.state_dict()
 
         part_state = self.load(self.path, map_location='cpu')
@@ -339,5 +344,5 @@ class NekoOptimizerLoader(NekoLoader):
             state_prefix_len = len(self.state_prefix)
             part_state = {k[state_prefix_len:]: v for k, v in part_state.items() if k.startswith(self.state_prefix)}
 
-        sd_data = {k: self.base_model_alpha * states[k] + self.alpha * v.to(states[k].device) for k, v in part_state.items()}
-        optimizer.load_state_dict(sd_data, strict=True)
+        sd_data = self.merge_states(states, part_state)
+        optimizer.load_state_dict(sd_data)

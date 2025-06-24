@@ -13,7 +13,6 @@ class SafeTensorFormat(CkptFormat):
 
     def save_ckpt(self, sd_model: Dict[str, Any], save_f: FILE_LIKE):
         sd_unfold = self.unfold_dict(sd_model)
-        sd_unfold = self.type_check(sd_unfold)
         save_file(sd_unfold, save_f)
 
     def load_ckpt(self, ckpt_f: FILE_LIKE, map_location='cpu'):
@@ -22,19 +21,7 @@ class SafeTensorFormat(CkptFormat):
         return sd_fold
 
     @staticmethod
-    def type_check(sd_unfold: Dict[str, Any]):
-        sd_pruned = {}
-        for k, v in sd_unfold.items():
-            if isinstance(v, (float, int)):
-                sd_pruned[k] = torch.tensor(v)
-            elif isinstance(v, torch.Tensor):
-                sd_pruned[k] = v
-            else:
-                pass
-        return sd_pruned
-
-    @staticmethod
-    def unfold_dict(data, split_key=':'):
+    def unfold_dict(data, split_key=':', meta_key='$'):
         dict_unfold={}
 
         def unfold(prefix, dict_fold):
@@ -42,16 +29,22 @@ class SafeTensorFormat(CkptFormat):
                 k_new = k if prefix=='' else f'{prefix}{split_key}{k}'
                 if isinstance(v, dict):
                     unfold(k_new, v)
-                elif isinstance(v, list) or isinstance(v, tuple):
-                    unfold(k_new, {i:d for i,d in enumerate(v)})
-                else:
+                elif isinstance(v, (list, tuple)):
+                    cls_name = type(v).__name__
+                    unfold(f'{k_new}{meta_key}{cls_name}', {i:d for i,d in enumerate(v)})
+                elif isinstance(v, (float, int, bool)):
+                    cls_name = type(v).__name__
+                    dict_unfold[f'{k_new}{meta_key}{cls_name}'] = torch.tensor(v)
+                elif torch.is_tensor(v):
                     dict_unfold[k_new]=v
+                else:
+                    print(f'{k_new} with type {type(v)} not supported by SafeTensorFormat!')
 
         unfold('', data)
         return dict_unfold
 
     @staticmethod
-    def fold_dict(safe_f, split_key=':'):
+    def fold_dict(safe_f, split_key=':', meta_key='$'):
         dict_fold = {}
 
         for k in safe_f.keys():
@@ -63,4 +56,21 @@ class SafeTensorFormat(CkptFormat):
                 dict_last = dict_last[item]
             dict_last[k_list[-1]]=safe_f.get_tensor(k)
 
-        return dict_fold
+        def type_recover(key, data):
+            metas = key.split(meta_key)
+            if len(metas) == 1:
+                if isinstance(data, dict):
+                    return {k:type_recover(k, v) for k, v in data.items()}
+                else:
+                    return data
+            else:
+                if metas[1]=='list':
+                    return [type_recover(k, v) for k, v in data.items()]
+                elif metas[1]=='tuple':
+                    return tuple(type_recover(k, v) for k, v in data.items())
+                elif metas[1]=='int' or metas[1]=='float' or metas[1]=='bool':
+                    return data.item()
+                else:
+                    raise ValueError(f'Unknown meta type {metas[1]}')
+
+        return type_recover('', dict_fold)
