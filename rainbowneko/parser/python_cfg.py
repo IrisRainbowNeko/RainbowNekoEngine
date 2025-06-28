@@ -264,4 +264,6 @@ class PythonCfgParser(YamlCfgParser):
             with open(path / f'{name}.py', 'w') as f:
                 f.write(cfg_code)
         except:
+            import traceback
+            traceback.print_exc()
             print('Reconstruct code from config failed.')

@@ -115,7 +115,7 @@ class ConfigCodeReconstructor:
         elif isinstance(obj, types.MethodType):
             v = obj.__self__
             method_name = obj.__name__
-            return ast.Attribute(value=ast.Name(id=self._value_to_ast(v), ctx=ast.Load()), attr=method_name, ctx=ast.Load())
+            return ast.Attribute(value=self._value_to_ast(v), attr=method_name, ctx=ast.Load())
         elif obj.__name__ == '<lambda>':
             try:
                 # Check if source code can be obtained
