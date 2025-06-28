@@ -19,86 +19,133 @@ class LambdaFinder(ast.NodeVisitor):
 
 
 class ConfigCodeReconstructor:
+    global_handlers = {}
+
     def __init__(self):
         self.type_handlers = {}
         self.required_imports = defaultdict(set)
         self.seen_types = set()
 
         # Register basic handlers
-        self.register_type_handler('Path', self._handle_path)
         self.register_type_handler('_custom_object', self._handle_custom_object)
-        self.register_type_handler('_class_instance', self._handle_class_instance)
-        self.register_type_handler('_method', self._handle_method)
-        self.register_type_handler('_object_instance', self._handle_object_instance)
+        self.register_type_handler('_dict', self._dict_to_ast)
+        self.register_type_handler('_list', self._list_to_ast)
+        self.register_type_handler('Path', self._handle_path)
         self.register_type_handler('_module', self._handle_module)
-        self.register_type_handler('_lambda', self._handle_lambda)
+        self.register_type_handler('_method', self._handle_method)
+        self.register_type_handler('_class_instance', self._handle_class_instance)
+        self.register_type_handler('_object_instance', self._handle_object_instance)
+        for name, handler in self.global_handlers.items():
+            self.register_type_handler(name, handler)
 
     def register_type_handler(self, type_name, handler_func):
         """Register type handler"""
         self.type_handlers[type_name] = handler_func
 
-    def _detect_type(self, obj):
-        """Detect object type and automatically identify and add import requirements"""
-        self.required_imports['rainbowneko.parser'].add('neko_cfg')
-
-        # Path object detection
+    def _handle_path(self, obj, **kwargs):
+        """Handle Path objects"""
         if isinstance(obj, Path):
             self.required_imports['pathlib'].add('Path')
-            return 'Path', self.type_handlers.get('Path')
+        else:
+            return False
 
-        if isinstance(obj, types.ModuleType):
-            parts = obj.__name__.split('.')
-            module_path = '.'.join(parts[:-1])
-            module_name = parts[-1]
-            self.required_imports[module_path].add(module_name)
-            return '_module', self.type_handlers.get('_module')
+        path = str(obj)
+        # Create Path object
+        path_expr = ast.Call(
+            func=ast.Name(id='Path', ctx=ast.Load()),
+            args=[ast.Constant(value=path)],
+            keywords=[]
+        )
 
-        # Detect lambda expressions
-        if callable(obj) and isinstance(obj, types.FunctionType) and obj.__name__ == '<lambda>':
-            return '_lambda', self.type_handlers.get('_lambda')
+        return path_expr
 
-        # Detect method
+    def _handle_custom_object(self, obj, **kwargs):
+        """Handle dictionary-form custom objects"""
+        if is_dict(obj) and '_target_' in obj:
+            type_name = obj['_target_']
+        else:
+            return False
+
+        obj_data = {k: v for k, v in obj.items() if k != '_target_'}
+
+        args = []
+        keywords = []
+
+        for k, v in obj_data.items():
+            if k == '_args_':
+                for arg in v:
+                    args.append(self._value_to_ast(arg))
+            else:
+                keywords.append(ast.keyword(arg=k, value=self._value_to_ast(v, k)))
+
+        if callable(type_name):
+            return ast.Call(
+                func=self._value_to_ast(type_name),
+                args=args,
+                keywords=keywords
+            )
+        else: # str
+            # Extract class name (handle possible module path)
+            if '.' in type_name:
+                parts = type_name.split('.')
+                module_path = '.'.join(parts[:-1])
+                class_name = parts[-1]
+                self.required_imports[module_path].add(class_name)
+            else:
+                class_name = type_name
+
+            return ast.Call(
+                func=ast.Name(id=class_name, ctx=ast.Load()),
+                args=args,
+                keywords=keywords
+            )
+
+    def _handle_method(self, obj, **kwargs):
         if isinstance(obj, (types.MethodType, types.FunctionType)):
             module_name = obj.__module__
             if module_name == '__main__' or module_name == 'builtins':
                 module_name = None
+        else:
+            return False
 
-            if isinstance(obj, types.BuiltinMethodType):
+        if isinstance(obj, types.BuiltinMethodType):
+            method_name = obj.__name__
+            self.required_imports[module_name].add(method_name)
+            return ast.Name(id=method_name, ctx=ast.Load())
+        elif isinstance(obj, types.MethodType):
+            v = obj.__self__
+            method_name = obj.__name__
+            return ast.Attribute(value=ast.Name(id=self._value_to_ast(v), ctx=ast.Load()), attr=method_name, ctx=ast.Load())
+        elif obj.__name__ == '<lambda>':
+            try:
+                # Check if source code can be obtained
+                source = inspect.getsource(obj).strip()
+                tree = ast.parse(source)
+                finder = LambdaFinder()
+                finder.visit(tree)
+                if len(finder.lambda_list) > 0:
+                    return finder.lambda_list[0]
+                else:
+                    raise ValueError(f'lambda not found: {source}')
+            except:
+                # Cannot parse, use placeholder
+                lambda_expr = ast.Lambda(
+                    args=[],
+                    body=ast.Name(id='lambda_expr', ctx=ast.Load())
+                )
+                return lambda_expr
+        else:
+            if obj.__name__ != obj.__qualname__: # classmethod or staticmethod
+                method_name = obj.__qualname__
+                self.required_imports[module_name].add(method_name.split('.')[0])
+            else:
                 method_name = obj.__name__
                 self.required_imports[module_name].add(method_name)
-            else:
-                if obj.__name__ != obj.__qualname__: # classmethod or staticmethod
-                    method_name = obj.__qualname__
-                    self.required_imports[module_name].add(method_name.split('.')[0])  # class name
-                else:
-                    method_name = obj.__name__
-                    self.required_imports[module_name].add(method_name)
-            return '_method', self.type_handlers.get('_method')
 
-        # Dictionary-form custom objects
-        if is_dict(obj) and '_target_' in obj:
-            type_name = obj.get('_target_')
-
-            # Try to automatically add type imports
-            if isinstance(type_name, str):
-                if '.' in type_name:  # If type name contains module path
-                    parts = type_name.split('.')
-                    module_path = '.'.join(parts[:-1])
-                    class_name = parts[-1]
-                    self.required_imports[module_path].add(class_name)
-            elif callable(type_name):
-                # Add import requirements
-                if hasattr(type_name, '__module__') and type_name.__module__ != '__main__':
-                    module_name = type_name.__module__
-                    if hasattr(type_name, '__qualname__'):  # for staticmethod and classmethod
-                        name = type_name.__qualname__.split('.')[0]
-                    elif hasattr(type_name, '__name__'):
-                        name = type_name.__name__
-                    self.required_imports[module_name].add(name)
-
-            return '_custom_object', self.type_handlers.get('_custom_object')
-
-        # Class instance
+            return ast.Name(id=method_name, ctx=ast.Load())
+    
+    def _handle_class_instance(self, obj, **kwargs):
+        """Handle class instances, treating them as class names"""
         if isinstance(obj, type):
             class_name = obj.__name__
             module_name = obj.__module__
@@ -113,15 +160,17 @@ class ConfigCodeReconstructor:
                 if module_name != 'builtins':
                     self.required_imports[module_name].add(class_name)
 
-            return '_class_instance', self.type_handlers.get('_class_instance')
+            return ast.Name(id=class_name, ctx=ast.Load())
+        else:
+            return False
 
-        # Instantiated object detection
+    def _handle_object_instance(self, obj, max_tensor_len=100, **kwargs):
+        """Handle instantiated objects, treating non-constructor parameters as separate assignment statements"""
         if (obj is not None and
-                not isinstance(obj, (int, float, str, bool, dict, list, tuple, set)) and
-                not is_dict(obj) and not is_list(obj) and
-                hasattr(obj, '__class__') and
-                obj.__class__.__module__ != 'builtins'):
-
+            not isinstance(obj, (int, float, str, bool, dict, list, tuple, set)) and
+            not is_dict(obj) and not is_list(obj) and
+            hasattr(obj, '__class__') and
+            obj.__class__.__module__ != 'builtins'):
             # Automatically identify object type and add imports
             class_type = type(obj)
             class_name = class_type.__name__
@@ -136,88 +185,8 @@ class ConfigCodeReconstructor:
                 # Add import requirements
                 if module_name != 'builtins':
                     self.required_imports[module_name].add(class_name)
-
-            return '_object_instance', self.type_handlers.get('_object_instance')
-
-        return None, None
-
-    def _handle_path(self, obj, **kwargs):
-        """Handle Path objects"""
-        path = str(obj)
-        # Create Path object
-        path_expr = ast.Call(
-            func=ast.Name(id='Path', ctx=ast.Load()),
-            args=[ast.Constant(value=path)],
-            keywords=[]
-        )
-
-        return path_expr
-
-    def _handle_custom_object(self, obj, **kwargs):
-        """Handle dictionary-form custom objects"""
-        type_name = obj.get('_target_', 'CustomObject')
-        obj_data = {k: v for k, v in obj.items() if k != '_target_'}
-
-        if callable(type_name):
-            if isinstance(type_name, (types.FunctionType, types.MethodType, type)):
-                # Function or method
-                if hasattr(type_name, '__qualname__'):  # for staticmethod and classmethod
-                    class_name = type_name.__qualname__
-                else:
-                    class_name = type_name.__name__
-            else:
-                # Other callable objects
-                self.required_imports['direct'].add(f"# Cannot directly reference callable object: {type_name}")
-                return ast.Name(id=f"__CALLABLE_{type_name}__", ctx=ast.Load())
         else:
-            # Extract class name (handle possible module path)
-            if '.' in type_name:
-                class_name = type_name.split('.')[-1]
-            else:
-                class_name = type_name
-
-        # Create custom class call
-        args = []
-        keywords = []
-
-        for k, v in obj_data.items():
-            if k == '_args_':
-                for arg in v:
-                    args.append(self._value_to_ast(arg))
-            else:
-                keywords.append(ast.keyword(arg=k, value=self._value_to_ast(v, k)))
-
-        return ast.Call(
-            func=ast.Name(id=class_name, ctx=ast.Load()),
-            args=args,
-            keywords=keywords
-        )
-
-    def _handle_method(self, obj, **kwargs):
-        if isinstance(obj, types.BuiltinMethodType):
-            method_name = obj.__name__
-            return ast.Name(id=method_name, ctx=ast.Load())
-        elif isinstance(obj, types.MethodType):
-            v = obj.__self__
-            method_name = obj.__name__
-            return ast.Attribute(value=ast.Name(id=self._value_to_ast(v), ctx=ast.Load()), attr=method_name, ctx=ast.Load())
-        else:
-            if obj.__name__ != obj.__qualname__: # classmethod or staticmethod
-                method_name = obj.__qualname__
-            else:
-                method_name = obj.__name__
-
-            return ast.Name(id=method_name, ctx=ast.Load())
-    
-    def _handle_class_instance(self, obj, **kwargs):
-        """Handle class instances, treating them as class names"""
-        class_name = obj.__name__
-        return ast.Name(id=class_name, ctx=ast.Load())
-
-    def _handle_object_instance(self, obj, max_tensor_len=100, **kwargs):
-        """Handle instantiated objects, treating non-constructor parameters as separate assignment statements"""
-        class_name = obj.__class__.__name__
-        module_name = obj.__class__.__module__
+            return False
 
         try:
             # Check if it's torch.dtype
@@ -343,48 +312,31 @@ class ConfigCodeReconstructor:
 
     def _handle_module(self, module: types.ModuleType, **kwargs):
         """Handle module objects"""
-        value = module.__name__.split('.')[-1]
-        return ast.Name(id=value, ctx=ast.Load())
+        if isinstance(module, types.ModuleType):
+            parts = module.__name__.split('.')
+            module_path = '.'.join(parts[:-1])
+            module_name = parts[-1]
+            self.required_imports[module_path].add(module_name)
+        else:
+            return False
 
-    def _handle_lambda(self, lambda_obj, **kwargs):
-        """Handle lambda expressions"""
-        try:
-            # Check if source code can be obtained
-            source = inspect.getsource(lambda_obj).strip()
-            tree = ast.parse(source)
-            finder = LambdaFinder()
-            finder.visit(tree)
-            if len(finder.lambda_list) > 0:
-                return finder.lambda_list[0]
-            else:
-                raise ValueError(f'lambda not found: {source}')
-        except:
-            # Cannot parse, use placeholder
-            lambda_expr = ast.Lambda(
-                args=[],
-                body=ast.Name(id='lambda_expr', ctx=ast.Load())
-            )
-            return lambda_expr
+        value = parts[-1]
+        return ast.Name(id=value, ctx=ast.Load())
 
     def _value_to_ast(self, value, key=None, parent=None):
         """Convert value to AST node"""
-        # Detect type
-        type_name, handler = self._detect_type(value)
+        self.required_imports['rainbowneko.parser'].add('neko_cfg')
 
-        if handler:
-            return handler(value, key=key, parent=parent)
-        elif is_dict(value):
-            return self._dict_to_ast(value)
-        elif isinstance(value, tuple) or is_list(value):
-            return ast.List(
-                elts=[self._value_to_ast(item) for item in value],
-                ctx=ast.Load()
-            )
-        else:
-            return ast.Constant(value=value)
+        for name, handler in self.type_handlers.items():
+            if result := handler(value, key=key, parent=parent):
+                return result
+        return ast.Constant(value=value)
 
-    def _dict_to_ast(self, d):
+    def _dict_to_ast(self, d, **kwargs):
         """Convert dictionary to AST node"""
+        if not is_dict(d):
+            return False
+
         keys = []
         values = []
 
@@ -405,6 +357,16 @@ class ConfigCodeReconstructor:
                 args=[],
                 keywords=[ast.keyword(arg=k, value=v) for k, v in zip(keys, values)],
             )
+
+    def _list_to_ast(self, lst, **kwargs):
+        """Convert list to AST node"""
+        if not (isinstance(lst, tuple) or is_list(lst)):
+            return False
+
+        return ast.List(
+            elts=[self._value_to_ast(item) for item in lst],
+            ctx=ast.Load()
+        )
 
     def generate_config_function(self, obj, f_name='make_cfg'):
         """Generate config function, handle objects with extra attributes"""
