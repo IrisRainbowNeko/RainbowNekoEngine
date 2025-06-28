@@ -27,6 +27,8 @@ class ConfigCodeReconstructor:
         # Register basic handlers
         self.register_type_handler('Path', self._handle_path)
         self.register_type_handler('_custom_object', self._handle_custom_object)
+        self.register_type_handler('_class_instance', self._handle_class_instance)
+        self.register_type_handler('_method', self._handle_method)
         self.register_type_handler('_object_instance', self._handle_object_instance)
         self.register_type_handler('_module', self._handle_module)
         self.register_type_handler('_lambda', self._handle_lambda)
@@ -55,6 +57,24 @@ class ConfigCodeReconstructor:
         if callable(obj) and isinstance(obj, types.FunctionType) and obj.__name__ == '<lambda>':
             return '_lambda', self.type_handlers.get('_lambda')
 
+        # Detect method
+        if isinstance(obj, (types.MethodType, types.FunctionType)):
+            module_name = obj.__module__
+            if module_name == '__main__' or module_name == 'builtins':
+                module_name = None
+
+            if isinstance(obj, types.BuiltinMethodType):
+                method_name = obj.__name__
+                self.required_imports[module_name].add(method_name)
+            else:
+                if obj.__name__ != obj.__qualname__: # classmethod or staticmethod
+                    method_name = obj.__qualname__
+                    self.required_imports[module_name].add(method_name.split('.')[0])  # class name
+                else:
+                    method_name = obj.__name__
+                    self.required_imports[module_name].add(method_name)
+            return '_method', self.type_handlers.get('_method')
+
         # Dictionary-form custom objects
         if is_dict(obj) and '_target_' in obj:
             type_name = obj.get('_target_')
@@ -78,6 +98,23 @@ class ConfigCodeReconstructor:
 
             return '_custom_object', self.type_handlers.get('_custom_object')
 
+        # Class instance
+        if isinstance(obj, type):
+            class_name = obj.__name__
+            module_name = obj.__module__
+
+            # Build type identifier to avoid duplicate processing
+            type_id = f"{module_name}.{class_name}"
+
+            # If this is a new type, add to seen types and handle imports
+            if type_id not in self.seen_types and module_name != '__main__':
+                self.seen_types.add(type_id)
+                # Add import requirements
+                if module_name != 'builtins':
+                    self.required_imports[module_name].add(class_name)
+
+            return '_class_instance', self.type_handlers.get('_class_instance')
+
         # Instantiated object detection
         if (obj is not None and
                 not isinstance(obj, (int, float, str, bool, dict, list, tuple, set)) and
@@ -98,11 +135,7 @@ class ConfigCodeReconstructor:
                 self.seen_types.add(type_id)
                 # Add import requirements
                 if module_name != 'builtins':
-                    if '.' in module_name:
-                        specific_module = module_name
-                        self.required_imports[specific_module].add(class_name)
-                    else:
-                        self.required_imports[module_name].add(class_name)
+                    self.required_imports[module_name].add(class_name)
 
             return '_object_instance', self.type_handlers.get('_object_instance')
 
@@ -160,26 +193,63 @@ class ConfigCodeReconstructor:
             keywords=keywords
         )
 
-    def _handle_object_instance(self, obj, **kwargs):
+    def _handle_method(self, obj, **kwargs):
+        if isinstance(obj, types.BuiltinMethodType):
+            method_name = obj.__name__
+            return ast.Name(id=method_name, ctx=ast.Load())
+        elif isinstance(obj, types.MethodType):
+            v = obj.__self__
+            method_name = obj.__name__
+            return ast.Attribute(value=ast.Name(id=self._value_to_ast(v), ctx=ast.Load()), attr=method_name, ctx=ast.Load())
+        else:
+            if obj.__name__ != obj.__qualname__: # classmethod or staticmethod
+                method_name = obj.__qualname__
+            else:
+                method_name = obj.__name__
+
+            return ast.Name(id=method_name, ctx=ast.Load())
+    
+    def _handle_class_instance(self, obj, **kwargs):
+        """Handle class instances, treating them as class names"""
+        class_name = obj.__name__
+        return ast.Name(id=class_name, ctx=ast.Load())
+
+    def _handle_object_instance(self, obj, max_tensor_len=100, **kwargs):
         """Handle instantiated objects, treating non-constructor parameters as separate assignment statements"""
         class_name = obj.__class__.__name__
         module_name = obj.__class__.__module__
 
         try:
             # Check if it's torch.dtype
-            if class_name == 'dtype' and module_name == 'torch':
-                module_name, class_name = str(obj).rsplit('.', maxsplit=1)
-                return ast.Attribute(value=ast.Name(id=module_name, ctx=ast.Load()), attr=class_name, ctx=ast.Load())
+            if module_name == 'torch':
+                if class_name == 'dtype':
+                    module_name, class_name = str(obj).rsplit('.', maxsplit=1)
+                    return ast.Attribute(value=ast.Name(id=module_name, ctx=ast.Load()), attr=class_name, ctx=ast.Load())
 
-            if class_name == 'device' and module_name == 'torch':
-                return ast.Call(
-                    func=ast.Attribute(value=ast.Name(id=module_name, ctx=ast.Load()), attr=class_name, ctx=ast.Load()),
-                    args=[
-                        ast.Constant(value=obj.type),
-                        ast.Constant(value=obj.index),
-                    ],
-                    keywords=[]
-                )
+                elif class_name == 'device':
+                    return ast.Call(
+                        func=ast.Attribute(value=ast.Name(id=module_name, ctx=ast.Load()), attr=class_name, ctx=ast.Load()),
+                        args=[
+                            ast.Constant(value=obj.type),
+                            ast.Constant(value=obj.index),
+                        ],
+                        keywords=[]
+                    )
+                elif class_name == 'Tensor':
+                    # Handle torch.Tensor objects
+                    device = self._value_to_ast(obj.device)
+                    dtype = self._value_to_ast(obj.dtype)
+                    if obj.numel() > max_tensor_len: # Too large, give up. Such a large tensor may be created automatically.
+                        return ast.Name(id='None', ctx=ast.Load())
+                    else:
+                        return ast.Call(
+                            func=ast.Attribute(value=ast.Name(id=module_name, ctx=ast.Load()), attr='tensor', ctx=ast.Load()),
+                            args=[self._value_to_ast(obj.tolist())],
+                            keywords=[
+                                ast.keyword(arg='device', value=device),
+                                ast.keyword(arg='dtype', value=dtype)
+                            ]
+                        )
 
             # Check if constructor parameter inspection is supported
             has_init_signature = False
