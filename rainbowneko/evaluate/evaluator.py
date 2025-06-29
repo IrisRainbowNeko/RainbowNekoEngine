@@ -163,6 +163,7 @@ class WorkflowEvaluator(Evaluator):
                 self.workflow_runner = WorkflowRunner(parser, conf)
             else:
                 self.workflow_runner = WorkflowRunner(parser, workflow, cfgs_raw=cfgs_raw)
+            self.in_preview = False
         else:
             self.accelerator = trainer.accelerator
             self.local_rank = trainer.local_rank
@@ -177,6 +178,7 @@ class WorkflowEvaluator(Evaluator):
                 self.workflow_runner = WorkflowRunner(parser, conf)
             else:
                 self.workflow_runner = WorkflowRunner(parser, workflow, cfgs_raw=cfgs_raw)
+            self.in_preview = True
 
         self.interval = interval
         self.ds_name = ds_name
@@ -187,7 +189,7 @@ class WorkflowEvaluator(Evaluator):
             return
 
         # record training layers
-        if self.model_wrapper is not None:
+        if getattr(self, 'model_wrapper', None) is not None:
             training_layers = [layer for layer in self.model_raw.modules() if layer.training]
             self.model_wrapper.eval()
             model = self.model_wrapper
@@ -195,7 +197,7 @@ class WorkflowEvaluator(Evaluator):
             training_layers = []
             model = None
 
-        states = self.workflow_runner.run(model=model, in_preview=True, device=self.device, dtype=self.weight_dtype,
+        states = self.workflow_runner.run(model=model, in_preview=self.in_preview, device=self.device, dtype=self.weight_dtype,
                                           world_size=self.world_size, local_rank=self.local_rank)
         metric = states['_metric']
         loggers = states.get('loggers', None)
@@ -223,3 +225,6 @@ class WorkflowEvaluator(Evaluator):
 
     def to(self, device):
         pass
+
+class WorkflowEvaluatorSingle(NekoAccelerateSingleCardMixin, WorkflowEvaluator):
+    pass

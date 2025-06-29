@@ -72,9 +72,10 @@ def make_cfg():
 
         data_train=cfg_data(), # config can be split into another function with @neko_cfg
 
-        evaluator=WorkflowEvaluator(_partial_=True,
+        evaluator=WorkflowEvaluator(
+            _partial_=True,
             interval=50,
-            workflow=multi_class_flow,
+            workflow=multi_class_flow.workflow(),
         ),
     )
 

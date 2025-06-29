@@ -1,18 +1,20 @@
+import time
+
 import torch
 import torchvision
 import torchvision.transforms as T
-from torch import nn
-from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
-
+from rainbowneko.ckpt_manager import auto_ckpt_loader
 from rainbowneko.data import IndexSource, HandlerChain, LoadImageHandler, ImageHandler, BaseDataset, BaseBucket
-from rainbowneko.evaluate import MetricGroup, MetricContainer
+from rainbowneko.evaluate import MetricGroup, MetricContainer, WorkflowEvaluator
 from rainbowneko.infer import DataLoaderAction, MetricAction
 from rainbowneko.infer.workflow import (Actions, BuildModelAction, PrepareAction, ForwardAction,
                                         LoadModelAction)
 from rainbowneko.models.wrapper import SingleWrapper
 from rainbowneko.parser import neko_cfg
-from rainbowneko.ckpt_manager import auto_ckpt_loader
+from torch import nn
+from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
 
+time_format="%Y-%m-%d-%H-%M-%S"
 num_classes = 10
 
 def load_resnet():
@@ -51,7 +53,7 @@ def infer_all(path):
     )
 
 @neko_cfg
-def make_cfg():
+def workflow():
     return dict(workflow=Actions(actions=[
         PrepareAction(device='cpu', dtype=torch.float16),
         BuildModelAction(SingleWrapper(_partial_=True, model=load_resnet())),
@@ -62,5 +64,16 @@ def make_cfg():
             ),
         )),
         #infer_one(path=r"E:\dataset\frog10.png")
-        infer_all(path=r'D:\others\dataset\cifar')
+        infer_all(path='/mnt/others/dataset/cifar')
     ]))
+
+@neko_cfg
+def make_cfg():
+    return WorkflowEvaluator(
+        _partial_=True,
+        exp_dir=f'exps_eval/{time.strftime(time_format)}',
+        mixed_precision='fp16',
+        seed=42,
+
+        workflow=workflow()
+    )

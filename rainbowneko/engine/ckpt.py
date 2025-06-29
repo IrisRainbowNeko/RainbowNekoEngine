@@ -20,7 +20,7 @@ class NekoCkptMixin:
         if resumer is not None:
             resumer.load_to(
                 model=self.model_wrapper,
-                optimizer=self.optimizer,
+                optimizer=getattr(self, "optimizer", None),
                 plugin_groups=getattr(self, "all_plugin", None),
                 model_ema=getattr(self, "ema_model", None)
             )
