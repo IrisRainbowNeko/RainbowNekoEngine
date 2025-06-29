@@ -3,6 +3,7 @@ import inspect
 import types
 from collections import defaultdict
 from pathlib import Path
+from functools import partial
 
 from yapf.yapflib.yapf_api import FormatCode
 
@@ -219,6 +220,14 @@ class ConfigCodeReconstructor:
                                 ast.keyword(arg='dtype', value=dtype)
                             ]
                         )
+            
+            if isinstance(obj, partial):
+                # Handle functools.partial objects
+                func = self._value_to_ast(obj.func)
+                args = [self._value_to_ast(arg) for arg in obj.args]
+                keywords = [ast.keyword(arg='_partial_', value=ast.Constant(value=True))] + \
+                           [ast.keyword(arg=k, value=self._value_to_ast(v)) for k, v in obj.keywords.items()]
+                return ast.Call(func=func, args=args, keywords=keywords)
 
             # Check if constructor parameter inspection is supported
             has_init_signature = False

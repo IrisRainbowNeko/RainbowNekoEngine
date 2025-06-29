@@ -162,7 +162,7 @@ class WorkflowEvaluator(Evaluator):
                 parser, conf = load_config(workflow)
                 self.workflow_runner = WorkflowRunner(parser, conf)
             else:
-                self.workflow_runner = WorkflowRunner(parser, workflow)
+                self.workflow_runner = WorkflowRunner(parser, workflow, cfgs_raw=cfgs_raw)
         else:
             self.accelerator = trainer.accelerator
             self.local_rank = trainer.local_rank
@@ -176,7 +176,7 @@ class WorkflowEvaluator(Evaluator):
                 parser, conf = load_config(workflow)
                 self.workflow_runner = WorkflowRunner(parser, conf)
             else:
-                self.workflow_runner = WorkflowRunner(parser, workflow)
+                self.workflow_runner = WorkflowRunner(parser, workflow, cfgs_raw=cfgs_raw)
 
         self.interval = interval
         self.ds_name = ds_name

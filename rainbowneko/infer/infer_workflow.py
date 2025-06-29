@@ -9,9 +9,12 @@ from rainbowneko import _share
 
 
 class WorkflowRunner:
-    def __init__(self, parser: YamlCfgParser, cfgs):
-        self.cfgs_raw = cfgs
-        cfgs = hydra.utils.instantiate(cfgs)
+    def __init__(self, parser: YamlCfgParser, cfgs, cfgs_raw=None):
+        if cfgs_raw is None:
+            self.cfgs_raw = cfgs
+            cfgs = hydra.utils.instantiate(cfgs)
+        else:
+            self.cfgs_raw = cfgs_raw
         self.cfgs = cfgs
         self.parser = parser
 
