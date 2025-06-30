@@ -73,6 +73,12 @@ class ImageHandler(DataHandler):
             image = image
         elif isinstance(image, np.ndarray):
             image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        elif isinstance(image, (list, tuple)):
+            image = [self.handle(img)['image'] for img in image]
+            return {'image': image}
+        elif isinstance(image, dict):
+            image = {k: self.handle(v)['image'] for k, v in image.items()}
+            return {'image': image}
         else:
             raise NotImplementedError(f'image with type {type(image)} not supported')
 

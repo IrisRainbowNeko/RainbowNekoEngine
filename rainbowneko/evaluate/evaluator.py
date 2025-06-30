@@ -155,7 +155,10 @@ class WorkflowEvaluator(Evaluator):
         self.model_wrapper: BaseWrapper | None
         if trainer is None:
             self.init_context(cfgs_raw)
-            self.loggers = None
+            if self.cfgs.get('logger', None) is not None:
+                self.build_loggers(cfgs_raw)
+            else:
+                self.loggers = None
             self.weight_dtype = weight_dtype_map.get(self.cfgs.mixed_precision, torch.float32)
 
             if isinstance(workflow, (ModuleType, str)):
