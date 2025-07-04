@@ -79,7 +79,9 @@ class ConfigCodeReconstructor:
             else:
                 keywords.append(ast.keyword(arg=k, value=self._value_to_ast(v, k)))
 
-        if callable(type_name):
+        if type_name == getattr and len(args) == 2:
+            return ast.Attribute(value=args[0], attr=args[1].value, ctx=ast.Load())
+        elif callable(type_name) or is_dict(type_name):
             return ast.Call(
                 func=self._value_to_ast(type_name),
                 args=args,
