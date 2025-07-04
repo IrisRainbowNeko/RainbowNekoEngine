@@ -257,7 +257,8 @@ class ConfigCodeReconstructor:
             # Get all visible attributes of the object
             all_attrs = {}
             if hasattr(obj, '__dict__'):
-                all_attrs.update({k: v for k, v in obj.__dict__.items() if not k.startswith('_')})
+                all_attrs.update({k: v for k, v in obj.__dict__.items() if not k.startswith('_') and 
+                                  not (isinstance(v, types.MethodType) and not isinstance(v.__self__, type))})
 
             # Determine which attributes are constructor parameters and which are extra attributes
             constructor_attrs = {}
