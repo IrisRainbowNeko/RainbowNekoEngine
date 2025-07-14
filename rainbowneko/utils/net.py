@@ -1,3 +1,5 @@
+from typing import Dict, Any
+
 import torch
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -92,9 +94,25 @@ def zero_module(module):
         p.detach().zero_()
     return module
 
-class BatchableDict(dict):
+class BatchableDict:
     """
     A dictionary that can be batched.
     It is used to store the batch data in the dataset.
     """
-    pass
+    def __init__(self, data: Dict):
+        self.data = data
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return getattr(self.data, name)
+        except AttributeError:
+            return super().__getattribute__(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == 'data':
+            super().__setattr__(name, value)
+        elif hasattr(dict, name):
+            raise AttributeError(f"Cannot set attribute '{name}' - it conflicts with dict methods")
+        else:
+            super().__setattr__(name, value)
+
