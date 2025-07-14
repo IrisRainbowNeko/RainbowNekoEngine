@@ -8,16 +8,17 @@ pair_dataset.py
     :Licence:     Apache-2.0
 """
 
-from typing import Dict, Tuple, Union, List, Callable
+from typing import Dict, Union, List
 
-import torch
 import numpy as np
+import torch
+from rainbowneko.utils import BatchableDict
 from torch.utils.data import Dataset
 
 from .bucket import BaseBucket
-from .source import DataSource, ComposeDataSource
-from rainbowneko.utils import RandomContext
 from .handler import DataHandler
+from .source import DataSource, ComposeDataSource
+
 
 class BaseDataset(Dataset):
     """
@@ -76,6 +77,8 @@ class BaseDataset(Dataset):
             for k, v in data.items():
                 if isinstance(v[0], torch.Tensor):
                     data[k] = torch.stack(v)
+                elif isinstance(v[0], BatchableDict):
+                    data[k] = batch_merge({k: [d[k] for d in v] for k in v[0]})
                 elif isinstance(v[0], dict):
                     pass
                 else:

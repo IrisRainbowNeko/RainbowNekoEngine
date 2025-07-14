@@ -91,3 +91,10 @@ def zero_module(module):
     for p in module.parameters():
         p.detach().zero_()
     return module
+
+class BatchableDict(dict):
+    """
+    A dictionary that can be batched.
+    It is used to store the batch data in the dataset.
+    """
+    pass
