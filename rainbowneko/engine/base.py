@@ -40,6 +40,8 @@ class NekoEngineMixin:
                 return x.to(self.device, dtype=self.weight_dtype)
             else:
                 return x.to(self.device)
+        if isinstance(x, dict):
+            return {k: self.to_dev(v) for k, v in x.items()}
         else:
             return x
 
