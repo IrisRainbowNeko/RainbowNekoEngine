@@ -8,6 +8,7 @@ from typing import Union, Iterable, Optional, Callable, List, Any, TypeVar
 from torch.utils.data import Sampler, IterableDataset, RandomSampler, SequentialSampler
 from torch.utils.data._utils import worker as torch_worker
 from torch.utils.data._utils.worker import WorkerInfo
+from rainbowneko.tools.show_info import show_note_info
 
 from .dataset import BaseDataset
 
@@ -231,6 +232,35 @@ class NekoDataLoader:
             if not drop_last and len(batch) > 0:
                 yield batch
 
+    def get_context(self):
+        if platform.system() == "Linux":
+            available = mp.get_all_start_methods()
+            
+            # Try to use spawn for better compatibility
+            if 'spawn' in available:
+                try:
+                    ctx = mp.get_context('spawn')
+
+                    def simple_test():
+                        return "test"
+                    
+                    p = ctx.Process(target=simple_test)
+                    p.start()
+                    p.join()
+
+                    q = ctx.Queue()
+                    q.put(1)
+                    q.get()
+                    return ctx
+                except:
+                    pass
+            
+            # Go back to fork
+            show_note_info("NekoDataLoader", "'spawn' context is not available, using 'fork' context instead. Please add environment variable 'OMP_NUM_THREADS=1' for better compatibility.", once=True)
+            return mp.get_context('fork')
+        else:
+            return mp.get_context('spawn')
+
     def multi_process_iterate(self, dataset, num_workers=4, bs=64):
         """
         Multiprocess dataset iteration.
@@ -254,10 +284,7 @@ class NekoDataLoader:
             num_workers = bs
 
         # Set up multiprocessing
-        if platform.system() == "Linux":
-            ctx = mp.get_context('spawn')
-        else:
-            ctx = mp.get_context('spawn')
+        ctx = self.get_context()
         queue = ctx.Queue(maxsize=num_workers * 2)  # Double buffer for better throughput
         queue_next_list = [ctx.Queue(maxsize=self.prefetch_factor) for _ in range(num_workers)]
         event = mp.Event()  # https://github.com/pytorch/pytorch/issues/60654
