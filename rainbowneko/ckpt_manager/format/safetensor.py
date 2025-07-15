@@ -60,7 +60,7 @@ class SafeTensorFormat(CkptFormat):
             metas = key.split(meta_key)
             if len(metas) == 1:
                 if isinstance(data, dict):
-                    return {k:type_recover(k, v) for k, v in data.items()}
+                    return {k.split(meta_key)[0]:type_recover(k, v) for k, v in data.items()}
                 else:
                     return data
             else:

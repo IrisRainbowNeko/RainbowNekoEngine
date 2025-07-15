@@ -255,7 +255,7 @@ class NekoDataLoader:
 
         # Set up multiprocessing
         if platform.system() == "Linux":
-            ctx = mp.get_context('fork')
+            ctx = mp.get_context('spawn')
         else:
             ctx = mp.get_context('spawn')
         queue = ctx.Queue(maxsize=num_workers * 2)  # Double buffer for better throughput
@@ -349,6 +349,8 @@ class NekoDataLoader:
                 batch_flatten = [lst[i] for i in range(max(map(len, batch))) for lst in batch if lst is not None and i < len(lst)]
                 batch_flatten = self.collate_fn(batch_flatten)
                 yield batch_flatten
+                del batch_flatten
+                batch = [None for _ in range(num_workers)]
 
         finally:
             # Always clean up resources

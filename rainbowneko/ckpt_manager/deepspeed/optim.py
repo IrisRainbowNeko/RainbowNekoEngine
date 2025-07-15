@@ -105,7 +105,7 @@ def extract_zero_shards(optim_zero_sd, universal_checkpoint_info=None, pp_index=
         )
 
         if "step" in state_groups[param_group_id]:
-            flat_state["step"] = state_groups[param_group_id]["step"]
+            flat_state["step"] = state_groups[param_group_id]["step"].clone()
 
         for name, fragment_mapping in param_slice_mappings[param_group_id].items():
             if pp_index > 0 and any(re.match(pattern, name) for pattern in pipeline_replicated_params):
@@ -143,7 +143,7 @@ def _merge_zero_shards(slice_shards_list, slice_shape=None):
     for k, shards in slice_shards.items():
         if k == 'step':
             assert all(si.cpu() == shards[0].cpu() for si in shards), "All shards must have the same step value"
-            slice = shards[0]
+            slice = shards[0].clone()
         else:
             if slice_shape is None:
                 slice = torch.cat(shards, dim=0)
@@ -185,7 +185,10 @@ def merge_tp_slices(sliced_zero_shards, universal_checkpoint_info, slice_shapes)
 
     full_states = {}
     for param_id, (name, zero_shards_list) in enumerate(sliced_zero_shards.items()):
-        if isinstance(zero_shards_list[0], dict):  # dp only
+        if len(zero_shards_list) == 0:
+            # Freezed parameter
+            continue
+        elif isinstance(zero_shards_list[0], dict):  # dp only
             slice_merged = _merge_zero_shards(zero_shards_list, slice_shapes[name])
             full_states[param_id] = slice_merged
         else:  # with tp; zero_shards_list: [[{states},...],...]
@@ -322,8 +325,9 @@ def load_torch_optimizer_to_zero(optimizer, optim_sd, param_slice_mappings_list,
     slices_shards = extract_zero_slices(param_slice_mappings_list)
     fp32_groups = zero_sd[SINGLE_PARTITION_OF_FP32_GROUPS]
     group_paddings = zero_sd[GROUP_PADDINGS]
+    optim_sd["state"] = {int(k):v for k, v in optim_sd["state"].items()}
 
-    name2pg = {name:i for i, name in enumerate(names)}
+    name2pg = {name:i for i, name in enumerate(names) if name in slices_shards}
     for param_group_id, param_slice_mapping in enumerate(param_slice_mappings_list[dp_index]):
         param = fp32_groups[param_group_id]
         zero_sd[BASE_OPTIMIZER_STATE]["state"][param_group_id] = {

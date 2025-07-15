@@ -26,9 +26,8 @@ class NekoCkptMixin:
             )
 
     def build_ckpt_saver(self, exp_dir: str | Path):
-        if self.is_local_main_process:
-            self.ckpt_saver: Dict[str, NekoSaver] = self.cfgs.ckpt_saver
-            self.ckpt_dir = Path(exp_dir) / "ckpts"
-            self.ckpt_dir.mkdir(parents=True, exist_ok=True)
-            for ckpt_saver in self.ckpt_saver.values():
-                ckpt_saver.prefix = self.ckpt_dir
+        self.ckpt_saver: Dict[str, NekoSaver] = self.cfgs.ckpt_saver
+        self.ckpt_dir = Path(exp_dir) / "ckpts"
+        self.ckpt_dir.mkdir(parents=True, exist_ok=True)
+        for ckpt_saver in self.ckpt_saver.values():
+            ckpt_saver.prefix = self.ckpt_dir

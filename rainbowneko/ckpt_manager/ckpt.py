@@ -344,5 +344,8 @@ class NekoOptimizerLoader(NekoLoader):
             state_prefix_len = len(self.state_prefix)
             part_state = {k[state_prefix_len:]: v for k, v in part_state.items() if k.startswith(self.state_prefix)}
 
-        sd_data = self.merge_states(states, part_state)
-        optimizer.load_state_dict(sd_data)
+        if 'zero_stage' in states:
+            optimizer.load_state_dict(part_state)
+        else:
+            sd_data = self.merge_states(states, part_state)
+            optimizer.load_state_dict(sd_data)

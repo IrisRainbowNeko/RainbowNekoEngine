@@ -45,7 +45,9 @@ class TrainerDeepspeed(Trainer):
             zero_sd = self.optimizer.state_dict()
             param_shapes = self.model_wrapper._get_zero_param_shapes()
             param_shapes_list = self.gather_to_main(param_shapes)
-            optim_sd = zero_optimizer_state_to_torch(self.gather_to_main(zero_sd), self.parameter_names, param_shapes_list)
+            zero_sd_list = self.gather_to_main(zero_sd)
+            if self.is_local_main_process:
+                optim_sd = zero_optimizer_state_to_torch(zero_sd_list, self.parameter_names, param_shapes_list)
 
         if self.is_local_main_process:
             def optimizer_state_dict(*args, **kwargs):
