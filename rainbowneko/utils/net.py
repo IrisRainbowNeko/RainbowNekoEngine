@@ -104,7 +104,8 @@ class BatchableDict:
 
     def __getattr__(self, name: str) -> Any:
         try:
-            return getattr(self.data, name)
+            data = super().__getattribute__('data')
+            return getattr(data, name)
         except AttributeError:
             return super().__getattribute__(name)
 

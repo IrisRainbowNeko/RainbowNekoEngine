@@ -78,7 +78,7 @@ class BaseDataset(Dataset):
                 if isinstance(v[0], torch.Tensor):
                     data[k] = torch.stack(v)
                 elif isinstance(v[0], BatchableDict):
-                    data[k] = batch_merge({k: [d[k] for d in v] for k in v[0]})
+                    data[k] = batch_merge({k: [d[k] for d in v] for k in v[0].keys()})
                 elif isinstance(v[0], dict):
                     pass
                 else:

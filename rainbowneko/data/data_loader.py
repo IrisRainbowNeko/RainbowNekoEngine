@@ -333,6 +333,8 @@ class NekoDataLoader:
 
                 except (TimeoutError, RuntimeError) as e:
                     print(f"Error in data loading: {e}")
+                    import traceback
+                    traceback.print_exc()
                     break
 
                 except Exception as e:
