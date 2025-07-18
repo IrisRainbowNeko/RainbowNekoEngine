@@ -94,6 +94,13 @@ def zero_module(module):
         p.detach().zero_()
     return module
 
+def add_dims(t, num_dims, end=True):
+    if end:
+        return t.view(*t.shape, *([1] * num_dims))
+    else:
+        return t.view(*([1] * num_dims), *t.shape)
+
+
 class BatchableDict:
     """
     A dictionary that can be batched.
