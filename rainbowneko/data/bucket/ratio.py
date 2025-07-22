@@ -310,7 +310,12 @@ class RatioBucket(BaseBucket):
             # candidate_bucket_idxs = np.where(np.all(bsize_array, axis=0))[0]
             # rs.shuffle(candidate_bucket_idxs)
             # for idx in candidate_bucket_idxs:
-                
+
+            if worker_id == 0:
+                bsize_shm.close()
+                bsize_shm.unlink()
+                bid_shm.close()
+                bid_shm.unlink()
 
 
     def next_data(self, shuffle=True):
