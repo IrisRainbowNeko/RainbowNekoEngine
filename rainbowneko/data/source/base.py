@@ -74,11 +74,17 @@ class ComposeWebdsSource(DataSource):
         self._return_source = False
 
     def __iter__(self):
-        self.source_iter = iter(chain(*self.source_list))
+        self.source_iter = chain.from_iterable(
+            ((source, item) for item in source) for source in self.source_list
+        )
         return self
 
     def __next__(self):
-        return next(self.source_iter)
+        source, item = next(self.source_iter)
+        if self._return_source:
+            return item, source
+        else:
+            return item 
 
     def __getitem__(self, index) -> Dict[str, Any]:
         raise NotImplementedError('WebDatasetSource is not indexable')

@@ -4,6 +4,7 @@ from PIL import Image
 from torchvision import transforms as T
 from torchvision.transforms import functional as F
 from accelerate.data_loader import IterableDatasetShard
+from multiprocessing import Barrier
 
 class DualRandomCrop:
     def __init__(self, size):
@@ -82,3 +83,20 @@ class CycleData():
                 self.epoch += 1
 
         return cycle()
+
+class NekoWorkerInfo:
+    s_idx: int  # current sample index
+    barrier: Barrier
+
+    def __init__(self, s_idx, barrier):
+        self.s_idx = s_idx
+        self.barrier = barrier
+        self.__keys = ['s_idx', 'barrier']
+
+    def __repr__(self):
+        items = []
+        for k in self.__keys:
+            items.append(f"{k}={getattr(self, k)}")
+        return f"{self.__class__.__name__}({', '.join(items)})"
+    
+_neko_worker_info: NekoWorkerInfo = None

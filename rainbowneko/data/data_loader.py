@@ -9,6 +9,7 @@ from torch.utils.data import Sampler, IterableDataset, RandomSampler, Sequential
 from torch.utils.data._utils import worker as torch_worker
 from torch.utils.data._utils.worker import WorkerInfo
 from rainbowneko.tools.show_info import show_note_info
+from . import utils as data_utils
 
 from .dataset import BaseDataset
 
@@ -98,7 +99,7 @@ class NekoDataLoader:
         gc.collect()
 
     @staticmethod
-    def _worker(worker_id, num_workers, dataset, sample_iter, queue: mp.Queue, queue_next: mp.Queue, event: mp.Event, bs, prefetch_factor, drop_last):
+    def _worker(worker_id, num_workers, dataset, sample_iter, queue: mp.Queue, queue_next: mp.Queue, event: mp.Event, barrier: mp.Barrier, bs, prefetch_factor, drop_last):
         """
         Worker process function for data loading.
 
@@ -119,6 +120,11 @@ class NekoDataLoader:
             seed=42,
             dataset=dataset
         )
+        data_utils._neko_worker_info = data_utils.NekoWorkerInfo(
+            s_idx=worker_id,
+            barrier=barrier,
+        )
+
 
         batch = []
         batch_list = []
@@ -146,6 +152,7 @@ class NekoDataLoader:
 
                     # Create a new batch when current batch is filled
                     s_idx = worker_id + i * num_workers  # For load balancing
+                    data_utils._neko_worker_info.s_idx = s_idx + num_workers
                     if (s_idx + num_workers) // bs > batch_count:
                         batch_list.append(batch)
                         batch = []
@@ -169,6 +176,8 @@ class NekoDataLoader:
 
         except Exception as e:
             print(f"Worker {worker_id} failed with error: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             # Signal completion and clean up resources
             queue.put((worker_id, None))
@@ -179,7 +188,7 @@ class NekoDataLoader:
         event.wait()  # https://github.com/pytorch/pytorch/issues/60654
 
     @staticmethod
-    def worker(worker_id, num_workers, dataset, sampler, queue, queue_next, event, bs, prefetch_factor, drop_last):
+    def worker(worker_id, num_workers, dataset, sampler, queue, queue_next, event, barrier, bs, prefetch_factor, drop_last):
         """Worker for datasets that use a sampler."""
 
         def sample_iter(dataset):
@@ -188,11 +197,11 @@ class NekoDataLoader:
                     yield dataset[idx]
 
         return NekoDataLoader._worker(
-            worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, bs, prefetch_factor, drop_last
+            worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, barrier, bs, prefetch_factor, drop_last
         )
 
     @staticmethod
-    def worker_iter(worker_id, num_workers, dataset, queue, queue_next, event, bs, prefetch_factor, drop_last, split=False):
+    def worker_iter(worker_id, num_workers, dataset, queue, queue_next, event, barrier, bs, prefetch_factor, drop_last, split=False):
         """Worker for iterable datasets."""
 
         def sample_iter(dataset):
@@ -205,7 +214,7 @@ class NekoDataLoader:
                     yield sample
 
         return NekoDataLoader._worker(
-            worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, bs, prefetch_factor, drop_last
+            worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, barrier, bs, prefetch_factor, drop_last
         )
 
     @staticmethod
@@ -288,6 +297,7 @@ class NekoDataLoader:
         queue = ctx.Queue(maxsize=num_workers * 2)  # Double buffer for better throughput
         queue_next_list = [ctx.Queue(maxsize=self.prefetch_factor) for _ in range(num_workers)]
         event = mp.Event()  # https://github.com/pytorch/pytorch/issues/60654
+        barrier = mp.Barrier(num_workers)
 
         # Track all queues for cleanup
         self._queues = [queue] + queue_next_list
@@ -299,14 +309,14 @@ class NekoDataLoader:
             if self.sampler == -1:  # Iterable dataset
                 p = ctx.Process(
                     target=self.worker_iter,
-                    args=(worker_id, num_workers, dataset, queue, queue_next_list[worker_id], event, bs,
+                    args=(worker_id, num_workers, dataset, queue, queue_next_list[worker_id], event, barrier, bs,
                           self.prefetch_factor, self.drop_last, self.split_iter_worker)
                 )
             else:  # Regular dataset with sampler
                 p = ctx.Process(
                     target=self.worker,
                     args=(worker_id, num_workers, dataset, self.sampler, queue, queue_next_list[worker_id],
-                          event, bs, self.prefetch_factor, self.drop_last)
+                          event, barrier, bs, self.prefetch_factor, self.drop_last)
                 )
             p.daemon = True
             p.start()
