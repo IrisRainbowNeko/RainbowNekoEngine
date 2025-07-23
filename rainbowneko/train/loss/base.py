@@ -10,7 +10,10 @@ class LossContainer(nn.Module):
 
     def forward(self, pred, inputs):
         args, kwargs = self.key_mapper(pred=pred, inputs=inputs)
-        return self.loss(*args, **kwargs) * self.weight
+        if isinstance(self.loss, FullInputLoss):
+            return self.loss(*args, _full_pred=pred, _full_inputs=inputs, **kwargs) * self.weight
+        else:
+            return self.loss(*args, **kwargs) * self.weight
 
 class LossGroup(nn.Module):
     def __init__(self, loss_list):
@@ -22,3 +25,7 @@ class LossGroup(nn.Module):
         for loss_item in self.loss_list:
             loss += loss_item(pred, target).squeeze()
         return loss
+
+class FullInputLoss:
+    def forward(self, *args, _full_pred, _full_inputs, **kwargs):
+        return self.loss(*args, **kwargs)
