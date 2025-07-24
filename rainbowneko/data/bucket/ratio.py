@@ -9,6 +9,7 @@ from loguru import logger
 from sklearn.cluster import KMeans
 from tqdm import tqdm
 from rainbowneko.utils import repeat_list
+from rainbowneko import _share
 from multiprocessing import shared_memory
 
 from .base import BaseBucket
@@ -216,13 +217,13 @@ class RatioBucket(BaseBucket):
         batch_idx = 0
 
         if worker_id == 0:
-            bsize_shm = shared_memory.SharedMemory(create=True, name='bucket_size', size=num_workers*len(buckets)*1)
-            bid_shm = shared_memory.SharedMemory(create=True, name='bucket_id', size=4)
+            bsize_shm = shared_memory.SharedMemory(create=True, name=f'bucket_size_{_share.local_rank}', size=num_workers*len(buckets)*1)
+            bid_shm = shared_memory.SharedMemory(create=True, name=f'bucket_id_{_share.local_rank}', size=4)
             _neko_worker_info.barrier.wait()
         else:
             _neko_worker_info.barrier.wait()
-            bsize_shm = shared_memory.SharedMemory(name='bucket_size')
-            bid_shm = shared_memory.SharedMemory(name='bucket_id')
+            bsize_shm = shared_memory.SharedMemory(name=f'bucket_size_{_share.local_rank}')
+            bid_shm = shared_memory.SharedMemory(name=f'bucket_id_{_share.local_rank}')
 
         bsize_array = np.ndarray((num_workers, len(buckets)), dtype=bool, buffer=bsize_shm.buf)
         bid_array = np.ndarray(1, dtype=np.int32, buffer=bid_shm.buf)

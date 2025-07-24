@@ -1,9 +1,10 @@
 import argparse
+import torch
 
 from copy import copy
 from rainbowneko.ckpt_manager import NekoPluginSaver, NekoSaver, NekoResumer, NekoOptimizerSaver
 from rainbowneko.ckpt_manager.deepspeed import zero_optimizer_state_to_torch, load_torch_optimizer_to_zero
-import torch
+from accelerate import DistributedType
 
 from .trainer_ac import Trainer, load_config_with_cli
 
@@ -17,6 +18,11 @@ class TrainerDeepspeed(Trainer):
             for saver in self.ckpt_saver.values():
                 if isinstance(saver, NekoPluginSaver):
                     saver.plugin_from_raw = True
+
+    def prepare(self):
+        if self.accelerator.distributed_type == DistributedType.DEEPSPEED:
+            self.accelerator.state.deepspeed_plugin.deepspeed_config['train_micro_batch_size_per_gpu'] = sum(self.batch_size_list)
+        super().prepare()
 
     @property
     def model_raw(self):
