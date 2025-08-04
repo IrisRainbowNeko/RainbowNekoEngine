@@ -4,7 +4,7 @@ from PIL import Image
 from torchvision import transforms as T
 from torchvision.transforms import functional as F
 from accelerate.data_loader import IterableDatasetShard
-from multiprocessing import Barrier
+from multiprocessing import Barrier, Event, Condition, Value, Lock
 
 class DualRandomCrop:
     def __init__(self, size):
@@ -84,14 +84,46 @@ class CycleData():
 
         return cycle()
 
+class DynamicBarrier:
+    def __init__(self, total):
+        self.total = Value('i', total)
+        self.count = Value('i', 0)  # 当前到达 barrier 的数量
+        self.cond = Condition(Lock())
+
+    def wait(self):
+        with self.cond:
+            self.count.value += 1
+            if self.count.value >= self.total.value:
+                self.count.value = 0
+                self.cond.notify_all()
+            else:
+                self.cond.wait()
+
+    def deregister(self):
+        with self.cond:
+            if self.total.value <= 1:
+                self.total.value = 0
+                self.count.value = 0
+            else:
+                self.total.value -= 1
+                if self.count.value >= self.total.value:
+                    self.count.value = 0
+                    self.cond.notify_all()
+
+    def register(self):
+        with self.cond:
+            self.total.value += 1
+
 class NekoWorkerInfo:
     s_idx: int  # current sample index
-    barrier: Barrier
+    barrier: DynamicBarrier
+    event: Event
 
-    def __init__(self, s_idx, barrier):
+    def __init__(self, s_idx, barrier, event):
         self.s_idx = s_idx
         self.barrier = barrier
-        self.__keys = ['s_idx', 'barrier']
+        self.event = event
+        self.__keys = ['s_idx', 'barrier', 'event']
 
     def __repr__(self):
         items = []
