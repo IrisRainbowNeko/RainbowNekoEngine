@@ -30,15 +30,18 @@ class PosNegBucket(BaseBucket):
 
         if self.source_indexable:
             self.cls_group = {}  # {cls: idx}
-            for i, (data, source) in enumerate(self.source):
-                cls_name = data['label']
-                if cls_name not in self.cls_group:
-                    self.cls_group[cls_name] = []
-                self.cls_group[cls_name].append(i)
+            with self.source.return_source():
+                for i, (data, source) in enumerate(self.source):
+                    cls_name = data['label']
+                    if cls_name not in self.cls_group:
+                        self.cls_group[cls_name] = []
+                    self.cls_group[cls_name].append(i)
             self.cls_group = {k: np.array(v) for k, v in self.cls_group.items()}
             self.cls_names = list(self.cls_group.keys())
         else:
             self.cls_id_map = {}
+
+        self.rest(0)
 
     def rest(self, epoch):
         self.rs = np.random.RandomState(42 + epoch)
