@@ -5,6 +5,7 @@ from torchvision import transforms as T
 from torchvision.transforms import functional as F
 from accelerate.data_loader import IterableDatasetShard
 from multiprocessing import Barrier, Event, Condition, Value, Lock
+from concurrent.futures import as_completed
 
 class DualRandomCrop:
     def __init__(self, size):
@@ -132,3 +133,26 @@ class NekoWorkerInfo:
         return f"{self.__class__.__name__}({', '.join(items)})"
     
 _neko_worker_info: NekoWorkerInfo = None
+
+def safe_executor_map(executor, func, iterable, max_pending=None):
+    max_pending = max_pending or getattr(executor, '_max_workers', 4) * 2
+    iterator = iter(iterable)
+    futures = set()
+    
+    # initial tasks
+    for _ in range(max_pending):
+        try:
+            futures.add(executor.submit(func, next(iterator)))
+        except StopIteration:
+            break
+    
+    while futures:
+        done_future = next(as_completed(futures))
+        futures.remove(done_future)
+        yield done_future.result()
+        
+        # new tasks
+        try:
+            futures.add(executor.submit(func, next(iterator)))
+        except StopIteration:
+            pass

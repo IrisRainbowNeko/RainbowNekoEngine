@@ -1,7 +1,7 @@
 import math
 import os.path
 import pickle
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
 import numpy as np
@@ -14,6 +14,7 @@ from multiprocessing import shared_memory
 
 from .base import BaseBucket
 from ..handler import AutoSizeHandler
+from ..utils import safe_executor_map
 
 
 class RatioBucket(BaseBucket):
@@ -113,7 +114,7 @@ class RatioBucket(BaseBucket):
 
         ratio_list = []
         with self.source.return_source(), ThreadPoolExecutor() as executor:
-            for ratio in tqdm(executor.map(get_ratio, self.source), desc='get image info', total=len(self.source)):
+            for ratio in tqdm(safe_executor_map(executor, get_ratio, self.source), desc='get image info', total=len(self.source)):
                 ratio_list.append(ratio)
         ratio_list = np.array(ratio_list)
 
