@@ -94,14 +94,15 @@ class NekoDataLoader:
         self._processes = []
         self._queues = []
 
-        if gc is None: # gc maybe deleted
+        if gc is None:  # gc maybe deleted
             return
 
         # Force garbage collection to clean up resources
         gc.collect()
 
     @staticmethod
-    def _worker(worker_id, num_workers, dataset, sample_iter, queue: mp.Queue, queue_next: mp.Queue, event: mp.Event, barrier: DynamicBarrier, bs, prefetch_factor, drop_last, timeout):
+    def _worker(worker_id, num_workers, dataset, sample_iter, queue: mp.Queue, queue_next: mp.Queue, event: mp.Event, barrier: DynamicBarrier, bs,
+                prefetch_factor, drop_last, timeout):
         """
         Worker process function for data loading.
 
@@ -128,7 +129,6 @@ class NekoDataLoader:
             barrier=barrier,
             event=event,
         )
-
 
         batch = []
         batch_list = []
@@ -163,12 +163,13 @@ class NekoDataLoader:
                         batch_count += 1
                         # Wait to put data if we've reached the prefetch limit
                         if len(batch_list) > prefetch_factor:
-                            queue_next.get(timeout=timeout)
+                            queue_next.get()
                             put_one()
                 except Exception as e:
-                    print(f"Worker {worker_id} encountered error processing sample {i}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue  # Skip this sample and continue
-            
+
             barrier.deregister()
 
             # Handle remaining items if not dropping last batch
@@ -177,7 +178,7 @@ class NekoDataLoader:
 
             # Send all remaining batches
             while batch_list:
-                queue_next.get(timeout=timeout)
+                queue_next.get()
                 put_one()
 
         except Exception as e:
@@ -250,7 +251,7 @@ class NekoDataLoader:
     def get_context(self):
         if platform.system() == "Linux":
             available = mp.get_all_start_methods()
-            
+
             # Try to use spawn for better compatibility
             if 'spawn' in available:
                 try:
@@ -258,7 +259,7 @@ class NekoDataLoader:
 
                     def simple_test():
                         return "test"
-                    
+
                     p = ctx.Process(target=simple_test)
                     p.start()
                     p.join()
@@ -269,9 +270,11 @@ class NekoDataLoader:
                     return ctx
                 except:
                     pass
-            
+
             # Go back to fork
-            show_note_info("NekoDataLoader", "'spawn' context is not available, using 'fork' context instead. Please add environment variable 'OMP_NUM_THREADS=1' for better compatibility.", once=True)
+            show_note_info("NekoDataLoader",
+                           "'spawn' context is not available, using 'fork' context instead. Please add environment variable 'OMP_NUM_THREADS=1' for better compatibility.",
+                           once=True)
             return mp.get_context('fork')
         else:
             return mp.get_context('spawn')
@@ -352,15 +355,16 @@ class NekoDataLoader:
                     # Process the data
                     if sample is None:
                         finished_workers += 1
+                        data_count -= 1  # for data_count == num_workers-finished_workers
                     else:
                         batch[worker_id] = sample
                         data_count += 1
 
-                    if finished_workers==num_workers:
+                    if finished_workers == num_workers:
                         break
 
                     # Yield a batch when all workers have contributed
-                    if data_count == num_workers-finished_workers:
+                    if data_count == num_workers - finished_workers:
                         data_count = 0
                         # Signal workers to continue
                         for q in queue_next_list:

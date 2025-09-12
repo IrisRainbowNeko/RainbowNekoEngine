@@ -32,7 +32,7 @@ class NekoDataMixin:
         return dataset, batch_size
 
     def build_data(self, data_builder: partial, workers, train=True) -> torch.utils.data.DataLoader | NekoDataLoader:
-        drop_last = data_builder.keywords.pop("drop_last", True)
+        drop_last = data_builder.keywords.pop("drop_last", False)
         dataset, batch_size = self.build_dataset(data_builder)
 
         # Pytorch Data loader

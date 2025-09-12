@@ -16,7 +16,7 @@ from .metrics import BaseMetric, MetricGroup
 
 
 class Evaluator(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixin, NekoCkptMixin, NekoLoggerMixin):
-    def __init__(self, parser, cfgs_raw, ds_name=None, interval=100, trainer=None, **cfgs):
+    def __init__(self, parser, cfgs_raw, ds_name=None, interval=100, trainer=None, data_workers=0, **cfgs):
         super().__init__(parser, cfgs_raw, **cfgs)
         if trainer is None:
             self.init_context(cfgs_raw)
@@ -25,8 +25,7 @@ class Evaluator(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMi
             self.build_model()
 
             self.cfgs.dataset: partial
-            workers = self.cfgs.dataset.keywords.pop("workers", 0)
-            self.data_loader = self.build_data(self.cfgs.dataset, workers, train=False)
+            self.data_loader = self.build_data(self.cfgs.dataset, data_workers, train=False)
             self.data_loader.dataset.bucket.rest(0)
 
             self.model_wrapper.post_init()
@@ -43,8 +42,7 @@ class Evaluator(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMi
             self.weight_dtype = trainer.weight_dtype
             print(self.cfgs.dataset)
 
-            workers = self.cfgs.dataset.keywords.pop("workers", 0)
-            self.data_loader = self.build_data(self.cfgs.dataset, workers, train=False)
+            self.data_loader = self.build_data(self.cfgs.dataset, data_workers, train=False)
             self.data_loader.dataset.bucket.rest(0)
 
         torch.backends.cuda.matmul.allow_tf32 = self.cfgs.get('allow_tf32', False)
@@ -98,6 +96,7 @@ class Evaluator(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMi
         # reset metric
         self.model_wrapper.eval()
         self.metric.reset()
+        self.data_loader.dataset.bucket.rest(step)
 
         for data in tqdm(self.data_loader, disable=not self.is_local_main_process):
             pred, input_datas = self.forward_one_step(self.model_wrapper, data)

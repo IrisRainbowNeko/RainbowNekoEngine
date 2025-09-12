@@ -41,7 +41,7 @@ class BaseBucket:
             yield pick()
 
     def next_data(self, shuffle=True):
-        if not hasattr(self, 'buffer_iter'):
+        if getattr(self, 'buffer_iter', None) is None:
             self.buffer_iter = self._shuffle(rs=self.rs) if shuffle else iter(self.source)
         return next(self.buffer_iter)
 
@@ -60,3 +60,4 @@ class BaseBucket:
     def rest(self, epoch):
         if not self.source_indexable:
             self.rs = np.random.RandomState(42 + epoch)
+            self.buffer_iter = None

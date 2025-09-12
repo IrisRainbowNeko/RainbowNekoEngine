@@ -31,7 +31,7 @@ class MLCEImageLoss(LossContainer):
         log_prob_x = log_prob_x + torch.diag_embed(torch.ones(len(target_tensor)) * self.eps).to(input_tensor.device)
         y = torch.arange(0, len(target_tensor)).to(input_tensor.device)
 
-        return F.nll_loss(log_prob_x.log(), y, reduction=self.reduction) * self.alpha
+        return F.nll_loss(log_prob_x.log(), y, reduction=self.reduction)
 
 
 # Copy from https://github.com/RElbers/info-nce-pytorch/blob/main/info_nce/__init__.py

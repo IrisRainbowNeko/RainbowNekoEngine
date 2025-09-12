@@ -2,15 +2,13 @@ from .base import SingleWrapper
 
 
 class FeatWrapper(SingleWrapper):
+    def __init__(self, model, key_map_in=None, key_map_out=('pred -> pred', 'feat -> feat')):
+        super().__init__(model, key_map_in, key_map_out)
 
-    def forward(self, x, plugin_input={}, **kwargs):
-        input_all = dict(x=x, **plugin_input)
+    def forward(self, ds_name=None, plugin_input={}, **kwargs):
+        model_args, model_kwargs = self.get_inputs_feed(self.key_mapper_in, self.model, kwargs, plugin_input, ds_name=ds_name)
 
-        if hasattr(self.model, 'input_feeder'):
-            for feeder in self.model.input_feeder:
-                feeder(input_all)
-
-        out, feat = self.model(x, **kwargs)
+        out, feat = self.model(*model_args, **model_kwargs)
         if not isinstance(feat, list):
             feat = [feat]
-        return {'pred': out, 'feat': feat}
+        return self.get_map_data(self.key_mapper_out, {'pred': out, 'feat': feat}, ds_name=ds_name)[1]

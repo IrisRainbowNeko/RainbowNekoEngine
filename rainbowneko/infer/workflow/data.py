@@ -4,7 +4,7 @@ from typing import Union
 import torch
 from tqdm import tqdm
 
-from rainbowneko.data import CacheableDataset, BaseDataset
+from rainbowneko.data import CacheableDataset, BaseDataset, NekoDataLoader
 from rainbowneko.data import get_sampler
 from rainbowneko.data.handler import DataHandler
 from .base import BasicAction
@@ -48,7 +48,7 @@ class DataLoaderAction(BasicAction):
             rank=self.local_rank,
             shuffle=train and dataset.bucket.can_shuffle,
         )
-        loader = torch.utils.data.DataLoader(
+        loader = NekoDataLoader(
             dataset,
             batch_size=batch_size,
             num_workers=self.workers,
