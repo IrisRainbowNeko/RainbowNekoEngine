@@ -124,11 +124,6 @@ class NekoDataLoader:
             seed=42,
             dataset=dataset
         )
-        data_utils._neko_worker_info = data_utils.NekoWorkerInfo(
-            s_idx=worker_id,
-            barrier=barrier,
-            event=event,
-        )
 
         batch = []
         batch_list = []
@@ -206,6 +201,12 @@ class NekoDataLoader:
             data_utils._neko_worker_info.s_idx = s_idx + num_workers
             return (s_idx + num_workers) // bs > batch_count
 
+        data_utils._neko_worker_info = data_utils.NekoWorkerInfo(
+            s_idx=worker_id,
+            barrier=barrier,
+            event=event,
+        )
+
         return NekoDataLoader._worker(
             worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, barrier, bs, prefetch_factor, drop_last, check_new_batch
         )
@@ -226,6 +227,12 @@ class NekoDataLoader:
         def check_new_batch(i: int, batch_count: int) -> bool:
             data_utils._neko_worker_info.s_idx = i+1
             return (i + 1) // bs > batch_count
+
+        data_utils._neko_worker_info = data_utils.NekoWorkerInfo(
+            s_idx=0,
+            barrier=barrier,
+            event=event,
+        )
 
         return NekoDataLoader._worker(
             worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, barrier, bs, prefetch_factor, drop_last, check_new_batch
