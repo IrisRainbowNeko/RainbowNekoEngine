@@ -203,7 +203,6 @@ class RatioBucket(BaseBucket):
         returns: iterator
         """
         from rainbowneko.data.utils import _neko_worker_info
-        from torch.utils.data._utils.worker import _worker_info
 
         initial = min(initial, bufsize)
         buckets = [[] for _ in self.size_buckets]
@@ -213,21 +212,7 @@ class RatioBucket(BaseBucket):
 
         select_bucket = None
         bs_count=bs
-        num_workers = _worker_info.num_workers
-        worker_id = _worker_info.id
         batch_idx = 0
-
-        if worker_id == 0:
-            bsize_shm = shared_memory.SharedMemory(create=True, name=f'bucket_size_{_share.local_rank}', size=num_workers*len(buckets)*1)
-            bid_shm = shared_memory.SharedMemory(create=True, name=f'bucket_id_{_share.local_rank}', size=4)
-            _neko_worker_info.barrier.wait()
-        else:
-            _neko_worker_info.barrier.wait()
-            bsize_shm = shared_memory.SharedMemory(name=f'bucket_size_{_share.local_rank}')
-            bid_shm = shared_memory.SharedMemory(name=f'bucket_id_{_share.local_rank}')
-
-        bsize_array = np.ndarray((num_workers, len(buckets)), dtype=bool, buffer=bsize_shm.buf)
-        bid_array = np.ndarray(1, dtype=np.int32, buffer=bid_shm.buf)
 
         def pick():
             nonlocal count
@@ -257,24 +242,14 @@ class RatioBucket(BaseBucket):
 
                 if count >= initial:
                     if _neko_worker_info.s_idx//bs >= batch_idx: # new batch, select new bucket
-                        next_batch_shard_nums = (bs-_neko_worker_info.s_idx%bs)//num_workers+1
-                        _neko_worker_info.barrier.wait() # wait for all workers to finish last batch
-                        bucket_ready = np.array([len(b) for b in buckets], dtype=np.int32) >= next_batch_shard_nums
-                        bsize_array[worker_id] = bucket_ready
-                        _neko_worker_info.barrier.wait() # wait for all workers to update bucket size
-                        candidate_bucket_idxs = np.where(np.all(bsize_array, axis=0))[0]
+                        bucket_ready = np.array([len(b) for b in buckets], dtype=np.int32) >= bs
+                        candidate_bucket_idxs = np.where(bucket_ready)[0]
                         if len(candidate_bucket_idxs) == 0:
                             continue
                         if rs is None:
                             select_bucket = candidate_bucket_idxs[0]
                         else:
-                            if worker_id == 0:
-                                idx = rs.choice(candidate_bucket_idxs)
-                                bid_array[0] = idx
-                                _neko_worker_info.barrier.wait()
-                            else:
-                                _neko_worker_info.barrier.wait()
-                                idx = bid_array[0]
+                            idx = rs.choice(candidate_bucket_idxs)
                             select_bucket = buckets[idx]
                         batch_idx += 1
 
@@ -282,24 +257,14 @@ class RatioBucket(BaseBucket):
 
             while count > 0:
                 if _neko_worker_info.s_idx//bs >= batch_idx: # new batch, select new bucket
-                    next_batch_shard_nums = (bs-_neko_worker_info.s_idx%bs)//num_workers+1
-                    _neko_worker_info.barrier.wait() # wait for all workers to finish last batch
-                    bucket_ready = np.array([len(b) for b in buckets], dtype=np.int32) >= next_batch_shard_nums
-                    bsize_array[worker_id] = bucket_ready
-                    _neko_worker_info.barrier.wait() # wait for all workers to update bucket size
-                    candidate_bucket_idxs = np.where(np.all(bsize_array, axis=0))[0]
+                    bucket_ready = np.array([len(b) for b in buckets], dtype=np.int32) >= bs
+                    candidate_bucket_idxs = np.where(bucket_ready)[0]
                     if len(candidate_bucket_idxs) == 0:
                         break
                     if rs is None:
                         select_bucket = candidate_bucket_idxs[0]
                     else:
-                        if worker_id == 0:
-                            idx = rs.choice(candidate_bucket_idxs)
-                            bid_array[0] = idx
-                            _neko_worker_info.barrier.wait()
-                        else:
-                            _neko_worker_info.barrier.wait()
-                            idx = bid_array[0]
+                        idx = rs.choice(candidate_bucket_idxs)
                         select_bucket = buckets[idx]
                     batch_idx += 1
 
@@ -312,12 +277,6 @@ class RatioBucket(BaseBucket):
             # candidate_bucket_idxs = np.where(np.all(bsize_array, axis=0))[0]
             # rs.shuffle(candidate_bucket_idxs)
             # for idx in candidate_bucket_idxs:
-
-            if worker_id == 0:
-                bsize_shm.close()
-                bsize_shm.unlink()
-                bid_shm.close()
-                bid_shm.unlink()
 
 
     def next_data(self, shuffle=True):

@@ -102,7 +102,7 @@ class NekoDataLoader:
 
     @staticmethod
     def _worker(worker_id, num_workers, dataset, sample_iter, queue: mp.Queue, queue_next: mp.Queue, event: mp.Event, barrier: DynamicBarrier, bs,
-                prefetch_factor, drop_last, timeout):
+                prefetch_factor, drop_last, check_new_batch: Callable[[int, int], bool]):
         """
         Worker process function for data loading.
 
@@ -116,7 +116,7 @@ class NekoDataLoader:
             bs: Batch size for this worker
             prefetch_factor: Number of batches to prefetch
             drop_last: Whether to drop the last incomplete batch
-            timeout: Timeout for fetching data from workers
+            check_new_batch: Check if one batch finished
         """
         torch_worker._worker_info = WorkerInfo(
             id=worker_id,
@@ -155,9 +155,7 @@ class NekoDataLoader:
                             pass
 
                     # Create a new batch when current batch is filled
-                    s_idx = worker_id + i * num_workers  # For load balancing
-                    data_utils._neko_worker_info.s_idx = s_idx + num_workers
-                    if (s_idx + num_workers) // bs > batch_count:
+                    if check_new_batch(i, batch_count):
                         batch_list.append(batch)
                         batch = []
                         batch_count += 1
@@ -203,8 +201,13 @@ class NekoDataLoader:
                 if i % num_workers == worker_id:
                     yield dataset[idx]
 
+        def check_new_batch(i: int, batch_count: int) -> bool:
+            s_idx = worker_id + i * num_workers  # For load balancing
+            data_utils._neko_worker_info.s_idx = s_idx + num_workers
+            return (s_idx + num_workers) // bs > batch_count
+
         return NekoDataLoader._worker(
-            worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, barrier, bs, prefetch_factor, drop_last, timeout
+            worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, barrier, bs, prefetch_factor, drop_last, check_new_batch
         )
 
     @staticmethod
@@ -220,8 +223,12 @@ class NekoDataLoader:
                 for sample in dataset:
                     yield sample
 
+        def check_new_batch(i: int, batch_count: int) -> bool:
+            data_utils._neko_worker_info.s_idx = i+1
+            return (i + 1) // bs > batch_count
+
         return NekoDataLoader._worker(
-            worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, barrier, bs, prefetch_factor, drop_last, timeout
+            worker_id, num_workers, dataset, sample_iter, queue, queue_next, event, barrier, bs, prefetch_factor, drop_last, check_new_batch
         )
 
     @staticmethod
@@ -313,9 +320,10 @@ class NekoDataLoader:
         self._processes = []
 
         # Prepare worker processes
+        iterable_dataset = self.sampler == -1
         for worker_id in range(num_workers):
             # Distribute batch size among workers
-            if self.sampler == -1:  # Iterable dataset
+            if iterable_dataset:  # Iterable dataset
                 p = ctx.Process(
                     target=self.worker_iter,
                     args=(worker_id, num_workers, dataset, queue, queue_next_list[worker_id], event, barrier, bs,
@@ -352,34 +360,44 @@ class NekoDataLoader:
                             raise RuntimeError("All workers have died")
                         raise TimeoutError(f"Data worker timeout: {self.timeout}s")
 
-                    # Process the data
-                    if sample is None:
-                        finished_workers += 1
-                        data_count -= 1  # for data_count == num_workers-finished_workers
-                    else:
-                        batch[worker_id] = sample
-                        data_count += 1
+                    if iterable_dataset:
+                        if sample is None:
+                            finished_workers += 1
 
-                    if finished_workers == num_workers:
-                        break
-
-                    # Yield a batch when all workers have contributed
-                    if data_count == num_workers - finished_workers:
-                        data_count = 0
-                        # Signal workers to continue
-                        for q in queue_next_list:
-                            q.put(1)
-
-                        # Flatten and collate the batch
-                        head_worker = (batch_count * bs) % num_workers
-                        batch = batch[head_worker:] + batch[:head_worker]
-                        batch_flatten = [lst[i] for i in range(max(map(len, batch))) for lst in batch if i < len(lst)]
-                        batch_flatten = self.collate_fn(batch_flatten)
-                        yield batch_flatten
+                        queue_next_list[worker_id].put(1)
+                        batch = self.collate_fn(sample)
+                        yield batch
                         # Reset for next batch
-                        del batch_flatten
-                        batch = [[] for _ in range(num_workers)]
-                        batch_count += 1
+                        del batch
+                    else:
+                        # Process the data
+                        if sample is None:
+                            finished_workers += 1
+                            data_count -= 1  # for data_count == num_workers-finished_workers
+                        else:
+                            batch[worker_id] = sample
+                            data_count += 1
+
+                        if finished_workers == num_workers:
+                            break
+
+                        # Yield a batch when all workers have contributed
+                        if data_count == num_workers - finished_workers:
+                            data_count = 0
+                            # Signal workers to continue
+                            for q in queue_next_list:
+                                q.put(1)
+
+                            # Flatten and collate the batch
+                            head_worker = (batch_count * bs) % num_workers
+                            batch = batch[head_worker:] + batch[:head_worker]
+                            batch_flatten = [lst[i] for i in range(max(map(len, batch))) for lst in batch if i < len(lst)]
+                            batch_flatten = self.collate_fn(batch_flatten)
+                            yield batch_flatten
+                            # Reset for next batch
+                            del batch_flatten
+                            batch = [[] for _ in range(num_workers)]
+                            batch_count += 1
 
                 except (TimeoutError, RuntimeError) as e:
                     print(f"Error in data loading: {e}")

@@ -102,7 +102,6 @@ class PosNegBucket(BaseBucket):
         returns: iterator
         """
         from rainbowneko.data.utils import _neko_worker_info
-        from torch.utils.data._utils.worker import _worker_info
 
         initial = min(initial, bufsize)
         buckets = [[] for _ in range(self.num_bucket)]
@@ -111,27 +110,11 @@ class PosNegBucket(BaseBucket):
         source_iter = iter(self.source)
 
         select_bucket = None
-        bs_count = bs
-        num_workers = _worker_info.num_workers
-        worker_id = _worker_info.id
         batch_idx = 0
         pos_len = int(bs * self.pos_rate)
 
-        if worker_id == 0:
-            bsize_shm = shared_memory.SharedMemory(create=True, name=f'bucket_size_{_share.local_rank}', size=num_workers * len(buckets) * 1)
-            bid_shm = shared_memory.SharedMemory(create=True, name=f'bucket_id_{_share.local_rank}', size=4)
-            _neko_worker_info.barrier.wait()
-        else:
-            _neko_worker_info.barrier.wait()
-            bsize_shm = shared_memory.SharedMemory(name=f'bucket_size_{_share.local_rank}')
-            bid_shm = shared_memory.SharedMemory(name=f'bucket_id_{_share.local_rank}')
-
-        bsize_array = np.ndarray((num_workers, len(buckets)), dtype=bool, buffer=bsize_shm.buf)
-        bid_array = np.ndarray(1, dtype=np.int32, buffer=bid_shm.buf)
-
         def pick():
             nonlocal count
-            nonlocal bs_count
             nonlocal select_bucket
             bidx = _neko_worker_info.s_idx % bs
             if rs is None:
@@ -152,7 +135,6 @@ class PosNegBucket(BaseBucket):
             select_bucket[k] = select_bucket[-1]
             select_bucket.pop()
             count -= 1
-            bs_count += 1
             return sample
 
         with self.source.return_source():
@@ -169,24 +151,14 @@ class PosNegBucket(BaseBucket):
 
                 if count >= initial:
                     if _neko_worker_info.s_idx // bs >= batch_idx:  # new batch, select new bucket
-                        next_batch_pos_shard_nums = (pos_len - _neko_worker_info.s_idx % bs) // num_workers + 1
-                        _neko_worker_info.barrier.wait()  # wait for all workers to finish last batch
-                        bucket_ready = np.array([len(b) for b in buckets], dtype=np.int32) >= next_batch_pos_shard_nums
-                        bsize_array[worker_id] = bucket_ready
-                        _neko_worker_info.barrier.wait()  # wait for all workers to update bucket size
-                        candidate_bucket_idxs = np.where(np.all(bsize_array, axis=0))[0]
+                        bucket_ready = np.array([len(b) for b in buckets], dtype=np.int32) >= pos_len
+                        candidate_bucket_idxs = np.where(bucket_ready)[0]
                         if len(candidate_bucket_idxs) == 0:
                             continue
                         if rs is None:
                             select_bucket = candidate_bucket_idxs[0]
                         else:
-                            if worker_id == 0:
-                                idx = rs.choice(candidate_bucket_idxs)
-                                bid_array[0] = idx
-                                _neko_worker_info.barrier.wait()
-                            else:
-                                _neko_worker_info.barrier.wait()
-                                idx = bid_array[0]
+                            idx = rs.choice(candidate_bucket_idxs)
                             select_bucket = buckets[idx]
                         batch_idx += 1
 
@@ -194,24 +166,14 @@ class PosNegBucket(BaseBucket):
 
             while count > 0:
                 if _neko_worker_info.s_idx // bs >= batch_idx:  # new batch, select new bucket
-                    next_batch_shard_nums = (pos_len - _neko_worker_info.s_idx % bs) // num_workers + 1
-                    _neko_worker_info.barrier.wait()  # wait for all workers to finish last batch
-                    bucket_ready = np.array([len(b) for b in buckets], dtype=np.int32) >= next_batch_shard_nums
-                    bsize_array[worker_id] = bucket_ready
-                    _neko_worker_info.barrier.wait()  # wait for all workers to update bucket size
-                    candidate_bucket_idxs = np.where(np.all(bsize_array, axis=0))[0]
+                    bucket_ready = np.array([len(b) for b in buckets], dtype=np.int32) >= pos_len
+                    candidate_bucket_idxs = np.where(bucket_ready)[0]
                     if len(candidate_bucket_idxs) == 0:
                         break
                     if rs is None:
                         select_bucket = candidate_bucket_idxs[0]
                     else:
-                        if worker_id == 0:
-                            idx = rs.choice(candidate_bucket_idxs)
-                            bid_array[0] = idx
-                            _neko_worker_info.barrier.wait()
-                        else:
-                            _neko_worker_info.barrier.wait()
-                            idx = bid_array[0]
+                        idx = rs.choice(candidate_bucket_idxs)
                         select_bucket = buckets[idx]
                     batch_idx += 1
 
@@ -224,12 +186,6 @@ class PosNegBucket(BaseBucket):
             # candidate_bucket_idxs = np.where(np.all(bsize_array, axis=0))[0]
             # rs.shuffle(candidate_bucket_idxs)
             # for idx in candidate_bucket_idxs:
-
-            if worker_id == 0:
-                bsize_shm.close()
-                bsize_shm.unlink()
-                bid_shm.close()
-                bid_shm.unlink()
 
     def next_data(self, shuffle=True):
         def assign_bucket(datas, source, buckets):
@@ -370,7 +326,6 @@ class CategoryBucket(BaseBucket):
         returns: iterator
         """
         from rainbowneko.data.utils import _neko_worker_info
-        from torch.utils.data._utils.worker import _worker_info
 
         initial = min(initial, bufsize)
         buckets = [[] for _ in range(self.num_bucket)]
@@ -378,30 +333,14 @@ class CategoryBucket(BaseBucket):
 
         source_iter = iter(self.source)
 
-        bs_count = bs
-        num_workers = _worker_info.num_workers
-        worker_id = _worker_info.id
         batch_idx = 0
-
-        if worker_id == 0:
-            bsize_shm = shared_memory.SharedMemory(create=True, name=f'bucket_size_{_share.local_rank}', size=num_workers * len(buckets) * 4)
-            bready_shm = shared_memory.SharedMemory(create=True, name=f'bucket_ready_{_share.local_rank}', size=num_workers)
-            _neko_worker_info.barrier.wait()
-        else:
-            _neko_worker_info.barrier.wait()
-            bsize_shm = shared_memory.SharedMemory(name=f'bucket_size_{_share.local_rank}')
-            bready_shm = shared_memory.SharedMemory(name=f'bucket_ready_{_share.local_rank}')
-
-        bsize_array = np.ndarray((num_workers, len(buckets)), dtype=np.int32, buffer=bsize_shm.buf)
-        bready_array = np.ndarray(num_workers, dtype=np.bool, buffer=bready_shm.buf)
 
         def pick():
             nonlocal count
-            nonlocal bs_count
             nonlocal select_buckets
             bidx = _neko_worker_info.s_idx % bs
 
-            select_bucket = buckets[select_buckets[bidx // num_workers]]
+            select_bucket = buckets[select_buckets[bidx]]
 
             if rs is None:
                 k = 0
@@ -412,7 +351,6 @@ class CategoryBucket(BaseBucket):
             select_bucket[k] = select_bucket[-1]
             select_bucket.pop()
             count -= 1
-            bs_count += 1
             return sample
 
         with self.source.return_source():
@@ -429,30 +367,22 @@ class CategoryBucket(BaseBucket):
 
                 if count >= initial:
                     if _neko_worker_info.s_idx // bs >= batch_idx:  # new batch, select new bucket
-                        next_batch_shard_nums = (bs - _neko_worker_info.s_idx % bs) // num_workers + 1
-                        _neko_worker_info.barrier.wait()  # wait for all workers to finish last batch
                         bucket_sizes = np.array([len(b) for b in buckets], dtype=np.int32)
-                        bsize_array[worker_id] = bucket_sizes
-                        _neko_worker_info.barrier.wait()  # wait for all workers to update bucket size
+                        ready_buckets = (bucket_sizes >= self.min_cat_size)
+                        ready = bucket_sizes[ready_buckets].sum() >= bs
 
-                        bucket_sizes_sum = bsize_array.sum(axis=0)
-                        ready_buckets = (bucket_sizes_sum >= self.min_cat_size)
-                        ready = bucket_sizes[ready_buckets].sum() >= next_batch_shard_nums
-                        bready_array[worker_id] = ready
-                        _neko_worker_info.barrier.wait()  # wait for all workers to update bucket ready
-
-                        if not np.all(bready_array):
+                        if not ready:
                             continue
 
-                        bucket_idxs_up = np.argsort(bucket_sizes_sum[ready_buckets])
+                        bucket_idxs_up = np.argsort(bucket_sizes[ready_buckets])
                         bucket_idxs_up = np.where(ready_buckets)[0][bucket_idxs_up]
                         select_buckets = np.repeat(bucket_idxs_up, bucket_sizes[bucket_idxs_up])
 
                         if rs is None:
-                            select_buckets = select_buckets[:next_batch_shard_nums]
+                            select_buckets = select_buckets[:bs]
                         else:
                             rs.shuffle(select_buckets)
-                            select_buckets = select_buckets[:next_batch_shard_nums]
+                            select_buckets = select_buckets[:bs]
 
                         batch_idx += 1
 
@@ -460,29 +390,22 @@ class CategoryBucket(BaseBucket):
 
             while count > 0:
                 if _neko_worker_info.s_idx // bs >= batch_idx:  # new batch, select new bucket
-                    next_batch_shard_nums = (bs - _neko_worker_info.s_idx % bs) // num_workers + 1
-                    _neko_worker_info.barrier.wait()  # wait for all workers to finish last batch
                     bucket_sizes = np.array([len(b) for b in buckets], dtype=np.int32)
-                    bsize_array[worker_id] = bucket_sizes
-                    _neko_worker_info.barrier.wait()  # wait for all workers to update bucket size
+                    ready_buckets = (bucket_sizes >= self.min_cat_size)
+                    ready = bucket_sizes[ready_buckets].sum() >= bs
 
-                    bucket_sizes_sum = bsize_array.sum(axis=0)
-                    ready_buckets = (bucket_sizes_sum >= self.min_cat_size)
-                    ready = bucket_sizes[ready_buckets].sum() >= next_batch_shard_nums
-                    bready_array[worker_id] = ready
-                    _neko_worker_info.barrier.wait()  # wait for all workers to update bucket ready
+                    if not ready:
+                        continue
 
-                    if not np.all(bready_array):
-                        break
-
-                    bucket_idxs_up = np.argsort(bucket_sizes_sum[ready_buckets])
+                    bucket_idxs_up = np.argsort(bucket_sizes[ready_buckets])
                     bucket_idxs_up = np.where(ready_buckets)[0][bucket_idxs_up]
                     select_buckets = np.repeat(bucket_idxs_up, bucket_sizes[bucket_idxs_up])
+
                     if rs is None:
-                        select_buckets = select_buckets[:next_batch_shard_nums]
+                        select_buckets = select_buckets[:bs]
                     else:
                         rs.shuffle(select_buckets)
-                        select_buckets = select_buckets[:next_batch_shard_nums]
+                        select_buckets = select_buckets[:bs]
 
                     batch_idx += 1
 
@@ -495,12 +418,6 @@ class CategoryBucket(BaseBucket):
             # candidate_bucket_idxs = np.where(np.all(bsize_array, axis=0))[0]
             # rs.shuffle(candidate_bucket_idxs)
             # for idx in candidate_bucket_idxs:
-
-            if worker_id == 0:
-                bsize_shm.close()
-                bsize_shm.unlink()
-                bready_shm.close()
-                bready_shm.unlink()
 
     def next_data(self, shuffle=True):
         def assign_bucket(datas, source, buckets):
