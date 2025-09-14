@@ -137,22 +137,32 @@ _neko_worker_info: NekoWorkerInfo = None
 def safe_executor_map(executor, func, iterable, max_pending=None):
     max_pending = max_pending or getattr(executor, '_max_workers', 4) * 2
     iterator = iter(iterable)
-    futures = set()
+    futures = {}
+    results = {}
+    next_idx = submit_idx = 0
     
-    # initial tasks
-    for _ in range(max_pending):
+    def submit_task():
+        nonlocal submit_idx
         try:
-            futures.add(executor.submit(func, next(iterator)))
+            futures[executor.submit(func, next(iterator))] = submit_idx
+            submit_idx += 1
         except StopIteration:
+            pass
+    
+    # Submit initial tasks
+    for _ in range(max_pending):
+        submit_task()
+        if not futures:
             break
     
     while futures:
         done_future = next(as_completed(futures))
-        futures.remove(done_future)
-        yield done_future.result()
+        idx = futures.pop(done_future)
+        results[idx] = done_future.result()
         
-        # new tasks
-        try:
-            futures.add(executor.submit(func, next(iterator)))
-        except StopIteration:
-            pass
+        # Yield results in order
+        while next_idx in results:
+            yield results.pop(next_idx)
+            next_idx += 1
+            
+        submit_task()
