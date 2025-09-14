@@ -370,6 +370,7 @@ class NekoDataLoader:
                     if iterable_dataset:
                         if sample is None:
                             finished_workers += 1
+                            continue
 
                         queue_next_list[worker_id].put(1)
                         batch = self.collate_fn(sample)
