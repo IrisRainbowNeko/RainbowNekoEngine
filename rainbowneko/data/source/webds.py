@@ -77,7 +77,7 @@ class WebDSImageLabelSource(WebDatasetSource):
             else:
                 return None
         else:
-            self.label_dict.get(img_id, None)
+            return self.label_dict.get(img_id, None)
 
     def __next__(self):
         data = next(self.pipeline_iter)
