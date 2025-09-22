@@ -20,6 +20,8 @@ class FixedBucket(BaseBucket):
 
     def next_data(self, shuffle=True):
         if not hasattr(self, 'buffer_iter'):
+            if shuffle:
+                self.source.shuffle = True
             self.buffer_iter = self._shuffle(rs=self.rs) if shuffle else iter(self.source)
         datas = next(self.buffer_iter)
         datas['image_size'] = self.target_size

@@ -288,6 +288,8 @@ class RatioBucket(BaseBucket):
             buckets[bucket_idx].append(datas)
 
         if not hasattr(self, 'buffer_iter'):
+            if shuffle:
+                self.source.shuffle = True
             self.buffer_iter = self._buffer(self.bs, assign_bucket, rs=self.rs if shuffle else None)
         return next(self.buffer_iter)
 

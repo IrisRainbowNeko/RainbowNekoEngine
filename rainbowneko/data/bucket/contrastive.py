@@ -197,6 +197,8 @@ class PosNegBucket(BaseBucket):
             buckets[bucket_idx].append(datas)
 
         if getattr(self, 'buffer_iter', None) is None:
+            if shuffle:
+                self.source.shuffle = True
             self.buffer_iter = self._buffer(self.bs, assign_bucket, rs=self.rs if shuffle else None)
         return next(self.buffer_iter)
 
@@ -429,5 +431,7 @@ class CategoryBucket(BaseBucket):
             buckets[bucket_idx].append(datas)
 
         if getattr(self, 'buffer_iter', None) is None:
+            if shuffle:
+                self.source.shuffle = True
             self.buffer_iter = self._buffer(self.bs, assign_bucket, rs=self.rs if shuffle else None)
         return next(self.buffer_iter)

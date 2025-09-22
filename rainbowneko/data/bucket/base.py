@@ -42,6 +42,8 @@ class BaseBucket:
 
     def next_data(self, shuffle=True):
         if getattr(self, 'buffer_iter', None) is None:
+            if shuffle:
+                self.source.shuffle = True
             self.buffer_iter = self._shuffle(rs=self.rs) if shuffle else iter(self.source)
         return next(self.buffer_iter)
 
