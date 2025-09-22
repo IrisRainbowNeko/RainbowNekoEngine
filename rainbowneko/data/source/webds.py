@@ -10,7 +10,7 @@ from .base import DataSource
 
 
 class WebDatasetSource(DataSource):
-    def __init__(self, pipeline: DataPipeline, repeat=1, size=1<<15, **kwargs):
+    def __init__(self, pipeline: DataPipeline, repeat=1, size=1 << 15, **kwargs):
         super().__init__(repeat, **kwargs)
         self.pipeline = pipeline
         self.size = size
@@ -32,6 +32,7 @@ class WebDatasetSource(DataSource):
     def __len__(self):
         return self.size
 
+
 class WebDatasetImageSource(WebDatasetSource):
     def __next__(self):
         data = next(self.pipeline_iter)
@@ -42,6 +43,7 @@ class WebDatasetImageSource(WebDatasetSource):
             'id': img_id,
             'image': image,
         }
+
 
 class WebDSImageLabelSource(WebDatasetSource):
     '''
@@ -66,19 +68,22 @@ class WebDSImageLabelSource(WebDatasetSource):
         else:
             return label_file.load()
 
-    def parse_label(self, data):
-        if 'txt' in data:
-            return data['txt'].decode('utf8')
-        elif 'json' in data:
-            return json.loads(data['json'].decode('utf8'))
+    def parse_label(self, img_id, data):
+        if self.label_dict is None:
+            if 'txt' in data:
+                return data['txt'].decode('utf8')
+            elif 'json' in data:
+                return json.loads(data['json'].decode('utf8'))
+            else:
+                return None
         else:
-            return None
+            self.label_dict.get(img_id, None)
 
     def __next__(self):
         data = next(self.pipeline_iter)
         img_id = data['__key__']
         image = [v for k, v in data.items() if k.lower() in types_support][0]
-        label = self.label_dict.get(img_id, None) if self.label_dict is not None else self.parse_label(data)
+        label = self.parse_label(img_id, data)
 
         return {
             'id': img_id,
