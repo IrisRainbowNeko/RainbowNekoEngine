@@ -4,13 +4,14 @@ import os
 from pathlib import Path
 from typing import Dict
 
+import pandas as pd
 import yaml
 from loguru import logger
 from rainbowneko.utils.img_size_tool import types_support
 
 
 class BaseLabelLoader:
-    def __init__(self, path: str):
+    def __init__(self, path: str, **kwargs):
         self.path = Path(path)
 
     def _load(self):
@@ -68,31 +69,47 @@ class TXTLabelLoader(BaseLabelLoader):
         return captions
 
 
-def auto_label_loader(path):
+class ParquetLabelLoader(BaseLabelLoader):
+    def __init__(self, path: str, index_column: str = 'id'):
+        super().__init__(path)
+        self.index_column = index_column
+
+    def _load(self):
+        df = pd.read_parquet(self.path)
+        return df.set_index(self.index_column).to_dict(orient='index')
+
+
+def auto_label_loader(path, **kwargs):
     if os.path.isdir(path):
         json_files = glob.glob(os.path.join(path, '*.json'))
         if json_files:
-            return JsonLabelLoader(json_files[0])
+            return JsonLabelLoader(json_files[0], **kwargs)
 
         yaml_files = [
             *glob.glob(os.path.join(path, '*.yaml')),
             *glob.glob(os.path.join(path, '*.yml')),
         ]
         if yaml_files:
-            return YamlLabelLoader(yaml_files[0])
+            return YamlLabelLoader(yaml_files[0], **kwargs)
+
+        parquet_files = glob.glob(os.path.join(path, '*.parquet'))
+        if parquet_files:
+            return ParquetLabelLoader(parquet_files[0], **kwargs)
 
         txt_files = glob.glob(os.path.join(path, '*.txt'))
         if txt_files:
-            return TXTLabelLoader(path)
+            return TXTLabelLoader(path, **kwargs)
 
         raise FileNotFoundError(f'Caption file not found in directory {path!r}.')
 
     elif os.path.isfile(path):
         _, ext = os.path.splitext(path)
         if ext == '.json':
-            return JsonLabelLoader(path)
+            return JsonLabelLoader(path, **kwargs)
         elif ext in {'.yaml', '.yml'}:
-            return YamlLabelLoader(path)
+            return YamlLabelLoader(path, **kwargs)
+        elif ext in '.parquet':
+            return ParquetLabelLoader(path, **kwargs)
         else:
             raise FileNotFoundError(f'Unknown caption file {path!r}.')
 

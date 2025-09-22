@@ -1,8 +1,10 @@
-from typing import Dict, Any, Union
+import json
+from typing import Dict, Any
+
+import webdataset as wds
 from rainbowneko.data.label_loader import BaseLabelLoader, auto_label_loader
 from rainbowneko.utils import types_support
 from webdataset import DataPipeline
-import webdataset as wds
 
 from .base import DataSource
 
@@ -52,9 +54,9 @@ class WebDSImageLabelSource(WebDatasetSource):
         id2: label2
     '''
 
-    def __init__(self, pipeline: DataPipeline, label_file, repeat=1, **kwargs):
+    def __init__(self, pipeline: DataPipeline, label_file=None, repeat=1, **kwargs):
         super().__init__(pipeline, repeat, **kwargs)
-        self.label_dict = self._load_label_data(label_file)
+        self.label_dict = self._load_label_data(label_file) if label_file else None
 
     def _load_label_data(self, label_file: str | BaseLabelLoader):
         if label_file is None:
@@ -64,15 +66,24 @@ class WebDSImageLabelSource(WebDatasetSource):
         else:
             return label_file.load()
 
+    def parse_label(self, data):
+        if 'txt' in data:
+            return data['txt'].decode('utf8')
+        elif 'json' in data:
+            return json.loads(data['json'].decode('utf8'))
+        else:
+            return None
+
     def __next__(self):
         data = next(self.pipeline_iter)
         img_id = data['__key__']
         image = [v for k, v in data.items() if k.lower() in types_support][0]
+        label = self.label_dict.get(img_id, None) if self.label_dict is not None else self.parse_label(data)
 
         return {
             'id': img_id,
             'image': image,
-            'label': self.label_dict.get(img_id, None),
+            'label': label,
         }
 
     def __len__(self):
