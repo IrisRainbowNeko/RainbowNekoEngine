@@ -1,7 +1,9 @@
 import json
+from io import BytesIO
 from typing import Dict, Any
 
 import webdataset as wds
+from PIL import Image
 from rainbowneko.data.label_loader import BaseLabelLoader, auto_label_loader
 from rainbowneko.utils import types_support
 from webdataset import DataPipeline
@@ -37,7 +39,8 @@ class WebDatasetImageSource(WebDatasetSource):
     def __next__(self):
         data = next(self.pipeline_iter)
         img_id = data['__key__']
-        image = [v for k, v in data.items() if k.lower() in types_support][0]
+        img_bytes = [v for k, v in data.items() if k.lower() in types_support][0]
+        image = Image.open(BytesIO(img_bytes))
 
         return {
             'id': img_id,
@@ -82,7 +85,8 @@ class WebDSImageLabelSource(WebDatasetSource):
     def __next__(self):
         data = next(self.pipeline_iter)
         img_id = data['__key__']
-        image = [v for k, v in data.items() if k.lower() in types_support][0]
+        img_bytes = [v for k, v in data.items() if k.lower() in types_support][0]
+        image = Image.open(BytesIO(img_bytes))
         label = self.parse_label(img_id, data)
 
         return {
