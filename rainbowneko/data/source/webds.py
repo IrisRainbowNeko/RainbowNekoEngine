@@ -47,6 +47,9 @@ class WebDatasetImageSource(WebDatasetSource):
             'image': image,
         }
 
+    def get_image_size(self, data):
+        return data['image'].size
+
 
 class WebDSImageLabelSource(WebDatasetSource):
     '''
@@ -59,8 +62,8 @@ class WebDSImageLabelSource(WebDatasetSource):
         id2: label2
     '''
 
-    def __init__(self, pipeline: DataPipeline, label_file=None, repeat=1, **kwargs):
-        super().__init__(pipeline, repeat, **kwargs)
+    def __init__(self, pipeline: DataPipeline, label_file=None, repeat=1, size=1 << 15, **kwargs):
+        super().__init__(pipeline, repeat, size=size, **kwargs)
         self.label_dict = self._load_label_data(label_file) if label_file else None
 
     def _load_label_data(self, label_file: str | BaseLabelLoader):
@@ -95,8 +98,11 @@ class WebDSImageLabelSource(WebDatasetSource):
             'label': label,
         }
 
+    def get_image_size(self, data):
+        return data['image'].size
+
     def __len__(self):
-        return len(self.label_dict)
+        return self.size if self.label_dict is None else len(self.label_dict)
 
 
 def image_pipeline(url, buffer_size=300):

@@ -163,18 +163,21 @@ class RatioBucket(BaseBucket):
 
         self._build()
 
-        rs = np.random.RandomState(42)
-        # make len(bucket)%bs==0
-        self.data_len = 0
-        for bidx, bucket in enumerate(self.buckets):
-            rest = len(bucket) % self.bs
-            if rest > 0:
-                bucket.extend(rs.choice(bucket, self.bs - rest))
-            self.data_len += len(bucket)
-            self.buckets[bidx] = np.array(bucket)
+        if self.source_indexable:
+            rs = np.random.RandomState(42)
+            # make len(bucket)%bs==0
+            self.data_len = 0
+            for bidx, bucket in enumerate(self.buckets):
+                rest = len(bucket) % self.bs
+                if rest > 0:
+                    bucket.extend(rs.choice(bucket, self.bs - rest))
+                self.data_len += len(bucket)
+                self.buckets[bidx] = np.array(bucket)
 
-        if self.pre_build_bucket:
-            self.save_bucket(self.pre_build_bucket)
+            if self.pre_build_bucket:
+                self.save_bucket(self.pre_build_bucket)
+        else:
+            self.data_len = len(self.source)
 
     def rest(self, epoch):
         if self.source_indexable:
@@ -283,7 +286,7 @@ class RatioBucket(BaseBucket):
         def assign_bucket(datas, source, buckets):
             w, h = source.get_image_size(datas)
             ratio_log = np.log2(w / h)
-            bucket_idx = (self.ratios_log - ratio_log).abs().argmin()
+            bucket_idx = np.abs(self.ratios_log - ratio_log).argmin()
             datas['image_size'] = self.size_buckets[bucket_idx]
             buckets[bucket_idx].append(datas)
 

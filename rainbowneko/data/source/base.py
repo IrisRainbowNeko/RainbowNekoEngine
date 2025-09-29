@@ -78,7 +78,7 @@ class ComposeWebdsSource(DataSource):
 
     def __iter__(self):
         if self.shuffle:
-            self.source_iter_list = [iter(source) for source in self.source_list]
+            self.source_iter_list = [((source, item) for item in source) for source in self.source_list]
         else:
             self.source_iter = chain.from_iterable(
                 ((source, item) for item in source) for source in self.source_list
@@ -90,7 +90,7 @@ class ComposeWebdsSource(DataSource):
             while True:
                 source_iter = random.choice(self.source_iter_list)
                 try:
-                    source, item = next(self.source_iter)
+                    source, item = next(source_iter)
                     break
                 except StopIteration:
                     self.source_iter_list.remove(source_iter)
