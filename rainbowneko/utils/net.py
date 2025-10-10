@@ -91,7 +91,8 @@ def zero_module(module):
     Zero out the parameters of a module and return it.
     """
     for p in module.parameters():
-        p.detach().zero_()
+        p.data.zero_()
+        p._skip_init = True
     return module
 
 def add_dims(t, num_dims, end=True):

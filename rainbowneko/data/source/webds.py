@@ -3,6 +3,7 @@ from io import BytesIO
 from typing import Dict, Any
 
 import webdataset as wds
+import numpy as np
 from PIL import Image
 from rainbowneko.data.label_loader import BaseLabelLoader, auto_label_loader
 from rainbowneko.utils import types_support
@@ -50,6 +51,19 @@ class WebDatasetImageSource(WebDatasetSource):
     def get_image_size(self, data):
         return data['image'].size
 
+def _decode_rgb_array(img_bytes: bytes, bg_color=(255, 255, 255)) -> np.ndarray:
+    with Image.open(BytesIO(img_bytes)) as img:
+        if img.mode == 'RGBA':
+            x, y = img.size
+            canvas = Image.new('RGBA', img.size, bg_color)
+            canvas.paste(img, (0, 0, x, y), img)
+            canvas = canvas.convert("RGB")     # force RGB and force decode
+            arr = np.asarray(canvas, dtype=np.uint8)
+            del canvas
+        else:
+            img = img.convert("RGB")     # force RGB and force decode
+            arr = np.asarray(img, dtype=np.uint8)
+    return arr  # no reference to img_bytes/img
 
 class WebDSImageLabelSource(WebDatasetSource):
     '''
@@ -88,8 +102,11 @@ class WebDSImageLabelSource(WebDatasetSource):
     def __next__(self):
         data = next(self.pipeline_iter)
         img_id = data['__key__']
-        img_bytes = [v for k, v in data.items() if k.lower() in types_support][0]
-        image = Image.open(BytesIO(img_bytes))
+        # img_bytes = [v for k, v in data.items() if k.lower() in types_support][0]
+        # image = Image.open(BytesIO(img_bytes))
+        img_bytes = next(v for k, v in data.items() if k.lower() in types_support)
+        image = _decode_rgb_array(img_bytes)
+        del img_bytes
         label = self.parse_label(img_id, data)
 
         return {
@@ -99,7 +116,10 @@ class WebDSImageLabelSource(WebDatasetSource):
         }
 
     def get_image_size(self, data):
-        return data['image'].size
+        if isinstance(data['image'], Image.Image):
+            return data['image'].size
+        else:
+            return data['image'].shape[1], data['image'].shape[0]
 
     def __len__(self):
         return self.size if self.label_dict is None else len(self.label_dict)

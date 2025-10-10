@@ -1,4 +1,5 @@
 import gc
+import os
 import multiprocessing as mp
 import platform
 import warnings
@@ -17,6 +18,9 @@ from rainbowneko import _share
 
 T = TypeVar('T')
 _collate_fn_t = Callable[[List[T]], Any]
+
+def _spawn_simple_test():
+    return "test"
 
 
 class NekoDataLoader:
@@ -118,6 +122,16 @@ class NekoDataLoader:
             drop_last: Whether to drop the last incomplete batch
             check_new_batch: Check if one batch finished
         """
+        # Restore stdout/stderr if they were silenced during import time
+        # try:
+        #     import os as _os
+        #     import sys as _sys
+        #     if _os.environ.get('NEKO_SILENT_CHILD_IMPORTS_ACTIVE') == '1':
+        #         _sys.stdout = _sys.__stdout__
+        #         _sys.stderr = _sys.__stderr__
+        # except Exception:
+        #     pass
+
         torch_worker._worker_info = WorkerInfo(
             id=worker_id,
             num_workers=num_workers,
@@ -267,14 +281,12 @@ class NekoDataLoader:
             available = mp.get_all_start_methods()
 
             # Try to use spawn for better compatibility
-            if 'spawn' in available:
+            # if 'spawn' in available:
+            if False:
                 try:
                     ctx = mp.get_context('spawn')
 
-                    def simple_test():
-                        return "test"
-
-                    p = ctx.Process(target=simple_test)
+                    p = ctx.Process(target=_spawn_simple_test)
                     p.start()
                     p.join()
 
@@ -283,7 +295,8 @@ class NekoDataLoader:
                     q.get()
                     return ctx
                 except:
-                    pass
+                    import traceback
+                    traceback.print_exc()
 
             # Go back to fork
             show_note_info("NekoDataLoader",
@@ -319,8 +332,8 @@ class NekoDataLoader:
         ctx = self.get_context()
         queue = ctx.Queue(maxsize=num_workers * 2)  # Double buffer for better throughput
         queue_next_list = [ctx.Queue(maxsize=self.prefetch_factor) for _ in range(num_workers)]
-        event = mp.Event()  # https://github.com/pytorch/pytorch/issues/60654
-        barrier = DynamicBarrier(num_workers)
+        event = ctx.Event()  # https://github.com/pytorch/pytorch/issues/60654
+        barrier = DynamicBarrier(num_workers, ctx=ctx)
 
         # Track all queues for cleanup
         self._queues = [queue] + queue_next_list
@@ -328,6 +341,9 @@ class NekoDataLoader:
 
         # Prepare worker processes
         iterable_dataset = self.sampler == -1
+        # Temporarily enable child import-time silencing for spawned workers
+        _orig_silent = os.environ.get('NEKO_SILENT_CHILD_IMPORTS', None)
+        os.environ['NEKO_SILENT_CHILD_IMPORTS'] = '1'
         for worker_id in range(num_workers):
             # Distribute batch size among workers
             if iterable_dataset:  # Iterable dataset
@@ -345,6 +361,14 @@ class NekoDataLoader:
             p.daemon = True
             p.start()
             self._processes.append(p)
+        # Restore parent environment
+        if _orig_silent is None:
+            try:
+                del os.environ['NEKO_SILENT_CHILD_IMPORTS']
+            except KeyError:
+                pass
+        else:
+            os.environ['NEKO_SILENT_CHILD_IMPORTS'] = _orig_silent
 
         try:
             finished_workers = 0

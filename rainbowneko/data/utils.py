@@ -13,36 +13,55 @@ class DualRandomCrop:
 
     def __call__(self, img):
         crop_params = T.RandomCrop.get_params(img['image'], self.size)
-        img['image'] = F.crop(img['image'], *crop_params)
+        img['image'] = self.crop(img['image'], *crop_params)
         if "mask" in img:
             img['mask'] = self.crop(img['mask'], *crop_params)
         if "cond" in img:
-            img['cond'] = F.crop(img['cond'], *crop_params)
+            img['cond'] = self.crop(img['cond'], *crop_params)
         return img, crop_params[:2]
 
     @staticmethod
-    def crop(img: np.ndarray, top: int, left: int, height: int, width: int) -> np.ndarray:
-        right = left+width
-        bottom = top+height
-        return img[top:bottom, left:right, ...]
+    def crop(img: np.ndarray|Image.Image, top: int, left: int, height: int, width: int) -> np.ndarray|Image.Image:
+        if isinstance(img, Image.Image):
+            return F.crop(img, top, left, height, width)
+        else:
+            right = left+width
+            bottom = top+height
+            return img[top:bottom, left:right, ...]
 
 def resize_crop_fix(img, target_size, mask_interp=cv2.INTER_CUBIC):
-    w, h = img['image'].size
+    if isinstance(img['image'], Image.Image):
+        w, h = img['image'].size
+    else:
+        h, w = img['image'].shape[:2]
     if w == target_size[0] and h == target_size[1]:
         return img, [h,w,0,0,h,w]
 
     ratio_img = w/h
-    if ratio_img>target_size[0]/target_size[1]:
-        new_size = (round(ratio_img*target_size[1]), target_size[1])
-        interp_type = Image.LANCZOS
+    if isinstance(img['image'], Image.Image):
+        if ratio_img>target_size[0]/target_size[1]:
+            new_size = (round(ratio_img*target_size[1]), target_size[1])
+            interp_type = Image.Resampling.LANCZOS
+        else:
+            new_size = (target_size[0], round(target_size[0]/ratio_img))
+            interp_type = Image.Resampling.LANCZOS
+        img['image'] = img['image'].resize(new_size, interp_type)
+        if "mask" in img:
+            img['mask'] = cv2.resize(img['mask'], new_size, interpolation=mask_interp)
+        if "cond" in img:
+            img['cond'] = img['cond'].resize(new_size, interp_type)
     else:
-        new_size = (target_size[0], round(target_size[0]/ratio_img))
-        interp_type = Image.LANCZOS
-    img['image'] = img['image'].resize(new_size, interp_type)
-    if "mask" in img:
-        img['mask'] = cv2.resize(img['mask'], new_size, interpolation=mask_interp)
-    if "cond" in img:
-        img['cond'] = img['cond'].resize(new_size, interp_type)
+        if ratio_img>target_size[0]/target_size[1]:
+            new_size = (round(ratio_img*target_size[1]), target_size[1])
+            interp_type = cv2.INTER_LANCZOS4
+        else:
+            new_size = (target_size[0], round(target_size[0]/ratio_img))
+            interp_type = cv2.INTER_LANCZOS4
+        img['image'] = cv2.resize(img['image'], new_size, interpolation=interp_type)
+        if "mask" in img:
+            img['mask'] = cv2.resize(img['mask'], new_size, interpolation=mask_interp)
+        if "cond" in img:
+            img['cond'] = cv2.resize(img['cond'], new_size, interpolation=interp_type)
 
     img, crop_coord = DualRandomCrop(target_size[::-1])(img)
     return img, [*new_size, *crop_coord[::-1], *target_size]
@@ -86,10 +105,13 @@ class CycleData():
         return cycle()
 
 class DynamicBarrier:
-    def __init__(self, total):
-        self.total = Value('i', total)
-        self.count = Value('i', 0)  # 当前到达 barrier 的数量
-        self.cond = Condition(Lock())
+    def __init__(self, total, ctx=None):
+        if ctx is None:
+            import multiprocessing as mp
+            ctx = mp.get_context()
+        self.total = ctx.Value('i', total)
+        self.count = ctx.Value('i', 0)  # 当前到达 barrier 的数量
+        self.cond = ctx.Condition(ctx.Lock())
 
     def wait(self):
         with self.cond:

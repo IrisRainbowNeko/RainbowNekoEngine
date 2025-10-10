@@ -33,7 +33,7 @@ class LoadImageHandler(DataHandler):
         elif isinstance(image, Image.Image):
             image = image
         elif isinstance(image, np.ndarray):
-            image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            image = Image.fromarray(image) # RGB
         else:
             raise NotImplementedError(f'image with type {type(image)} not supported')
         return {'image': image}
@@ -44,24 +44,28 @@ class ImageHandler(DataHandler):
         self.transform = transform
         self.bg_color = bg_color
 
-
     def load_image(self, path) -> Dict[str, Any]:
         path = os.path.join(path)
         image = Image.open(path)
-        if image.mode == 'RGBA':
+        image = self.add_bg_color(image)
+        return image.convert("RGB")
+
+    def add_bg_color(self, image: Image.Image|np.ndarray):
+        if isinstance(image, Image.Image) and image.mode == 'RGBA':
             x, y = image.size
             canvas = Image.new('RGBA', image.size, self.bg_color)
             canvas.paste(image, (0, 0, x, y), image)
             image = canvas
-        return image.convert("RGB")
+        elif isinstance(image, np.ndarray) and image.shape[2] == 4:
+            bg_color = np.array(self.bg_color)
+            image = image[:,:,:3]*image[:,:,3] + bg_color*(1-image[:,:,3])
+
+        return image
 
     def procees_image(self, image):
         if isinstance(self.transform, (A.BaseCompose, A.BasicTransform)):
             image_A = self.transform(image=np.array(image))
-            if isinstance(image_A['image'], np.ndarray):
-                image = Image.fromarray(image_A['image'])
-            else:
-                image = image_A['image']
+            image = image_A['image']
         else:
             image = self.transform(image)
         return image
@@ -70,9 +74,9 @@ class ImageHandler(DataHandler):
         if isinstance(image, str):
             image = self.load_image(image)
         elif isinstance(image, (Image.Image, torch.Tensor)):
-            image = image
+            image = self.add_bg_color(image)
         elif isinstance(image, np.ndarray):
-            image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            image = self.add_bg_color(image) # RGB
         elif isinstance(image, (list, tuple)):
             image = [self.handle(img)['image'] for img in image]
             return {'image': image}
@@ -96,7 +100,10 @@ class AutoSizeHandler(DataHandler):
 
     def handle(self, image, size):
         if self.mode == 'full':
-            w, h = image.size
+            if isinstance(image, Image.Image):
+                w, h = image.size
+            else:
+                h, w = image.shape[:2]
             coord = [h, w, 0, 0, h, w]
         elif self.mode == 'resize':
             image, coord = resize_crop_fix({'image': image}, size)
