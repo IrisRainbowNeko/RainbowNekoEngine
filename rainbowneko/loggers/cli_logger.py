@@ -1,10 +1,11 @@
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, List
 
-from PIL import Image
 from loguru import logger
+from rainbowneko.loggers.packet import ScalarLog, TextFileLog, ImageLog
+from rainbowneko.utils import to_validate_file
 
 from .base_logger import BaseLogger
 
@@ -18,16 +19,11 @@ logger.add(
 
 
 class CLILogger(BaseLogger):
-    def __init__(self, exp_dir: Path, out_path, log_step=10,
-                 img_log_dir=None, img_ext='png', img_quality=95):
+    def __init__(self, exp_dir: Path, out_path, log_step=10, img_quality=95):
         super().__init__(exp_dir, out_path, log_step)
         if exp_dir is not None:  # exp_dir is only available in local main process
             if out_path is not None:
                 logger.add(exp_dir / out_path)
-            if img_log_dir is not None:
-                self.img_log_dir = exp_dir / img_log_dir
-                self.img_log_dir.mkdir(parents=True, exist_ok=True)
-            self.img_ext = img_ext
             self.img_quality = img_quality
         else:
             self.disable()
@@ -43,10 +39,20 @@ class CLILogger(BaseLogger):
     def _info(self, info):
         logger.info(info)
 
-    def log_text(self, datas: Dict[str, Any], step: int = 0):
-        logger.info(', '.join([f"{os.path.basename(k)} = {v['format'].format(*v['data'])}" for k, v in datas.items()]))
+    def log_scalar(self, datas: Dict[str, ScalarLog | List[ScalarLog]], step: int = 0):
+        logger.info(', '.join([f"{os.path.basename(k)} = {v.format.format(*v.value)}" for k, v in datas.items()]))
 
-    def log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
+    def log_text(self, datas: Dict[str, TextFileLog | List[TextFileLog]], step: int = 0):
+        for k, v in datas.items():
+            txt_path = self.exp_dir / k / to_validate_file(v.file_name.format(step=step))
+            txt_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(txt_path, encoding="utf-8", mode='w') as f:
+                f.write(v.text)
+
+    def log_image(self, imgs: Dict[str, ImageLog | List[ImageLog]], step: int = 0):
         logger.info(f'log {len(imgs)} images')
-        for name, img in imgs.items():
-            img.save(self.img_log_dir / f'{step}-{name}.{self.img_ext}', quality=self.img_quality)
+        for name, data in imgs.items():
+            img_root = self.exp_dir / name
+            img_root.mkdir(parents=True, exist_ok=True)
+            for item in data:
+                item.image.save(img_root / (to_validate_file(item.caption.format(step=step)) + '.' + item.format), quality=self.img_quality)

@@ -12,6 +12,7 @@ from rainbowneko.infer import WorkflowRunner
 from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.parser import load_config
 from rainbowneko.utils import weight_dtype_map
+from rainbowneko.loggers import ScalarLog
 from .metrics import BaseMetric, MetricGroup
 
 
@@ -110,10 +111,7 @@ class Evaluator(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMi
         data_size = len(self.data_loader.dataset)
         self.loggers.info(f'Evaluate: data size {data_size}')
         log_data = {
-            "eval/Step": {
-                "format": "{}",
-                "data": [step],
-            }
+            "eval/Step": ScalarLog(value=step, format="{}")
         }
         log_data.update(MetricGroup.format(v_metric, prefix=prefix))
         self.loggers.log(log_data, step, force=True)
@@ -209,10 +207,7 @@ class WorkflowEvaluator(Evaluator):
             v_metric = {'metric': v_metric}
 
         log_data = {
-            "eval/Step": {
-                "format": "{}",
-                "data": [step],
-            }
+            "eval/Step": ScalarLog(value=step, format="{}")
         }
         log_data.update(MetricGroup.format(v_metric, prefix=prefix))
         if self.loggers is not None:
@@ -220,7 +215,7 @@ class WorkflowEvaluator(Evaluator):
         elif loggers is not None:
             loggers.log(log_data, step, force=True)
         else:
-            print(', '.join([f"{os.path.basename(k)} = {v['format'].format(*v['data'])}" for k, v in log_data.items()]))
+            print(', '.join([f"{os.path.basename(k)} = {v.format.format(*v.value)}" for k, v in log_data.items()]))
 
         for layer in training_layers:
             layer.train()

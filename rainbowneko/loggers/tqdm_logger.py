@@ -1,11 +1,12 @@
 import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, List
 
 from loguru import logger
 from tqdm.auto import tqdm
 
 from .cli_logger import CLILogger
+from .packet import ScalarLog
 
 
 class TQDMLogger(CLILogger):
@@ -29,20 +30,35 @@ class TQDMLogger(CLILogger):
         logger.disable("__main__")
         self.pbar.disable = True
 
-    def log_text(self, datas: Dict[str, Any], step: int = 0):
-        step_key = None
-        for k, v in datas.items():
-            if os.path.basename(k).lower() == 'step':
-                step_key = k
-                if self.pbar.total is None:
-                    self.pbar.total = v['data'][1]
-                    break
+    def log_scalar(self, datas: Dict[str, ScalarLog | List[ScalarLog]], step: int = 0):
+        super().log_scalar(datas, step)
 
-        if step_key is not None:
-            del datas[step_key]
+        def iter_packets(packet_entry):
+            if isinstance(packet_entry, (list, tuple)):
+                return packet_entry
+            return [packet_entry]
 
-        desc = ', '.join([f"{os.path.basename(k)} = {v['format'].format(*v['data'])}" for k, v in datas.items()])
-        self.pbar.n = step
-        self.pbar.last_print_n = step
-        self.pbar.refresh()
-        self.pbar.set_description(desc)
+        step_packet = None
+        for key, packet_entry in datas.items():
+            if os.path.basename(key).lower() == 'step':
+                packets = iter_packets(packet_entry)
+                if packets:
+                    step_packet = packets[0]
+                break
+
+        if step_packet is not None and self.pbar.total is None and len(step_packet.value) > 1:
+            self.pbar.total = step_packet.value[1]
+
+        desc_items = []
+        for key, packet_entry in datas.items():
+            if os.path.basename(key).lower() == 'step':
+                continue
+            for packet in iter_packets(packet_entry):
+                desc_items.append(f"{os.path.basename(key)} = {packet.format.format(*packet.value)}")
+
+        if desc_items:
+            desc = ', '.join(desc_items)
+            self.pbar.n = step
+            self.pbar.last_print_n = step
+            self.pbar.refresh()
+            self.pbar.set_description(desc)

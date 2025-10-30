@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, List
 
 import numpy as np
-from PIL import Image
+from rainbowneko.loggers.packet import ScalarLog, TextFileLog, ImageLog
 from torch.utils.tensorboard import SummaryWriter
 
 from .base_logger import BaseLogger
@@ -20,11 +20,25 @@ class TBLogger(BaseLogger):
     def _info(self, info):
         pass
 
-    def log_text(self, datas: Dict[str, Any], step: int = 0):
+    def log_scalar(self, datas: Dict[str, ScalarLog | List[ScalarLog]], step: int = 0):
         for k, v in datas.items():
-            if len(v['data']) == 1:
-                self.writer.add_scalar(k, v['data'][0], global_step=step)
+            if len(v.value) == 1:
+                self.writer.add_scalar(k, v.value[0], global_step=step)
 
-    def log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
-        for name, img in imgs.items():
-            self.writer.add_image(f'img/{name}', np.array(img), dataformats='HWC', global_step=step)
+    def log_text(self, datas: Dict[str, TextFileLog | List[TextFileLog]], step: int = 0):
+        for k, v in datas.items():
+            txt_path = Path(k) / (v.file_name.format(step=step))
+            self.writer.add_text(txt_path.as_posix(), v.html_template.format(v.text), global_step=0)
+
+    def log_image(self, imgs: Dict[str, ImageLog | List[ImageLog]], step: int = 0):
+        for name, data in imgs.items():
+            data_list = data if isinstance(data, (list, tuple)) else [data]
+
+            for item in data_list:
+                tag = name if name else 'images'
+                caption = item.caption.format(step=step) if item.caption else f'image_{step}'
+
+                img_array = np.array(item.image)
+                if img_array.ndim == 2:
+                    img_array = np.expand_dims(img_array, axis=-1)
+                self.writer.add_image(f'{tag}/{caption}', img_array, dataformats='HWC', global_step=step)

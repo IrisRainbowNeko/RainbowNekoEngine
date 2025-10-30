@@ -1,5 +1,6 @@
 from .base_logger import BaseLogger, LoggerGroup
 from .cli_logger import CLILogger
+from .packet import LogPacket, ScalarLog, ImageLog, TextFileLog
 from .tqdm_logger import TQDMLogger
 
 try:

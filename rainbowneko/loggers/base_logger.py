@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, List
 
-from PIL import Image
+from .packet import ScalarLog, ImageLog, TextFileLog, LogPacket
 
 
 class BaseLogger:
@@ -29,26 +29,42 @@ class BaseLogger:
     def _info(self, info):
         raise NotImplementedError()
 
-    def log(self, datas: Dict[str, Any], step: int = 0):
+    def log(self, datas: Dict[str, LogPacket | List[LogPacket]], step: int = 0):
+        scalar_dict = {}
         text_dict = {}
         img_dict = {}
+
+        def assign_packet(packet):
+            if isinstance(packet, ScalarLog):
+                return scalar_dict
+            elif isinstance(packet, ImageLog):
+                return img_dict
+            elif isinstance(packet, TextFileLog):
+                return text_dict
+
         for k, v in datas.items():
-            if isinstance(v, Image.Image):
-                img_dict[k] = v
+            if isinstance(v, (tuple, list)):
+                assign_packet(v[0])[k] = v
             else:
-                text_dict[k] = v
+                assign_packet(v)[k] = v
 
         if self.enable_log:
-            if len(text_dict)>0:
+            if len(scalar_dict) > 0:
+                self.log_scalar(scalar_dict, step)
+            if len(text_dict) > 0:
                 self.log_text(text_dict, step)
-            if len(img_dict)>0:
+            if len(img_dict) > 0:
                 self.log_image(img_dict, step)
 
-    def log_text(self, datas: Dict[str, Any], step: int = 0):
+    def log_scalar(self, datas: Dict[str, ScalarLog | List[ScalarLog]], step: int = 0):
         raise NotImplementedError()
 
-    def log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
+    def log_text(self, datas: Dict[str, TextFileLog | List[TextFileLog]], step: int = 0):
         raise NotImplementedError()
+
+    def log_image(self, imgs: Dict[str, ImageLog | List[ImageLog]], step: int = 0):
+        raise NotImplementedError()
+
 
 class LoggerGroup:
     def __init__(self, logger_list: List[BaseLogger]):
@@ -70,7 +86,7 @@ class LoggerGroup:
         for logger in self.logger_list:
             logger.info(info)
 
-    def log(self, datas: Dict[str, Any], step: int = 0, force=False):
+    def log(self, datas: Dict[str, LogPacket | List[LogPacket]], step: int = 0, force=False):
         for logger in self.logger_list:
             if force or step % logger.log_step == 0:
                 logger.log(datas, step)

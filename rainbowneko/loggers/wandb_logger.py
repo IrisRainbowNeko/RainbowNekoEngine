@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, List
 
 import wandb
-from PIL import Image
+from rainbowneko.loggers.packet import ScalarLog, TextFileLog, ImageLog
 
 from .base_logger import BaseLogger
 
@@ -20,12 +20,26 @@ class WanDBLogger(BaseLogger):
     def _info(self, info):
         pass
 
-    def log_text(self, datas: Dict[str, Any], step: int = 0):
+    def log_scalar(self, datas: Dict[str, ScalarLog | List[ScalarLog]], step: int = 0):
         log_dict = {'step': step}
         for k, v in datas.items():
-            if len(v['data']) == 1:
-                log_dict[k] = v['data'][0]
+            if len(v.value) == 1:
+                log_dict[k] = v.value[0]
         wandb.log(log_dict, step=step)
 
-    def log_image(self, imgs: Dict[str, Image.Image], step: int = 0):
-        wandb.log({next(iter(imgs.keys())): list(imgs.values())}, step=step)
+    def log_text(self, datas: Dict[str, TextFileLog | List[TextFileLog]], step: int = 0):
+        for k, v in datas.items():
+            txt_path = Path(wandb.run.dir) / k / (v.file_name.format(step=step))
+            txt_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(f"{wandb.run.dir}/config.yaml", "w", encoding='utf8') as f:
+                f.write(v.text)
+
+    def log_image(self, imgs: Dict[str, ImageLog | List[ImageLog]], step: int = 0):
+        imgs_log = {}
+        for name, data in imgs.items():
+            img_list = []
+            data_list = data if isinstance(data, (list, tuple)) else [data]
+            for item in data_list:
+                img_list.append(wandb.Image(item.image, caption=item.caption.format(step=step), file_type=item.format))
+            imgs_log[name if len(name) > 0 else 'images'] = img_list
+        wandb.log(imgs_log, step=step)

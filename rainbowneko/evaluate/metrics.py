@@ -2,6 +2,7 @@ from functools import partial
 from typing import Dict
 
 import torch
+from rainbowneko.loggers import ScalarLog
 from rainbowneko.utils import addto_dictlist, KeyMapper
 
 class BaseMetric:
@@ -115,13 +116,24 @@ class MetricGroup(BaseMetric):
         if not isinstance(metrics_dict, dict):
             metrics_dict = {"metrics": metrics_dict}
 
-        def get_format(v):
-            if isinstance(v, float):
-                return "{:.2e}"
-            elif isinstance(v, int):
-                return "{:d}"
-            else:
+        def to_scalar_log(value):
+            if isinstance(value, ScalarLog):
+                return value
+
+            def infer_format(val):
+                if isinstance(val, float):
+                    return "{:.2e}"
+                if isinstance(val, int):
+                    return "{:d}"
+                if isinstance(val, (list, tuple)):
+                    return "[{}]".format(
+                        ", ".join(["{}"] * len(val))
+                    )
                 return "{}"
 
-        metrics_dict = {prefix+k: {"format": get_format(v), "data": [v]} for k, v in metrics_dict.items()}
-        return metrics_dict
+            if isinstance(value, (list, tuple)):
+                return ScalarLog(value=list(value), format=infer_format(value))
+
+            return ScalarLog(value=value, format=infer_format(value))
+
+        return {prefix + k: to_scalar_log(v) for k, v in metrics_dict.items()}

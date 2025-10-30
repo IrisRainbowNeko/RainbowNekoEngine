@@ -25,6 +25,7 @@ from rainbowneko.models.wrapper import BaseWrapper
 from rainbowneko.parser import load_config_with_cli
 from rainbowneko.utils import format_number, is_dict
 from rainbowneko.utils.scheduler import get_lr_scheduler, get_wd_scheduler
+from rainbowneko.loggers import ScalarLog
 
 
 class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixin, NekoCkptMixin, NekoLoggerMixin):
@@ -229,26 +230,28 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
                     # get learning rate from optimizer
                     lr_model = self.optimizer.param_groups[0]["lr"] if hasattr(self, "optimizer") else 0.0
                     if acc_steps > 1:
-                        log_step = {
-                            "format": "[{}/{}]({}/{})",
-                            "data": [self.real_step, self.cfgs.train.train_steps, self.global_step % acc_steps, acc_steps],
-                        }
+                        log_step = ScalarLog(
+                            value=[self.real_step, self.cfgs.train.train_steps, self.global_step % acc_steps, acc_steps],
+                            format="[{}/{}]({}/{})",
+                        )
                     else:
-                        log_step = {
-                            "format": "[{}/{}]",
-                            "data": [self.real_step, self.cfgs.train.train_steps],
-                        }
+                        log_step = ScalarLog(
+                            value=[self.real_step, self.cfgs.train.train_steps],
+                            format="[{}/{}]",
+                        )
                     log_data = {
                         "train/Step": log_step,
-                        "train/Epoch": {
-                            "format": "[{}/{}]<{}/{}>",
-                            "data": [
-                                self.global_step // self.steps_per_epoch, self.cfgs.train.train_epochs,
-                                self.global_step % self.steps_per_epoch, self.steps_per_epoch,
+                        "train/Epoch": ScalarLog(
+                            value=[
+                                self.global_step // self.steps_per_epoch,
+                                self.cfgs.train.train_epochs,
+                                self.global_step % self.steps_per_epoch,
+                                self.steps_per_epoch,
                             ],
-                        },
-                        "train/LR_model": {"format": "{:.2e}", "data": [lr_model]},
-                        "train/Loss": {"format": "{:.5f}", "data": [loss_sum]},
+                            format="[{}/{}]<{}/{}>",
+                        ),
+                        "train/LR_model": ScalarLog(value=lr_model, format="{:.2e}"),
+                        "train/Loss": ScalarLog(value=loss_sum, format="{:.5f}"),
                     }
                     if self.metric_train is not None:
                         if is_dict(self.metric_train):
