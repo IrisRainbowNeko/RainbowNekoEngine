@@ -29,7 +29,7 @@ class WanDBLogger(BaseLogger):
 
     def log_text(self, datas: Dict[str, TextFileLog | List[TextFileLog]], step: int = 0):
         for k, v in datas.items():
-            txt_path = Path(wandb.run.dir) / k / (v.file_name.format(step=step))
+            txt_path = Path(wandb.run.dir) / k / (v.file_name.format(step=''))
             txt_path.parent.mkdir(parents=True, exist_ok=True)
             with open(f"{wandb.run.dir}/config.yaml", "w", encoding='utf8') as f:
                 f.write(v.text)
@@ -40,6 +40,6 @@ class WanDBLogger(BaseLogger):
             img_list = []
             data_list = data if isinstance(data, (list, tuple)) else [data]
             for item in data_list:
-                img_list.append(wandb.Image(item.image, caption=item.caption.format(step=step), file_type=item.format))
+                img_list.append(wandb.Image(item.image, caption=item.caption.format(step=''), file_type=item.format))
             imgs_log[name if len(name) > 0 else 'images'] = img_list
         wandb.log(imgs_log, step=step)
