@@ -20,7 +20,11 @@ class LoadImageAction(BasicAction):
         return img
 
     def forward(self, device, **states):
-        input = torch.stack([self.load_one(path) for path in self.image_paths]).to(device)
+        images = [self.load_one(path) for path in self.image_paths]
+        if isinstance(images[0], Image.Image):
+            input = images
+        else:
+            input = torch.stack(images).to(device)
         input: Dict[str, Any] = {'x':input}
         return {'input':input}
 

@@ -72,7 +72,7 @@ class RatioBucket(BaseBucket):
             map_idx = np.where(labels == i)[0]
             m_idx = map_idx[np.argmin(np.abs(data_use[labels == i, 1] - np.median(data_use[labels == i, 1])))]
             # self.buckets[wh_hash(*data_use[m_idx, 2:])]=[]
-            self.buckets.append([])
+            # self.buckets.append([])
             ratios_log.append(data_use[m_idx, 1])
             self.size_buckets.append(data_use[m_idx, 2:].astype(int))
         ratios_log = np.array(ratios_log)
