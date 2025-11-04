@@ -21,7 +21,7 @@ class DistillationWrapper(BaseWrapper):
             self.ema_teacher = ema(self.model_teacher)
             self.model_teacher = None
 
-    def forward(self, ds_name, plugin_input={}, **kwargs):
+    def forward(self, ds_name=None, plugin_input={}, **kwargs):
         inputs_T_args, inputs_T_kwargs = self.get_inputs_feed(self.key_map_in_teacher, self.model_teacher or self.ema_teacher.model, kwargs, plugin_input,
                                                               ds_name=ds_name)
         inputs_S_args, inputs_S_kwargs = self.get_inputs_feed(self.key_map_in_student, maybe_DDP(self.model_student), kwargs, plugin_input,
@@ -46,4 +46,4 @@ class DistillationWrapper(BaseWrapper):
 
     @property
     def trainable_models(self) -> Dict[str, nn.Module]:
-        return {'model_student': self.model_student}
+        return {'self':self}
