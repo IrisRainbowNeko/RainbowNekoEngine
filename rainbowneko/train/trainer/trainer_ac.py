@@ -59,10 +59,10 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
         self.config_model()
         self.build_loss()
 
+        self.load_resume(self.cfgs.train.resume)
+
         with torch.no_grad():
             self.build_ema()
-
-        self.load_resume(self.cfgs.train.resume)
 
         torch.backends.cuda.matmul.allow_tf32 = self.cfgs.allow_tf32
 

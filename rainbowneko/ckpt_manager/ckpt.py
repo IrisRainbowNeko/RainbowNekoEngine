@@ -70,6 +70,7 @@ class NekoModelSaver(NekoSaver):
 
     def _save_to(self, name, model: nn.Module, model_ema=None, exclude_key=None, name_template=None):
         sd_base = {}
+        full_keys = {}
         for item in self.target_module:
             block = model if item == '' else eval(f"model.{item}")
             sd_item = self.exclude_state(
@@ -83,10 +84,14 @@ class NekoModelSaver(NekoSaver):
                 sd_item = {k: v for blk in match_blocks for k, v in sd_item.items() if k.startswith(blk)}
 
             sd_base.update(sd_item)
+            if item != '':
+                full_keys.update({f'{item}.{k}':k for k in sd_item.keys()})
+            else:
+                full_keys.update({k:k for k in sd_item.keys()})
 
         if model_ema is not None:
             sd_ema = model_ema.state_dict()
-            sd_ema = {k: sd_ema[k] for k in sd_base.keys()}
+            sd_ema = {k: sd_ema[full_k] for full_k, k in full_keys.items()}
             sd_ema = self.exclude_state(sd_ema, exclude_key)
             sd_ema = self.clean_prefix(sd_ema)
 

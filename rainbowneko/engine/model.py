@@ -28,7 +28,7 @@ class NekoModelMixin:
 
     def update_ema(self):
         if hasattr(self, "ema_model"):
-            self.ema_model.step(self.model_raw.named_parameters())
+            self.ema_model.step(self.model_raw, step=self.real_step)
 
     @property
     def model_raw(self):
