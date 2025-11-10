@@ -1,23 +1,24 @@
 import gc
-import os
 import multiprocessing as mp
+import os
 import platform
 import warnings
 from queue import Empty
 from typing import Union, Iterable, Optional, Callable, List, Any, TypeVar
 
+from rainbowneko import _share
+from rainbowneko.tools.show_info import show_note_info
 from torch.utils.data import Sampler, IterableDataset, RandomSampler, SequentialSampler
 from torch.utils.data._utils import worker as torch_worker
 from torch.utils.data._utils.worker import WorkerInfo
-from rainbowneko.tools.show_info import show_note_info
-from . import utils as data_utils
-from .utils import DynamicBarrier
 
+from . import utils as data_utils
 from .dataset import BaseDataset
-from rainbowneko import _share
+from .utils import DynamicBarrier
 
 T = TypeVar('T')
 _collate_fn_t = Callable[[List[T]], Any]
+
 
 def _spawn_simple_test():
     return "test"
@@ -239,7 +240,7 @@ class NekoDataLoader:
                     yield sample
 
         def check_new_batch(i: int, batch_count: int) -> bool:
-            data_utils._neko_worker_info.s_idx = i+1
+            data_utils._neko_worker_info.s_idx = i + 1
             return (i + 1) // bs > batch_count
 
         data_utils._neko_worker_info = data_utils.NekoWorkerInfo(
@@ -469,10 +470,11 @@ class NekoDataLoader:
     def __len__(self):
         """Return the number of batches."""
         try:
+            full_bs = self.batch_size * _share.world_size
             if self.drop_last:
-                return len(self.dataset) // self.batch_size
+                return len(self.dataset) // full_bs
             else:
-                return (len(self.dataset) + self.batch_size - 1) // self.batch_size
+                return (len(self.dataset) + full_bs - 1) // full_bs
         except (TypeError, AttributeError):
             # For datasets without defined length
             return 0
