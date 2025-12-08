@@ -4,6 +4,7 @@ import torch
 from copy import copy
 from rainbowneko.ckpt_manager import NekoPluginSaver, NekoSaver, NekoResumer, NekoOptimizerSaver
 from rainbowneko.ckpt_manager.deepspeed import zero_optimizer_state_to_torch, load_torch_optimizer_to_zero
+from rainbowneko.utils.scheduler import get_lr_scheduler, get_wd_scheduler
 from accelerate import DistributedType
 
 from .trainer_ac import Trainer, load_config_with_cli
@@ -36,15 +37,21 @@ class TrainerDeepspeed(Trainer):
                 param_slice_mappings_list = self.all_gather(param_slice_mappings)
                 return load_torch_optimizer_to_zero(self.optimizer, sd, param_slice_mappings_list, self.parameter_names, self.local_rank)
 
-            optimizer_wrapper = copy(self.optimizer)
-            optimizer_wrapper.load_state_dict = load_state_dict
+            self.optimizer._ori_load_state_dict = self.optimizer.load_state_dict
+            self.optimizer.load_state_dict = load_state_dict
 
             resumer.load_to(
                 model=self.model_raw,
-                optimizer=optimizer_wrapper,
+                optimizer=self.optimizer,
                 plugin_groups=self.all_plugin,
                 model_ema=getattr(self, "ema_model", None)
             )
+
+            self.optimizer.load_state_dict = self.optimizer._ori_load_state_dict
+            
+            # param_groups object changed by load_state_dict, so we need to re-initialize the schedulers
+            self.lr_scheduler = get_lr_scheduler(self.cfgs.train.lr_scheduler, self.optimizer, self.cfgs.train.train_steps)
+            self.wd_scheduler = get_wd_scheduler(self.cfgs.train.wd_scheduler, self.optimizer, self.cfgs.train.train_steps)
 
     def save_model(self, from_raw=False):
         if any(isinstance(v, NekoOptimizerSaver) for v in self.ckpt_saver.values()):

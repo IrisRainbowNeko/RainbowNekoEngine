@@ -215,10 +215,11 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
             self.model_raw.update_model(self.real_step)
 
         self.model_wrapper.train()
-        loss_sum = None
+        ema_loss = None
         for data_dict in self.train_loader_group:
-            loss, pred_dict, inputs_dict = self.train_one_step(data_dict)
-            loss_sum = loss if loss_sum is None else (loss_ema * loss_sum + (1 - loss_ema) * loss)
+            loss_dict, pred_dict, inputs_dict = self.train_one_step(data_dict)
+            loss_full = sum(loss_dict.values())
+            ema_loss = loss_full if ema_loss is None else (loss_ema * ema_loss + (1 - loss_ema) * loss_full)
 
             self.global_step += 1
             acc_step = self.global_step % acc_steps
@@ -251,8 +252,11 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
                             format="[{}/{}]<{}/{}>",
                         ),
                         "train/LR_model": ScalarLog(value=lr_model, format="{:.2e}"),
-                        "train/Loss": ScalarLog(value=loss_sum, format="{:.5f}"),
+                        "train/EMA_Loss": ScalarLog(value=ema_loss, format="{:.5f}"),
                     }
+                    for name, loss in loss_dict.items():
+                        log_data[f'train/loss/{name}'] = ScalarLog(value=loss, format="{:.5f}")
+
                     if self.metric_train is not None:
                         if is_dict(self.metric_train):
                             for ds_name in pred_dict.keys():
@@ -285,7 +289,7 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
         v_proc = lambda v: v.detach() if isinstance(v, torch.Tensor) else v
 
         pred_dict, inputs_dict = {}, {}
-        loss_all = []
+        loss_all = {}
         with self.accelerator.accumulate(self.model_wrapper):
             for ds_name, data in data_dict.items():
                 input_datas = {k: self.to_dev(v) for k, v in data.items() if k != "plugin_input"}
@@ -295,8 +299,12 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
                 model_pred = self.model_wrapper(ds_name, **input_datas)
                 pred_dict[ds_name] = {k: v_proc(v) for k, v in model_pred.items()}
                 inputs_dict[ds_name] = {k: v_proc(v) for k, v in input_datas.items()}
-                loss = self.get_loss(ds_name, model_pred, input_datas)
-                loss_all.append(loss.item())
+                loss_dict = self.get_loss(ds_name, model_pred, input_datas)
+                loss = sum(loss_dict.values())
+                for name, li in loss_dict.items():
+                    if name not in loss_all:
+                        loss_all[name] = 0.0
+                    loss_all[name] += li.detach().item()
                 self.accelerator.backward(loss, retain_graph=self.cfgs.train.retain_graph)
 
             if hasattr(self, "optimizer"):
@@ -315,15 +323,15 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
 
             self.model_raw.update_model(self.real_step)  # Some model may update by step
             self.update_ema()
-        return sum(loss_all), pred_dict, inputs_dict
+        return loss_all, pred_dict, inputs_dict
 
     def get_loss(self, ds_name, model_pred, inputs):
         weight = self.train_loader_group.get_loss_weights(ds_name)
         if is_dict(self.criterion):
-            loss = self.criterion[ds_name](model_pred, inputs).mean()
+            loss_dict = {name:loss.mean()*weight for name, loss in self.criterion[ds_name](model_pred, inputs).items()}
         else:
-            loss = self.criterion(model_pred, inputs).mean()
-        return loss * weight
+            loss_dict = {name:loss.mean()*weight for name, loss in self.criterion(model_pred, inputs).items()}
+        return loss_dict
 
     def save_model(self, from_raw=False):
         if self.is_local_main_process:

@@ -105,7 +105,11 @@ def extract_zero_shards(optim_zero_sd, universal_checkpoint_info=None, pp_index=
         )
 
         if "step" in state_groups[param_group_id]:
-            flat_state["step"] = state_groups[param_group_id]["step"].clone()
+            step = state_groups[param_group_id]["step"]
+            if isinstance(step, int):
+                flat_state["step"] = torch.tensor(step)
+            else:
+                flat_state["step"] = step.clone()
 
         for name, fragment_mapping in param_slice_mappings[param_group_id].items():
             if pp_index > 0 and any(re.match(pattern, name) for pattern in pipeline_replicated_params):
@@ -342,4 +346,7 @@ def load_torch_optimizer_to_zero(optimizer, optim_sd, param_slice_mappings_list,
                 start, numel, offset = slices_shards[name][dp_index]
                 flat_state[start:start + numel] = optim_sd["state"][name2pg[name]][state].flatten()[offset:offset + numel].to(dtype=torch.float32, device=param.device)
 
-    optimizer.load_state_dict({dp_index: zero_sd})
+    if hasattr(optimizer, '_ori_load_state_dict'):
+        optimizer._ori_load_state_dict({dp_index: zero_sd})
+    else:
+        optimizer.load_state_dict({dp_index: zero_sd})

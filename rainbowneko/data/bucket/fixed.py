@@ -19,7 +19,7 @@ class FixedBucket(BaseBucket):
         return len(self.source)
 
     def next_data(self, shuffle=True):
-        if not hasattr(self, 'buffer_iter'):
+        if getattr(self, 'buffer_iter', None) is None:
             if shuffle:
                 self.source.shuffle = True
             self.buffer_iter = self._shuffle(rs=self.rs) if shuffle else iter(self.source)

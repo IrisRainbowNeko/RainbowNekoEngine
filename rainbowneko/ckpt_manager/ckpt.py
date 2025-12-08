@@ -329,6 +329,9 @@ class NekoOptimizerLoader(NekoLoader):
         self.state_prefix = state_prefix
 
     def merge_states(self, base_states, part_states):
+        if isinstance(base_states, dict) and len(base_states) == 0:
+            return part_states
+        
         if is_dict(part_states):
             return {k: self.merge_states(base_states[k], v) for k, v in part_states.items()}
         elif is_list(part_states):
