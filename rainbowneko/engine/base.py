@@ -37,9 +37,9 @@ class NekoEngineMixin:
     def to_dev(self, x):
         if isinstance(x, torch.Tensor):
             if torch.is_floating_point(x):
-                return x.to(self.device, dtype=self.weight_dtype)
+                return x.to(self.device, dtype=self.weight_dtype, non_blocking=True)
             else:
-                return x.to(self.device)
+                return x.to(self.device, non_blocking=True)
         if isinstance(x, dict):
             return {k: self.to_dev(v) for k, v in x.items()}
         else:
