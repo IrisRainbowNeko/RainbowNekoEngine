@@ -37,14 +37,6 @@ class ComposeDataSource(DataSource):
         yield
         self._return_source = False
 
-    def get_source_by_index(self, index) -> DataSource:
-        if index < 0 or index >= len(self):
-            raise IndexError('Index out of range')
-
-        # 使用二分查找来找到正确的序列
-        seq_index = bisect.bisect_right(self._offsets, index) - 1
-        return self.source_list[seq_index]
-
     def __getitem__(self, index) -> Dict[str, Any]:
         if index < 0 or index >= len(self):
             raise IndexError('Index out of range')
