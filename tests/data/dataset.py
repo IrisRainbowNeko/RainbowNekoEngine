@@ -105,6 +105,9 @@ class ClassifyWebdsTester(TestCase):
         for i, data in enumerate(loader):
             print(i, data)
 
+        for i, data in enumerate(loader):
+            print(i, data)
+
     def test_dataset(self):
         dataset = BaseDataset(
             shuffle=True,

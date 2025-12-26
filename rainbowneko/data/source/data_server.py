@@ -1,5 +1,5 @@
 import atexit
-import threading  # 替换 multiprocessing
+import threading
 import pickle
 import time
 import weakref
@@ -13,21 +13,21 @@ from .base import DataSource, ComposeWebdsSource
 
 
 def cleanup_worker(thread, stop_event):
-    """线程清理函数"""
+    """Thread cleanup function"""
     if thread and thread.is_alive():
-        stop_event.set()  # 通知线程停止
+        stop_event.set()  # Notify thread to stop
         thread.join(timeout=2)
 
 
 def data_load_worker(source: ComposeWebdsSource, port, num_workers, stop_event):
     context = zmq.Context()
 
-    # 数据发送端口 (PUSH)
+    # Data transmission port (PUSH)
     data_socket = context.socket(zmq.PUSH)
     data_socket.setsockopt(zmq.LINGER, 0)
     data_socket.set_hwm(1000)
 
-    # 信号接收端口 (REP)，建议使用 port + 1 避免冲突
+    # Signal receiving port (REP), suggest port + 1 to avoid conflicts
     sync_port = port + 1
 
     try:
@@ -38,14 +38,14 @@ def data_load_worker(source: ComposeWebdsSource, port, num_workers, stop_event):
 
     try:
         while not stop_event.is_set():
-            # --- 新增：等待 Client 信号 ---
+            # --- Wait for Client signal ---
             sync_socket = context.socket(zmq.REP)
             sync_socket.setsockopt(zmq.LINGER, 0)
             try:
                 sync_socket.bind(f"tcp://*:{sync_port}")
-                # 阻塞直到收到任何消息
+                # Block until any message is received
                 _ = sync_socket.recv()
-                sync_socket.send(b"OK")  # 回复确认信号
+                sync_socket.send(b"OK")  # Reply with confirmation signal
             except zmq.ZMQError:
                 continue
             finally:
@@ -56,7 +56,7 @@ def data_load_worker(source: ComposeWebdsSource, port, num_workers, stop_event):
                 break
 
             with source.return_source():
-                for i,(data, source_i) in enumerate(source):
+                for i, (data, source_i) in enumerate(source):
                     if stop_event.is_set():
                         break
 
@@ -66,6 +66,7 @@ def data_load_worker(source: ComposeWebdsSource, port, num_workers, stop_event):
                     except zmq.ZMQError:
                         break
 
+                # Send termination signal to each worker
                 for _ in range(num_workers):
                     try:
                         data_socket.send(pickle.dumps((None, None)), copy=False)
@@ -109,7 +110,7 @@ class DataServerSource(DataSource):
         num_workers = worker_info.num_workers if worker_info is not None else 1
         local_rank = getattr(_share, 'local_rank', 0)
 
-        # 1. 启动 Server 线程 (仅由 Rank 0 的第一个 Worker 执行)
+        # 1. Start Server thread (only executed by the first Worker of Rank 0)
         if self.socket is None:
             if worker_id == 0 and local_rank <= 0:
                 self.stop_event = threading.Event()
@@ -124,42 +125,39 @@ class DataServerSource(DataSource):
                 self._finalizer = weakref.finalize(self, cleanup_worker, t, self.stop_event)
                 atexit.register(cleanup_worker, t, self.stop_event)
 
-                # 给 Server 启动 bind 留出微小时间
+                # Give the Server a small amount of time to bind
                 time.sleep(0.2)
 
-            # 2. 发送“启动信号”给 Server (确保 Server 开始迭代数据)
-            # 为了防止所有 worker 同时发送导致竞争，通常由 worker_id 0 触发即可
-            if worker_id == 0 and local_rank <= 0:
-                sync_context = zmq.Context()
-                sync_sock = sync_context.socket(zmq.REQ)
-                sync_sock.setsockopt(zmq.LINGER, 0)
-                sync_sock.setsockopt(zmq.RCVTIMEO, 5000)  # 5秒超时防止死锁
-                sync_sock.connect(f"tcp://127.0.0.1:{self.port + 1}")
-                try:
-                    sync_sock.send(b"START")
-                    sync_sock.recv()  # 等待 Server 的 "OK"
-                except zmq.ZMQError:
-                    print("DataServer Sync Timeout/Error. Data might not start.")
-                finally:
-                    sync_sock.close()
-                    sync_context.term()
-
-            # 3. 建立数据接收连接
+            # 2. Establish data receiving connection
             context = zmq.Context()
             socket = context.socket(zmq.PULL)
             socket.setsockopt(zmq.LINGER, 0)
             socket.connect(f"tcp://127.0.0.1:{self.port}")
             self.socket = socket
 
+        # 3. Send "start signal" to Server (ensure Server begins iterating data)
+        # To prevent race conditions from all workers sending, usually triggered by worker_id 0
+        if worker_id == 0 and local_rank <= 0:
+            sync_context = zmq.Context()
+            sync_sock = sync_context.socket(zmq.REQ)
+            sync_sock.setsockopt(zmq.LINGER, 0)
+            sync_sock.setsockopt(zmq.RCVTIMEO, 5000)  # 5s timeout to prevent deadlock
+            sync_sock.connect(f"tcp://127.0.0.1:{self.port + 1}")
+            try:
+                sync_sock.send(b"START")
+                sync_sock.recv()  # Wait for Server's "OK"
+            except zmq.ZMQError:
+                print("DataServer Sync Timeout/Error. Data might not start.")
+            finally:
+                sync_sock.close()
+                sync_context.term()
+
         return self
 
     def __next__(self):
         data_tuple = self.get_data()
-        worker_info = get_worker_info()
-        worker_id = worker_info.id if worker_info is not None else 0
 
         if data_tuple == (None, None):
-            print(worker_id)
             raise StopIteration
 
         data, sidx = data_tuple
