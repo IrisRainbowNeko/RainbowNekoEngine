@@ -97,7 +97,7 @@ class DataServerSource(DataSource):
 
     def get_data(self):
         try:
-            if self.socket.poll(timeout=600000):
+            if self.socket.poll(timeout=10000):
                 data_bytes = self.socket.recv()
                 return pickle.loads(data_bytes)
             return None, None
