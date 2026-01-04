@@ -16,3 +16,4 @@ albumentations
 rich
 yapf
 pandas
+pyzmq

@@ -132,5 +132,5 @@ def image_pipeline(url, buffer_size=300):
         wds.split_by_worker,
         wds.tarfile_to_samples(),
         wds.shuffle(buffer_size),
-        wds.decode("pil"),
+        # wds.decode("pil"),
     )

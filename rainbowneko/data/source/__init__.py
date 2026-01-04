@@ -1,8 +1,9 @@
 from .base import DataSource, ComposeDataSource, VisionDataSource, ComposeWebdsSource
-from .index import IndexSource
+from .data_server import DataServerSource
+from .folder_class import ImageFolderClassSource
 from .img_label import ImageLabelSource
 from .img_pair import ImagePairSource
-from .folder_class import ImageFolderClassSource
+from .index import IndexSource
 from .unlabel import UnLabelSource
 
 try:

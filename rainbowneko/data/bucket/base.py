@@ -34,7 +34,7 @@ class BaseBucket:
                 try:
                     buf.append(next(source_iter))
                 except StopIteration:
-                    pass
+                    break
             if len(buf) >= initial:
                 yield pick()
         while len(buf) > 0:
