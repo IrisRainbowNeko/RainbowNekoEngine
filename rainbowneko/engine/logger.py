@@ -14,11 +14,11 @@ class NekoLoggerMixin:
 
         cfgs: Dict[str, Any] | DictConfig
         parser: YamlCfgParser # Parser for parse input config file
-        is_local_main_process: Callable[[], bool]
+        is_main_process: Callable[[], bool]
 
     def build_loggers(self, cfgs_raw):
         self.exp_dir = Path(self.cfgs.exp_dir)
-        if self.is_local_main_process:
+        if self.is_main_process:
             self.exp_dir.mkdir(parents=True, exist_ok=True)
             self.parser.save_configs(cfgs_raw, self.exp_dir)
             self.loggers: LoggerGroup = LoggerGroup([builder(exp_dir=self.exp_dir) for builder in self.cfgs.logger])
@@ -27,4 +27,4 @@ class NekoLoggerMixin:
 
         _share.loggers = self.loggers
         self.min_log_step = mgcd(*([item.log_step for item in self.loggers.logger_list]))
-        disable_hf_loggers(self.is_local_main_process)
+        disable_hf_loggers(self.is_main_process)

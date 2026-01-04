@@ -37,9 +37,9 @@ class NekoEngineMixin:
     def to_dev(self, x):
         if isinstance(x, torch.Tensor):
             if torch.is_floating_point(x):
-                return x.to(self.device, dtype=self.weight_dtype)
+                return x.to(self.device, dtype=self.weight_dtype, non_blocking=True)
             else:
-                return x.to(self.device)
+                return x.to(self.device, non_blocking=True)
         if isinstance(x, dict):
             return {k: self.to_dev(v) for k, v in x.items()}
         else:
@@ -53,7 +53,7 @@ class NekoEngineMixin:
     def gather_to_main(self, data: Any) -> List[Any]:
         if not hasattr(self, 'gloo_group'):  # Transfer data on cpu
             self.gloo_group = dist.new_group(backend='gloo')
-        if self.is_local_main_process:
+        if self.is_main_process:
             gathered_objects = [None for _ in range(self.world_size)]
         else:
             gathered_objects = None

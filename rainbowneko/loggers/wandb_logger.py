@@ -10,7 +10,7 @@ from .base_logger import BaseLogger
 class WanDBLogger(BaseLogger):
     def __init__(self, exp_dir: Path, out_path=None, project='rainbow-neko', log_step=10):
         super().__init__(exp_dir, out_path, log_step)
-        if exp_dir is not None:  # exp_dir is only available in local main process
+        if exp_dir is not None:  # exp_dir is only available in main process
             wandb.init(project=project, name=exp_dir.name)
             wandb.save(exp_dir / 'cfg.yaml', base_path=exp_dir)
         else:

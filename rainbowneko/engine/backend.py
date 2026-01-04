@@ -47,6 +47,10 @@ class NekoAccelerateMixin:
     def is_local_main_process(self):
         return self.accelerator.is_local_main_process
 
+    @property
+    def is_main_process(self):
+        return self.accelerator.is_main_process
+
     def wait_for_everyone(self):
         self.accelerator.wait_for_everyone()
 

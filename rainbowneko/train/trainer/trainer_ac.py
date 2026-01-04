@@ -226,7 +226,7 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
             self.real_step = max(1, self.global_step // acc_steps)
             if self.real_step % self.cfgs.train.save_step == 0 and acc_step == acc_steps - 1:
                 self.save_model()
-            if self.is_local_main_process:
+            if self.is_main_process:
                 if self.global_step % self.min_log_step == 0:
                     # get learning rate from optimizer
                     lr_model = self.optimizer.param_groups[0]["lr"] if hasattr(self, "optimizer") else 0.0
@@ -263,13 +263,13 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
                                 if self.metric_train[ds_name] is not None:
                                     self.metric_train[ds_name].reset()
                                     self.metric_train[ds_name].update(pred_dict[ds_name], inputs_dict[ds_name])
-                                    metrics_dict = self.metric_train[ds_name].finish(lambda x: x, self.is_local_main_process)
+                                    metrics_dict = self.metric_train[ds_name].finish(lambda x: x, self.is_main_process)
                                     log_data.update(MetricGroup.format(metrics_dict, prefix=f'{ds_name}/'))
                         else:
                             self.metric_train.reset()
                             for ds_name in pred_dict.keys():
                                 self.metric_train.update(pred_dict[ds_name], inputs_dict[ds_name])
-                            metrics_dict = self.metric_train.finish(lambda x: x, self.is_local_main_process)
+                            metrics_dict = self.metric_train.finish(lambda x: x, self.is_main_process)
                             log_data.update(MetricGroup.format(metrics_dict))
                     self.loggers.log(
                         datas=log_data,
@@ -334,7 +334,7 @@ class Trainer(NekoEngineMixin, NekoAccelerateMixin, NekoModelMixin, NekoDataMixi
         return loss_dict
 
     def save_model(self, from_raw=False):
-        if self.is_local_main_process:
+        if self.is_main_process:
             NekoSaver.save_all(
                 cfg=self.ckpt_saver,
                 model=self.model_raw,

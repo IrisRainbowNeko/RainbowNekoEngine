@@ -15,7 +15,7 @@ class TrainerDeepspeed(Trainer):
         super().config_model()
 
         self.parameter_names = [k for k, v in self.model_wrapper.named_parameters()]
-        if self.is_local_main_process:
+        if self.is_main_process:
             for saver in self.ckpt_saver.values():
                 if isinstance(saver, NekoPluginSaver):
                     saver.plugin_from_raw = True
@@ -59,10 +59,10 @@ class TrainerDeepspeed(Trainer):
             param_shapes = self.model_wrapper._get_zero_param_shapes()
             param_shapes_list = self.gather_to_main(param_shapes)
             zero_sd_list = self.gather_to_main(zero_sd)
-            if self.is_local_main_process:
+            if self.is_main_process:
                 optim_sd = zero_optimizer_state_to_torch(zero_sd_list, self.parameter_names, param_shapes_list)
 
-        if self.is_local_main_process:
+        if self.is_main_process:
             def optimizer_state_dict(*args, **kwargs):
                 return optim_sd
 
