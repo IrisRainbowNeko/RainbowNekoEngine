@@ -175,3 +175,7 @@ class DataServerSource(DataSource):
 
     def __len__(self):
         return len(self.source)
+
+    def set_epoch(self, epoch):
+        if hasattr(self.source, "set_epoch"):
+            self.source.set_epoch(epoch)
