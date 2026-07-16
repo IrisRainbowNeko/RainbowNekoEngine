@@ -19,6 +19,10 @@ class DataSource:
     def __len__(self):
         raise NotImplementedError()
 
+    def set_epoch(self, epoch):
+        """Update deterministic state for a new iterable-data epoch."""
+        return None
+
 
 class ComposeDataSource(DataSource):
     def __init__(self, source_list: List[DataSource]):
@@ -76,6 +80,11 @@ class ComposeWebdsSource(DataSource):
                 ((source, item) for item in source) for source in self.source_list
             )
         return self
+
+    def set_epoch(self, epoch):
+        for source in self.source_list:
+            if hasattr(source, "set_epoch"):
+                source.set_epoch(epoch)
 
     def __next__(self):
         if self.shuffle:

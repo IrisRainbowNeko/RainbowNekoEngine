@@ -36,6 +36,10 @@ class BaseDataset(Dataset):
     def build_bucket(self, bs, world_size):
         self.bucket.build(bs=bs, world_size=world_size, source=self.source)
 
+    def set_epoch(self, epoch):
+        if hasattr(self.source, "set_epoch"):
+            self.source.set_epoch(epoch)
+
     def batch_process(self, batch: Dict[str, Union[List, torch.Tensor]]):
         if self.batch_handler is not None:
             batch = self.batch_handler(batch)

@@ -95,9 +95,12 @@ class CycleData():
         def cycle():
             while True:
                 if isinstance(self.data_loader.dataset, IterableDatasetShard):
-                    self.data_loader.dataset.dataset.bucket.rest(self.epoch)
+                    dataset = self.data_loader.dataset.dataset
                 else:
-                    self.data_loader.dataset.bucket.rest(self.epoch)
+                    dataset = self.data_loader.dataset
+                if hasattr(dataset, "set_epoch"):
+                    dataset.set_epoch(self.epoch)
+                dataset.bucket.rest(self.epoch)
                 for data in self.data_loader:
                     yield data
                 self.epoch += 1

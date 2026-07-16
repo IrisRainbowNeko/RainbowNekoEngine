@@ -2,13 +2,14 @@ from typing import Dict
 
 from torch.utils.data import IterableDataset
 from .dataset import BaseDataset, BaseBucket, DataHandler
+from .source.base import DataSource
 from .source import WebDatasetSource, ComposeWebdsSource, DataServerSource
 
 
 class WebDataset(IterableDataset, BaseDataset):
     def __init__(self, bucket: BaseBucket = None, source: Dict[str, WebDatasetSource] = None, handler: DataHandler = None,
                  batch_handler: DataHandler = None, shuffle=True, data_server_mod=False, **kwargs):
-        assert all(isinstance(source, WebDatasetSource) for source in source.values()), 'WebDataset only accept WebDatasetSource.'
+        assert all(isinstance(source, DataSource) for source in source.values()), "WebDataset only accepts DataSource."
         self.shuffle = shuffle
 
         self.bucket: BaseBucket = bucket
